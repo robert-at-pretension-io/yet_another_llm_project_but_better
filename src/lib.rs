@@ -27,7 +27,7 @@ fn extract_references(content: &str) -> HashSet<String> {
 }
 use nom::{
     IResult,
-    bytes::complete::{tag, take_until, take_while},
+    bytes::complete::{tag, take_until, take_while, take_while1},
     sequence::{delimited, preceded},
     multi::many0,
     character::complete::{alphanumeric1, alpha1, space0, space1, char},
@@ -431,6 +431,9 @@ impl Document {
                 let placeholder = format!("${{{}}}", param_name);
                 expanded_content = expanded_content.replace(&placeholder, param_value);
             }
+            if expanded_content.contains("${") {
+                return Err(format!("Missing parameters for template '{}'", template_name));
+            }
             
             let mut expanded_modifiers = template.modifiers.clone();
             for (key, value) in &invocation.modifiers {
@@ -511,8 +514,8 @@ fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, Has
     let (input, name) = match name_prefix {
         Some(_) => {
             let (input, name_value) = alt((
-                delimited(char('"'), take_while(|c| c != '"'), char('"')),
-                alphanumeric1
+                delimited(char('"'), take_while(|c: char| c != '"'), char('"')),
+                take_while1(|c: char| c.is_alphanumeric() || c == '-' || c == '_')
             )).parse(input)?;
             (input, Some(name_value.to_string()))
         },
@@ -812,6 +815,21 @@ pub fn parse_document(input: &str) -> Result<Document, String> {
     
     for block in blocks {
         doc.add_block(block)?;
+    }
+    
+    let section_names: Vec<String> = doc.blocks.iter()
+        .filter(|(_, block)| block.block_type.starts_with("section"))
+        .map(|(name, _)| name.clone())
+        .collect();
+    for sec_name in section_names {
+        if let Some(section_block) = doc.blocks.get(&sec_name) {
+            let content = &section_block.content;
+            let (_, nested_blocks) = many0(parse_block).parse(content)
+                .map_err(|e| format!("Failed to parse nested blocks in section '{}': {:?}", sec_name, e))?;
+            for nested_block in nested_blocks {
+                doc.add_block(nested_block)?;
+            }
+        }
     }
     
     let mut questions_to_mark = Vec::new();
