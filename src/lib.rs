@@ -1,7 +1,7 @@
 // meta_lang_parser/src/lib.rs
 
 use bevy::prelude::*;
-use std::{clone, collections::{HashMap, HashSet, VecDeque}};
+use std::collections::{HashMap, HashSet, VecDeque};
 use regex::Regex;
 use thiserror::Error;
 
@@ -274,7 +274,7 @@ impl ProcessorRegistry {
 /// Context provided to block processors
 pub struct BlockProcessorContext<'a, 'w, 's> {
     pub commands: &'a mut Commands<'w, 's>,
-    pub named_blocks: &'a NamedBlocks,
+    pub named_blocks: &'a mut NamedBlocks,
     pub execution_state: &'a mut ExecutionState,
     pub world: &'a mut World,
 }
@@ -394,7 +394,7 @@ impl DocumentParser {
                     let content = document[end_pos..content_end].trim().to_string();
                     
                     // Create block entity
-                    let mut commands = world.get_resource_mut::<Commands>().unwrap();
+                    let mut commands = Commands::new(world);
                     
                     // Create block content based on type
                     let block_content = match &block_type {
@@ -519,9 +519,49 @@ impl DocumentParser {
     /// Validates the document after parsing
     fn validate_document(&self, world: &mut World) -> Result<()> {
         // Validate dependencies and fallbacks
-        let named_blocks = world.get_resource::<NamedBlocks>().unwrap();
-        let execution_state = world.get_resource::<ExecutionState>().unwrap();
-        let config = world.get_resource::<ParserConfig>().unwrap();
+        let config = world.resource::<ParserConfig>().clone();
+
+        {
+            let named_blocks = world.resource::<NamedBlocks>();
+            let execution_state = world.resource::<ExecutionState>();
+    
+            if !config.allow_circular_dependencies {
+                // ... dependency checks ...
+            }
+    
+            // ... dependency existence checks ...
+        }
+
+        {
+            let named_blocks = world.resource::<NamedBlocks>();
+            let block_entities: Vec<(Entity, BlockType, Option<String>, Option<String>)> = world
+                .query::<(Entity, &Block)>()
+                .iter(world)
+                .filter_map(|(entity, block)| {
+                    if block.block_type.requires_fallback() {
+                        Some((entity, block.block_type.clone(), block.name.clone(), block.fallback.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        
+            for (entity, block_type, name, fallback) in block_entities {
+                if let Some(fallback_name) = fallback {
+                    if !named_blocks.0.contains_key(&fallback_name) {
+                        return Err(Error::MissingFallback(
+                            fallback_name,
+                            name.unwrap_or_else(|| entity.to_string())
+                        ));
+                    }
+                } else {
+                    return Err(Error::MissingFallback(
+                        "None".to_string(),
+                        name.unwrap_or_else(|| entity.to_string())
+                    ));
+                }
+            }
+        }
         
         // Check for circular dependencies
         if !config.allow_circular_dependencies {
@@ -612,7 +652,7 @@ impl Plugin for ParserPlugin {
                on_block_parsed,
                execute_blocks,
                process_executed_blocks,
-           ).chain());
+           ));
     }
 }
 
@@ -728,10 +768,10 @@ fn execute_blocks(
                     match processor.process(block_id, &mut ctx) {
                         Ok(output) => {
                             // Update block status
-                            commands.entity(entity).update(|block: &mut Block| {
+                            if let Some(mut block) = commands.get_entity(entity).and_then(|e| e.get_mut::<Block>()) {
                                 block.executed = true;
                                 block.output = output.clone();
-                            });
+                            }
                             
                             // Send execution event
                             ev_writer.send(BlockExecutedEvent {
@@ -879,7 +919,8 @@ impl BlockProcessor for QuestionBlockProcessor {
                 info!("Processing question: {}", question);
                 
                 // Simulate AI response
-                let model = block.modifiers.get("model").unwrap_or(&"default".to_string());
+                let default_model = "default".to_string();
+                let model = block.modifiers.get("model").unwrap_or(&default_model);
                 let response = format!("AI response using model {} to question: {}", model, question);
                 
                 // Create a response block
@@ -1017,7 +1058,7 @@ pub struct CodeBlockProcessorPlugin;
 
 impl Plugin for CodeBlockProcessorPlugin {
     fn build(&self, app: &mut App) {
-        let mut registry = app.world.resource_mut::<ProcessorRegistry>();
+        let mut registry = app.world_mut().resource_mut::<ProcessorRegistry>();
         registry.register(CodeBlockProcessor);
     }
 }
