@@ -606,6 +606,11 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
     let (input, _) = space0(input)?;
     let (input, (block_type, name, modifiers)) = parse_block_header(input)?;
     
+    if (block_type.starts_with("code:") || block_type == "shell" || block_type == "api") && modifiers.get("fallback").is_none() {
+        println!("Error: Missing fallback for block type '{}'", block_type);
+        return Err(nom::Err::Failure(nom::error::make_error(input, nom::error::ErrorKind::Verify)));
+    }
+    
     if block_type.starts_with("/@") {
         return Ok((input, Block {
             block_type: block_type,
