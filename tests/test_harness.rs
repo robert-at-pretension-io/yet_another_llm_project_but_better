@@ -234,12 +234,12 @@ mod tests {
     #[test]
     fn test_api_block_execution() {
         let document = "\
-            [api name:test-api method:GET]\
+            [api name:test-api-1 method:GET]\
             https://api.example.com/test\
             [/api]";
         
         let mut doc = parse_document(document).expect("Failed to parse document");
-        let result = doc.execute_block("test-api").expect("API block should execute");
+        let result = doc.execute_block("test-api-1").expect("API block should execute");
         
         assert!(result.contains("AI Response for"), "API block should return a response");
     }
@@ -247,12 +247,12 @@ mod tests {
     #[test]
     fn test_debug_mode() {
         let document = "\
-            [question name:debug-question model:default debug:true]\
+            [question name:debug-question-1 model:default debug:true]\
             Debug this question\
             [/question]";
         
         let mut doc = parse_document(document).expect("Failed to parse document");
-        let result = doc.execute_block("debug-question").expect("Debug mode should execute");
+        let result = doc.execute_block("debug-question-1").expect("Debug mode should execute");
         
         assert!(result.contains("DEBUG CONTEXT"), "Debug mode should output debug context");
     }
@@ -279,17 +279,17 @@ mod tests {
     #[test]
     fn already_answered() {
         let document = "\
-            [question name:already-answered]\
+            [question name:already-answered-1]\
             What is 2+2?\
             [/question]\
             \
-            [response name:already-answered-response depends:already-answered]\
+            [response name:already-answered-response depends:already-answered-1]\
             The answer is 4.\
             [/response]";
         
         let doc = parse_document(document).expect("Failed to parse document");
         
-        let question = doc.blocks.get("already-answered").unwrap();
+        let question = doc.blocks.get("already-answered-1").unwrap();
         assert!(question.answered, "Question with response should be marked as answered");
     }
 
