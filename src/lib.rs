@@ -149,12 +149,15 @@ impl Document {
         // Handle named blocks
         if let Some(name) = &block.name {
             if self.blocks.contains_key(name) {
+                println!("Debug: Namespace conflict detected for block '{}'", name);
                 return Err(format!("Namespace conflict: Block named '{}' already exists", name));
             }
             // Add to named blocks
+            println!("Debug: Adding named block '{}'", name);
             self.blocks.insert(name.clone(), block);
         } else {
             // Add to unnamed blocks
+            println!("Debug: Adding unnamed block");
             self.unnamed_blocks.push(block);
         }
         Ok(())
@@ -219,16 +222,19 @@ impl Document {
     }
     
     pub fn execute_block(&mut self, name: &str) -> Result<String, String> {
+        println!("Debug: Executing block '{}'", name);
         let block = self.blocks.get(name).ok_or(format!("Block '{}' not found", name))?.clone();
         
         // Check if we have a cached execution result
         if let Some(result) = &block.execution_result {
+            println!("Debug: Using cached result for block '{}'", name);
             return Ok(result.clone());
         }
         
         // Execute dependent blocks first
         let deps: Vec<String> = block.depends_on.iter().cloned().collect();
         for dep in deps {
+            println!("Debug: Executing dependency '{}'", dep);
             self.execute_block(&dep)?;
         }
         
@@ -246,6 +252,7 @@ impl Document {
             block.execution_result = Some(result.clone());
         }
         
+        println!("Debug: Execution result for block '{}': {}", name, result);
         Ok(result)
     }
     
