@@ -30,7 +30,7 @@ use nom::{
     bytes::complete::{tag, take_until, take_while, take_while1},
     sequence::{delimited, preceded},
     multi::many0,
-    character::complete::{alphanumeric1, alpha1, space0, space1, char},
+    character::complete::{alphanumeric1, alpha1, space0, multispace1, char},
     branch::alt,
     combinator::opt,
     Parser,
@@ -451,8 +451,8 @@ impl Document {
             
             self.unnamed_blocks.drain(start_idx..=end_idx);
             
-            for (idx, block) in blocks.into_iter().enumerate() {
-                self.unnamed_blocks.insert(start_idx + idx, block);
+            for block in blocks.into_iter() {
+                self.add_block(block)?;
             }
         }
         
@@ -535,7 +535,7 @@ fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, Has
     
     // Parse optional name field
     let (input, name) = opt(preceded(
-        pair(space1, tag("name:")),
+        pair(multispace1, tag("name:")),
         alt((
             delimited(
                 char::<&str, Error<&str>>('"'), 
@@ -547,7 +547,7 @@ fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, Has
     )).parse(input)?;
     
     // Parse remaining modifiers
-    let (input, modifiers_list) = many0(preceded(space1, parse_modifier)).parse(input)?;
+    let (input, modifiers_list) = many0(preceded(multispace1, parse_modifier)).parse(input)?;
     let mut modifiers = HashMap::new();
     for (k, v) in modifiers_list {
         modifiers.insert(k, v);

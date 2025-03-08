@@ -1,0 +1,3 @@
+    if (block_type.starts_with("code:") || block_type == "shell" || block_type == "api") && modifiers.get("fallback").is_none() {
+        return Err(nom::Err::Failure(nom::error::make_error(input, nom::error::ErrorKind::Verify)));
+    }

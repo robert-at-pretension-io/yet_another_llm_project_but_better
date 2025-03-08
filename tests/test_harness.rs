@@ -162,8 +162,11 @@ mod tests {
               Inner content\
               [/data]\
               \
-              [code:python name:inner-code]\
+              [code:python name:inner-code fallback:inner-code-fallback]\
               print(\"Inside section\")\
+              [/code:python]\
+              [code:python name:inner-code-fallback]\
+              print(\"Fallback inner-code\")\
               [/code:python]\
             [/section]";
         
