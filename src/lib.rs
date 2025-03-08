@@ -801,8 +801,8 @@ fn process_executed_blocks(
         if let Some(output) = &event.output {
             // Update the block with the execution result
             commands.entity(entity).update(|block: &mut Block| {
-                block.output = Some(output.clone());
                 block.executed = true;
+                block.output = output.clone();
             });
         } else if let Some(error) = &event.error {
             // Update the block with the error
