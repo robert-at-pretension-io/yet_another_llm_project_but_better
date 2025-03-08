@@ -22,7 +22,7 @@ mod tests {
     fn test_process_questions_no_error() {
         // Create a simple document with a question block.
         let document = "[question name:test_question model:default debug:true]\nCompute X\n[/question]";
-        let mut doc = parse_document(document).expect("Failed to parse document");
+        let doc = parse_document(document).expect("Failed to parse document");
         // Process questions which should generate a response block.
         process_questions(&mut doc).expect("Processing questions failed");
         // Check that a response block was added.

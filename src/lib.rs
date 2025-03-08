@@ -441,27 +441,6 @@ impl Document {
     }
 }
 
-fn extract_references(content: &str) -> HashSet<String> {
-    let mut refs = HashSet::new();
-    let mut i = 0;
-    
-    while i < content.len() {
-        if let Some(pos) = content[i..].find("${") {
-            i += pos + 2;
-            if let Some(end) = content[i..].find('}') {
-                let ref_name = &content[i..i+end];
-                refs.insert(ref_name.to_string());
-                i += end + 1;
-            } else {
-                break;
-            }
-        } else {
-            break;
-        }
-    }
-    
-    refs
-}
 
 fn parse_modifier(input: &str) -> IResult<&str, (String, String)> {
     let (input, key) = alphanumeric1(input)?;
