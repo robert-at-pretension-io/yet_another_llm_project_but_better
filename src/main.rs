@@ -806,7 +806,7 @@ fn watch_file(path: &str) {
     
     loop {
         match rx.recv() {
-            Ok(Event { kind: EventKind::Modify(_), .. }) => {
+            Ok(Ok(Event { kind: EventKind::Modify(_), .. })) => {
                 println!("File changed, re-parsing...");
                 
                 // Add a small delay to ensure file is completely written
