@@ -8,7 +8,7 @@ use std::env;
 use nom::{
     IResult,
     bytes::complete::{tag, take_until, take_while},
-    sequence::{delimited, preceded},
+    sequence::{delimited, preceded, tuple},
     multi::{many0},
     character::complete::{alphanumeric1, alpha1, space0, space1, char},
     branch::alt,
@@ -226,7 +226,7 @@ impl Document {
     }
     
     fn execute_block(&mut self, name: &str) -> Result<String, String> {
-        let block = self.blocks.get(name).ok_or(format!("Block '{}' not found", name))?;
+        let block = self.blocks.get(name).ok_or(format!("Block '{}' not found", name))?.clone();
         
         // Check if we have a cached execution result
         if let Some(result) = &block.execution_result {
@@ -565,10 +565,11 @@ fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, Has
     
     // Parse remaining modifiers
     let (input, modifiers_str) = take_until("]")(input)?;
-    let (_, modifiers_list) = many0(preceded(
+    let parser2 = many0(preceded(
         space1,
         parse_modifier
-    ))(modifiers_str)?;
+    ));
+    let (_, modifiers_list) = parser2(modifiers_str)?;
     
     let (input, _) = tag("]")(input)?;
     
@@ -636,7 +637,8 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
 // Parse an entire document
 fn parse_document(input: &str) -> Result<Document, String> {
     let mut doc = Document::new();
-    let (_, blocks) = many0(parse_block)(input)
+    let parser = many0(parse_block);
+    let (_, blocks) = parser(input)
         .map_err(|e| format!("Parsing error: {:?}", e))?;
     
     // Add blocks to document
