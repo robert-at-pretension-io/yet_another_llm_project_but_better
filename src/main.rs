@@ -8,11 +8,12 @@ use std::env;
 use nom::{
     IResult,
     bytes::complete::{tag, take_until, take_while},
-    sequence::{delimited, preceded, tuple},
-    multi::{many0},
+    sequence::{delimited, preceded},
+    multi::many0,
     character::complete::{alphanumeric1, alpha1, space0, space1, char},
     branch::alt,
-    combinator::{opt, recognize},
+    combinator::opt,
+    Parser,
 };
 
 // Expanded Block structure to match the specification
@@ -241,10 +242,10 @@ impl Document {
         
         // Execute the block based on its type
         let result = match block.block_type.as_str() {
-            "code" => self.execute_code_block(block),
-            "shell" => self.execute_shell_block(block),
-            "api" => self.execute_api_block(block),
-            "question" => self.build_context_for_question(block),
+            "code" => self.execute_code_block(&block),
+            "shell" => self.execute_shell_block(&block),
+            "api" => self.execute_api_block(&block),
+            "question" => self.build_context_for_question(&block),
             _ => Ok(block.content.clone()),
         }?;
         
@@ -457,14 +458,14 @@ impl Document {
             }
             
             // Parse the expanded content to extract nested blocks
-            let (_, nested_blocks) = many0(parse_block)(&expanded_content)
+            let (_, blocks) = many0(parse_block).parse(expanded_content.as_str())
                 .map_err(|e| format!("Failed to parse template content: {:?}", e))?;
             
             // Replace the template invocation with the expanded blocks
             self.unnamed_blocks.drain(start_idx..=end_idx);
             
             // Insert the expanded blocks
-            for (idx, block) in nested_blocks.into_iter().enumerate() {
+            for (idx, block) in blocks.into_iter().enumerate() {
                 self.unnamed_blocks.insert(start_idx + idx, block);
             }
         }
@@ -501,7 +502,7 @@ impl Document {
         }
         
         // Parse the expanded content to extract blocks
-        let (_, blocks) = many0(parse_block)(&expanded_content)
+        let (_, blocks) = many0(parse_block).parse(expanded_content.as_str())
             .map_err(|e| format!("Failed to parse template content: {:?}", e))?;
         
         Ok(blocks)
@@ -535,52 +536,61 @@ fn extract_references(content: &str) -> HashSet<String> {
 fn parse_modifier(input: &str) -> IResult<&str, (String, String)> {
     let (input, key) = alphanumeric1(input)?;
     let (input, _) = char(':')(input)?;
-    let (input, value) = (|i| alt((
+    
+    let mut value_parser = alt((
         delimited(char('"'), take_while(|c| c != '"'), char('"')),
         take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
-    ))(i))(input)?;
+    ));
+    
+    let (input, value) = value_parser.parse(input)?;
     
     Ok((input, (key.to_string(), value.to_string())))
 }
-
 // Parse block header including type, name, and modifiers
 fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, HashMap<String, String>)> {
     let (input, _) = tag("[")(input)?;
-    let (input, block_type) = recognize(|i| tuple((
-        alt((alpha1, tag("@"))),
-        opt(preceded(char(':'), alphanumeric1))
-    ))(i))(input)?;
     
-    // Parse name modifier specifically
-    let (input, name_mod) = opt(preceded(
-        space1,
-        tuple((
-            tag("name:"),
-            alt((
+    // Parse block type (e.g., "code:python", "@template")
+    let (input, block_type_start) = alt((alpha1, tag("@"))).parse(input)?;
+    
+    // Parse optional subtype after colon (e.g., ":python" in "code:python")
+    let (input, block_type_suffix) = opt(preceded(char(':'), alphanumeric1)).parse(input)?;
+    
+    // Combine them to form the complete block type
+    let block_type = match block_type_suffix {
+        Some(suffix) => format!("{}:{}", block_type_start, suffix),
+        None => block_type_start.to_string(),
+    };
+    
+    // Parse name modifier
+    let (input, name_prefix) = opt(preceded(space1, tag("name:"))).parse(input)?;
+    let (input, name) = match name_prefix {
+        Some(_) => {
+            // Parse name value either quoted or unquoted
+            let (input, name_value) = alt((
                 delimited(char('"'), take_while(|c| c != '"'), char('"')),
                 alphanumeric1
-            ))
-        ))
-    ))(input)?;
+            )).parse(input)?;
+            (input, Some(name_value.to_string()))
+        },
+        None => (input, None),
+    };
     
     // Parse remaining modifiers
     let (input, modifiers_str) = take_until("]")(input)?;
-    let parser2 = many0(preceded(
-        space1,
-        parse_modifier
-    ));
-    let (_, modifiers_list) = parser2(modifiers_str)?;
+    
+    // Parse modifiers as key-value pairs
+    let mut modifiers = HashMap::new();
+    if !modifiers_str.is_empty() {
+        let (_, modifiers_list) = many0(preceded(space1, parse_modifier)).parse(modifiers_str)?;
+        for (key, value) in modifiers_list {
+            modifiers.insert(key, value);
+        }
+    }
     
     let (input, _) = tag("]")(input)?;
     
-    let mut modifiers = HashMap::new();
-    for (key, value) in modifiers_list {
-        modifiers.insert(key, value);
-    }
-    
-    let name = name_mod.map(|(_, name)| name.to_string());
-    
-    Ok((input, (block_type.to_string(), name, modifiers)))
+    Ok((input, (block_type, name, modifiers)))
 }
 
 // Parse a complete block
@@ -637,8 +647,7 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
 // Parse an entire document
 fn parse_document(input: &str) -> Result<Document, String> {
     let mut doc = Document::new();
-    let parser = many0(parse_block);
-    let (_, blocks) = parser(input)
+    let (_, blocks) = many0(parse_block).parse(input)
         .map_err(|e| format!("Parsing error: {:?}", e))?;
     
     // Add blocks to document
@@ -879,13 +888,13 @@ fn write_responses_to_file(doc: &Document, path: &str) -> Result<(), String> {
     let mut new_content = content.clone();
     
     // Add response blocks after their respective questions
-    for (name, block) in &doc.blocks {
+    for (_name, block) in &doc.blocks {
         if block.block_type == "response" {
             // Find the question this is a response to
             let question_name = block.depends_on.iter().next().cloned();
             
             if let Some(q_name) = question_name {
-                if let Some(question) = doc.blocks.get(&q_name) {
+                if let Some(_question) = doc.blocks.get(&q_name) {
                     // Simple approach: look for the question closing tag
                     let question_tag = format!("[/question]");
                     
