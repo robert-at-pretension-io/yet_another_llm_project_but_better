@@ -929,34 +929,5 @@ fn write_responses_to_file(doc: &Document, path: &str) -> Result<(), String> {
 }
 
 fn main() {
-    // Get file path from command line argument or use default
-    let args: Vec<String> = env::args().collect();
-    let path = args.get(1).unwrap_or(&"./document.meta".to_string()).clone();
-    
-    // Initial parse
-    match fs::read_to_string(&path) {
-        Ok(content) => {
-            match parse_document(&content) {
-                Ok(mut doc) => {
-                    println!("Successfully parsed document with {} named blocks and {} unnamed blocks",
-                          doc.blocks.len(), doc.unnamed_blocks.len());
-                    
-                    // Process questions on startup
-                    if let Err(e) = process_questions(&mut doc) {
-                        println!("Error processing questions: {}", e);
-                    }
-                    
-                    // Write responses back to file
-                    if let Err(e) = write_responses_to_file(&doc, &path) {
-                        println!("Error writing responses: {}", e);
-                    }
-                },
-                Err(e) => println!("Error parsing document: {}", e),
-            }
-        },
-        Err(e) => println!("Error reading file: {}", e),
-    }
-    
-    // Start watching for changes
-    watch_file(&path);
+    yet_another_llm_project_but_better::run();
 }
