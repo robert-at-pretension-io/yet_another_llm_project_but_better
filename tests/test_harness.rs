@@ -647,6 +647,19 @@ fn test_namespace_conflict_detection() {
 }
 
 #[test]
+fn test_duplicate_block_names() {
+    let document = "\
+        [data name:duplicate]First[/data]\
+        [data name:duplicate]Second[/data]";
+        
+    let result = parse_document(document);
+        
+    assert!(result.is_err(), "Should detect duplicate block names");
+    assert!(result.unwrap_err().contains("Duplicate block name"), 
+           "Error message should mention duplicate block name");
+}
+
+#[test]
 fn test_retry_modifier() {
     let document = "\
         [api name:retry-api retry:3 fallback:retry-fallback]\

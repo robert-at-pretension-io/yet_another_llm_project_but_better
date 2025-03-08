@@ -10,7 +10,7 @@ block content
 [/block_type]
 ```
 - `block_type`: Required. Specifies functionality (e.g., `code`, `question`, `data`).
-- `name`: Optional. A unique identifier for block referencing.
+- `name`: Optional. A unique identifier for block referencing. **Must be unique across the document.**
 - `modifiers`: Optional. Controls behavior and execution specifics.
 
 ## 2. Core Block Types

@@ -7,7 +7,7 @@ Welcome to your journey from complete beginner to expert user in the innovative 
 ### Understanding Blocks
 Blocks are the basic building units:
 - **Type**: Defines functionality (`code`, `question`, `data`, etc.)
-- **Name** *(optional)*: Reference blocks easily
+- **Name** *(optional)*: Reference blocks easily. **Must be unique across the document.**
 - **Modifiers** *(optional)*: Control execution and behavior
 
 **Simple Example:**

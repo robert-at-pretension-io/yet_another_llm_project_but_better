@@ -160,8 +160,8 @@ impl Document {
         println!("Debug: Adding block with name: {:?}", block.name);
         if let Some(name) = &block.name {
             if self.blocks.contains_key(name) {
-                println!("Debug: Namespace conflict detected for block '{}'", name);
-                return Err(format!("Namespace conflict: Block named '{}' already exists", name));
+                println!("Error: Duplicate block name detected for '{}'", name);
+                return Err(format!("Error: Duplicate block name '{}'", name));
             }
             // Add to named blocks
             println!("Debug: Adding named block '{}'", name);
