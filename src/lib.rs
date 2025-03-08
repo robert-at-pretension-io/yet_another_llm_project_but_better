@@ -696,7 +696,7 @@ fn watch_file(path: &str) {
     }
 }
 
-fn process_questions(doc: &mut Document) -> Result<(), String> {
+pub fn process_questions(doc: &mut Document) -> Result<(), String> {
     let question_blocks: Vec<String> = doc.blocks.iter()
         .filter(|(_, block)| block.block_type == "question" && !block.answered)
         .map(|(name, _)| name.clone())
@@ -786,7 +786,7 @@ fn process_visualizations(doc: &mut Document) -> Result<(), String> {
     Ok(())
 }
 
-fn parse_document(input: &str) -> Result<Document, String> {
+pub fn parse_document(input: &str) -> Result<Document, String> {
     let mut doc = Document::new();
     let (_, blocks) = many0(parse_block).parse(input)
         .map_err(|e| format!("Parsing error: {:?}", e))?;
