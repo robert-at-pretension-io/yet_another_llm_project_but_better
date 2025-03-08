@@ -276,7 +276,7 @@ pub struct BlockProcessorContext<'a, 'w, 's> {
     pub commands: &'a mut Commands<'w, 's>,
     pub named_blocks: &'a mut NamedBlocks,
     pub execution_state: &'a mut ExecutionState,
-    pub block_query: &'a Query<'w, 's, &Block>,
+    pub block_query: &'a Query<'w, 's, &'w Block>,
 }
 
 /// Trait for block processors
@@ -796,26 +796,18 @@ fn execute_blocks(
 /// System that processes executed blocks
 fn process_executed_blocks(
     mut ev_reader: EventReader<BlockExecutedEvent>,
-    mut commands: Commands,
+    mut block_query: Query<&mut Block>,
 ) {
     for event in ev_reader.read() {
         let entity = event.block_id.entity();
         
-        if let Some(output) = &event.output {
-            // Update the block with the execution result
-            if let Some(mut entity_commands) = commands.get_entity(entity) {
-                if let Some(mut block) = entity_commands.get_mut::<Block>() {
-                    block.executed = true;
-                    block.output = Some(output.clone());
-                }
-            }
-        } else if let Some(error) = &event.error {
-            // Update the block with the error
-            if let Some(mut entity_commands) = commands.get_entity(entity) {
-                if let Some(mut block) = entity_commands.get_mut::<Block>() {
-                    block.error = Some(error.clone());
-                    block.executed = true;
-                }
+        if let Ok(mut block) = block_query.get_mut(entity) {
+            if let Some(output) = &event.output {
+                block.executed = true;
+                block.output = Some(output.clone());
+            } else if let Some(error) = &event.error {
+                block.error = Some(error.clone());
+                block.executed = true;
             }
         }
     }
@@ -834,7 +826,7 @@ impl BlockProcessor for CodeBlockProcessor {
     fn process(&self, block_id: BlockId, ctx: &mut BlockProcessorContext) -> Result<Option<BlockContent>> {
         let entity = block_id.entity();
         
-        if let Some(block) = ctx.world.get::<Block>(entity) {
+        if let Ok(block) = ctx.block_query.get(entity) {
             // In a real implementation, this would execute the code
             if let BlockContent::Code { language, source } = &block.content {
                 info!("Executing {} code: {}", language, source);
@@ -863,7 +855,7 @@ impl BlockProcessor for DataBlockProcessor {
     fn process(&self, block_id: BlockId, ctx: &mut BlockProcessorContext) -> Result<Option<BlockContent>> {
         let entity = block_id.entity();
         
-        if let Some(block) = ctx.world.get::<Block>(entity) {
+        if let Ok(block) = ctx.block_query.get(entity) {
             // Data blocks don't need processing, just return the content
             Ok(Some(block.content.clone()))
         } else {
@@ -883,7 +875,7 @@ impl BlockProcessor for QuestionBlockProcessor {
     fn process(&self, block_id: BlockId, ctx: &mut BlockProcessorContext) -> Result<Option<BlockContent>> {
         let entity = block_id.entity();
         
-        if let Some(block) = ctx.world.get::<Block>(entity) {
+        if let Ok(block) = ctx.block_query.get(entity) {
             // In a real implementation, this would call an AI model
             if let BlockContent::Text(question) = &block.content {
                 info!("Processing question: {}", question);
@@ -939,7 +931,7 @@ impl BlockProcessor for ShellBlockProcessor {
     fn process(&self, block_id: BlockId, ctx: &mut BlockProcessorContext) -> Result<Option<BlockContent>> {
         let entity = block_id.entity();
         
-        if let Some(block) = ctx.world.get::<Block>(entity) {
+        if let Ok(block) = ctx.block_query.get(entity) {
             if let BlockContent::Shell(command) = &block.content {
                 info!("Executing shell command: {}", command);
                 
@@ -972,7 +964,7 @@ impl BlockProcessor for ApiBlockProcessor {
     fn process(&self, block_id: BlockId, ctx: &mut BlockProcessorContext) -> Result<Option<BlockContent>> {
         let entity = block_id.entity();
         
-        if let Some(block) = ctx.world.get::<Block>(entity) {
+        if let Ok(block) = ctx.block_query.get(entity) {
             if let BlockContent::Api { url, method, headers } = &block.content {
                 info!("Making API request: {} {}", method, url);
                 
@@ -1076,7 +1068,7 @@ pub struct ShellBlockProcessorPlugin;
 
 impl Plugin for ShellBlockProcessorPlugin {
     fn build(&self, app: &mut App) {
-        let mut registry = app.world.resource_mut::<ProcessorRegistry>();
+        let mut registry = app.world_mut().resource_mut::<ProcessorRegistry>();
         registry.register(ShellBlockProcessor);
     }
 }
@@ -1092,7 +1084,7 @@ pub struct ApiBlockProcessorPlugin;
 
 impl Plugin for ApiBlockProcessorPlugin {
     fn build(&self, app: &mut App) {
-        let mut registry = app.world.resource_mut::<ProcessorRegistry>();
+        let mut registry = app.world_mut().resource_mut::<ProcessorRegistry>();
         registry.register(ApiBlockProcessor);
     }
 }
@@ -1108,7 +1100,7 @@ pub struct TemplateBlockProcessorPlugin;
 
 impl Plugin for TemplateBlockProcessorPlugin {
     fn build(&self, app: &mut App) {
-        let mut registry = app.world.resource_mut::<ProcessorRegistry>();
+        let mut registry = app.world_mut().resource_mut::<ProcessorRegistry>();
         registry.register(TemplateBlockProcessor);
     }
 }
