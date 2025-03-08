@@ -274,9 +274,9 @@ impl ProcessorRegistry {
 /// Context provided to block processors
 pub struct BlockProcessorContext<'a, 'w, 's> {
     pub commands: &'a mut Commands<'w, 's>,
-    pub named_blocks: &'a NamedBlocks,
+    pub named_blocks: &'a mut NamedBlocks,
     pub execution_state: &'a mut ExecutionState,
-    pub world: &'a mut World,
+    pub block_query: &'a Query<&Block>,
 }
 
 /// Trait for block processors
@@ -464,7 +464,7 @@ impl DocumentParser {
                             return Err(Error::NamespaceConflict(name_str));
                         }
                         
-                        named_blocks.0.insert(name_str, BlockId(block_entity));
+                        named_blocks.0.insert(name_str, BlockId(entity));
                     }
                     
                     // Register dependencies
@@ -481,13 +481,13 @@ impl DocumentParser {
                     // Send event that block was parsed
                     let mut ev_writer = world.get_resource_mut::<Events<BlockParsedEvent>>().unwrap();
                     ev_writer.send(BlockParsedEvent {
-                        block_id: BlockId(block_entity),
+                        block_id: BlockId(entity),
                         name: name.clone(),
                     });
                     
                     // Add to execution queue if appropriate
                     if block_type.requires_fallback() || matches!(block_type, BlockType::Question) {
-                        execution_state.queue.push_back(BlockId(block_entity));
+                        execution_state.queue.push_back(BlockId(entity));
                     }
                     
                     // Move past this block
@@ -642,11 +642,11 @@ fn parse_document(
 /// System that reacts to blocks being parsed
 fn on_block_parsed(
     mut ev_reader: EventReader<BlockParsedEvent>,
-    named_blocks: Res<NamedBlocks>,
+    mut named_blocks: ResMut<NamedBlocks>,
     mut execution_state: ResMut<ExecutionState>,
     registry: Res<ProcessorRegistry>,
     mut commands: Commands,
-    world: &mut World,
+    block_query: Query<&Block>,
 ) {
     for event in ev_reader.read() {
         let entity = event.block_id.entity();
@@ -677,10 +677,9 @@ fn execute_blocks(
     mut execution_state: ResMut<ExecutionState>,
     mut ev_writer: EventWriter<BlockExecutedEvent>,
     registry: Res<ProcessorRegistry>,
-    named_blocks: Res<NamedBlocks>,
+    mut named_blocks: ResMut<NamedBlocks>,
     block_query: Query<&Block>,
     mut commands: Commands,
-    world: &mut World,
 ) {
     // Process the execution queue
     while let Some(block_id) = execution_state.queue.pop_front() {
@@ -769,9 +768,11 @@ fn execute_blocks(
                                 // Mark as executed with error
                                 execution_state.executed.insert(block_id);
                                 
-                                commands.entity(entity).update(|block: &mut Block| {
-                                    block.error = Some(err.to_string());
-                                });
+                                if let Some(mut entity_commands) = commands.get_entity_mut(entity) {
+                                    if let Some(mut block) = entity_commands.get_mut::<Block>() {
+                                        block.error = Some(err.to_string());
+                                    }
+                                }
                             }
                         }
                     }
@@ -800,16 +801,20 @@ fn process_executed_blocks(
         
         if let Some(output) = &event.output {
             // Update the block with the execution result
-            commands.entity(entity).update(|block: &mut Block| {
-                block.executed = true;
-                block.output = output.clone();
-            });
+            if let Some(mut entity_commands) = commands.get_entity_mut(entity) {
+                if let Some(mut block) = entity_commands.get_mut::<Block>() {
+                    block.executed = true;
+                    block.output = Some(output.clone());
+                }
+            }
         } else if let Some(error) = &event.error {
             // Update the block with the error
-            commands.entity(entity).update(|block: &mut Block| {
-                block.error = Some(error.clone());
-                block.executed = true;
-            });
+            if let Some(mut entity_commands) = commands.get_entity_mut(entity) {
+                if let Some(mut block) = entity_commands.get_mut::<Block>() {
+                    block.error = Some(error.clone());
+                    block.executed = true;
+                }
+            }
         }
     }
 }
@@ -1053,7 +1058,7 @@ pub struct QuestionBlockProcessorPlugin;
 
 impl Plugin for QuestionBlockProcessorPlugin {
     fn build(&self, app: &mut App) {
-        let mut registry = app.world.resource_mut::<ProcessorRegistry>();
+        let mut registry = app.world_mut().resource_mut::<ProcessorRegistry>();
         registry.register(QuestionBlockProcessor);
     }
 }
