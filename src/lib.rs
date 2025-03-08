@@ -503,41 +503,63 @@ fn parse_modifier(input: &str) -> IResult<&str, (String, String)> {
     Ok((input, (key.to_string(), value.to_string())))
 }
 
+
+use nom::{
+    
+    sequence::{pair},
+    combinator::{ map},
+    error::Error,
+};
+
+
 fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, HashMap<String, String>)> {
     let (input, _) = tag("[")(input)?;
-    // Special handling for template invocation headers starting with '@'
-    let (input, block_type) = if let Ok((input2, _)) = tag("@")(input) {
-         let (input2, tname) = take_while1(|c: char| c.is_alphanumeric() || c == '-' || c == '_')(input2)?;
-         (input2, format!("@{}", tname))
-    } else {
-         let (input, bt) = take_while1(|c: char| c.is_alphabetic())(input)?;
-         let (input, suffix) = opt(preceded(char(':'), take_while1(|c: char| c.is_alphanumeric())))(input)?;
-         let full_bt = match suffix {
-             Some(s) => format!("{}:{}", bt, s),
-             None => bt.to_string(),
-         };
-         (input, full_bt)
-    };
-    // Parse an optional name field.
-    let (input, name) = if let Ok((input, _)) = preceded(space1, tag("name:"))(input) {
-       let (input, name_value) = alt((
-            delimited(char('"'), take_while(|c: char| c != '"'), char('"')),
+    
+    // Parse block type (either @template or normal type)
+    let (input, block_type) = alt((
+        // Template invocation: @template_name
+        map(preceded(char::<&str, Error<&str>>('@'), take_while1(|c: char| c.is_alphanumeric() || c == '-' || c == '_')), 
+            |name: &str| format!("@{}", name)),
+        
+        // Regular block type with optional subtype
+        map(pair(
+            take_while1(|c: char| c.is_alphabetic()),
+            opt(preceded(char::<&str, Error<&str>>(':'), take_while1(|c: char| c.is_alphanumeric())))
+        ), |(main, sub)| {
+            match sub {
+                Some(s) => format!("{}:{}", main, s),
+                None => main.to_string()
+            }
+        })
+    )).parse(input)?;
+    
+    // Parse optional name field
+    let (input, name) = opt(preceded(
+        pair(space1, tag("name:")),
+        alt((
+            delimited(
+                char::<&str, Error<&str>>('"'), 
+                take_while(|c| c != '"'), 
+                char::<&str, Error<&str>>('"')
+            ),
             take_while1(|c: char| c.is_alphanumeric() || c == '-' || c == '_')
-       ))(input)?;
-       (input, Some(name_value.to_string()))
-    } else {
-       (input, None)
-    };
-    let (input, modifiers_list) = many0(preceded(space1, parse_modifier))(input)?;
+        ))
+    )).parse(input)?;
+    
+    // Parse remaining modifiers
+    let (input, modifiers_list) = many0(preceded(space1, parse_modifier)).parse(input)?;
     let mut modifiers = HashMap::new();
     for (k, v) in modifiers_list {
-       modifiers.insert(k, v);
+        modifiers.insert(k, v);
     }
-    let (input, _) = space0(input)?;
-    let (input, _) = tag("]")(input)?;
-    println!("Debug: Parsed block header: block_type='{}', name='{:?}', modifiers={:?}", block_type, name, modifiers);
-    Ok((input, (block_type, name, modifiers)))
+    
+    // Parse closing bracket
+    let (input, _) = preceded(space0, tag("]")).parse(input)?;
+    
+    Ok((input, (block_type, name.map(|s| s.to_string()), modifiers)))
 }
+
+
 
 fn parse_block(input: &str) -> IResult<&str, Block> {
     let (input, _) = space0(input)?;

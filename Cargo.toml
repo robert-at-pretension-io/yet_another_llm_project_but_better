@@ -1,0 +1,8 @@
+[package]
+name = "yet_another_llm_project_but_better"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nom = "8.0.0"
+notify = "8.0.0"
