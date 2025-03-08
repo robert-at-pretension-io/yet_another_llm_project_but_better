@@ -8,11 +8,11 @@ use std::env;
 use nom::{
     IResult,
     bytes::complete::{tag, take_until, take_while},
-    sequence::{delimited, preceded, tuple},
-    multi::{many0, many1},
-    character::complete::{alphanumeric1, alpha1, space0, space1, char, none_of},
+    sequence::{delimited, preceded},
+    multi::{many0},
+    character::complete::{alphanumeric1, alpha1, space0, space1, char},
     branch::alt,
-    combinator::{opt, map, recognize},
+    combinator::{opt, recognize},
 };
 
 // Expanded Block structure to match the specification
@@ -234,7 +234,8 @@ impl Document {
         }
         
         // Execute dependent blocks first
-        for dep in block.depends_on.clone() {
+        let deps: Vec<String> = block.depends_on.iter().cloned().collect();
+        for dep in deps {
             self.execute_block(&dep)?;
         }
         
@@ -456,7 +457,7 @@ impl Document {
             }
             
             // Parse the expanded content to extract nested blocks
-            let (_, nested_blocks) = many0(|i| parse_block(i))(&expanded_content)
+            let (_, nested_blocks) = many0(parse_block)(&expanded_content)
                 .map_err(|e| format!("Failed to parse template content: {:?}", e))?;
             
             // Replace the template invocation with the expanded blocks
@@ -500,7 +501,7 @@ impl Document {
         }
         
         // Parse the expanded content to extract blocks
-        let (_, blocks) = many0(|i| parse_block(i))(&expanded_content)
+        let (_, blocks) = many0(parse_block)(&expanded_content)
             .map_err(|e| format!("Failed to parse template content: {:?}", e))?;
         
         Ok(blocks)
@@ -635,7 +636,7 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
 // Parse an entire document
 fn parse_document(input: &str) -> Result<Document, String> {
     let mut doc = Document::new();
-    let (_, blocks) = many0(|i| parse_block(i))(input)
+    let (_, blocks) = many0(parse_block)(input)
         .map_err(|e| format!("Parsing error: {:?}", e))?;
     
     // Add blocks to document
