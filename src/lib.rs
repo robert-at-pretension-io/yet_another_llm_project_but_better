@@ -5,6 +5,24 @@ use std::fs;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::env;
+
+fn extract_references(content: &str) -> HashSet<String> {
+    let mut references = HashSet::new();
+    let mut start = 0;
+
+    while let Some(start_index) = content[start..].find("${") {
+        start += start_index + 2;
+        if let Some(end_index) = content[start..].find('}') {
+            let reference = &content[start..start + end_index];
+            references.insert(reference.to_string());
+            start += end_index + 1;
+        } else {
+            break;
+        }
+    }
+
+    references
+}
 use nom::{
     IResult,
     bytes::complete::{tag, take_until, take_while},
