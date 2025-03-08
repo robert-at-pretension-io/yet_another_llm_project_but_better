@@ -270,3 +270,4 @@ mod tests {
         assert!(result.unwrap_err().contains("Circular dependency"), 
                 "Error message should mention circular dependency");
     }
+}

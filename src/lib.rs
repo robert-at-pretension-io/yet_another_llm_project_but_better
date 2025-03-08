@@ -18,15 +18,15 @@ use nom::{
 
 // Expanded Block structure to match the specification
 #[derive(Debug, Clone)]
-struct Block {
-    block_type: String,
-    name: Option<String>,
-    modifiers: HashMap<String, String>,
-    content: String,
-    execution_result: Option<String>,
-    depends_on: HashSet<String>,
-    requires: HashSet<String>,
-    answered: bool,  // Track if a question has been answered
+pub struct Block {
+    pub block_type: String,
+    pub name: Option<String>,
+    pub modifiers: HashMap<String, String>,
+    pub content: String,
+    pub execution_result: Option<String>,
+    pub depends_on: HashSet<String>,
+    pub requires: HashSet<String>,
+    pub answered: bool,  // Track if a question has been answered
 }
 
 // Document structure to manage blocks
