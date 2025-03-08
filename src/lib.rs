@@ -223,7 +223,9 @@ impl Document {
     
     pub fn execute_block(&mut self, name: &str) -> Result<String, String> {
         println!("Debug: Executing block '{}'", name);
+        println!("Debug: Attempting to retrieve block '{}'", name);
         let block = self.blocks.get(name).ok_or(format!("Block '{}' not found", name))?.clone();
+        println!("Debug: Retrieved block '{}'", name);
         
         // Check if we have a cached execution result
         if let Some(result) = &block.execution_result {
@@ -239,6 +241,7 @@ impl Document {
         }
         
         // Execute the block based on its type
+        println!("Debug: Executing block type '{}'", block.block_type);
         let result = match block.block_type.as_str() {
             "code" => self.execute_code_block(&block),
             "shell" => self.execute_shell_block(&block),
@@ -253,6 +256,7 @@ impl Document {
         }
         
         println!("Debug: Execution result for block '{}': {}", name, result);
+        println!("Debug: Finished executing block '{}'", name);
         Ok(result)
     }
     
