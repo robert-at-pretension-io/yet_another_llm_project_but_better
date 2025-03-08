@@ -31,10 +31,10 @@ struct Block {
 
 // Document structure to manage blocks
 #[derive(Debug)]
-struct Document {
-    blocks: HashMap<String, Block>,
-    unnamed_blocks: Vec<Block>,
-    dependencies: HashMap<String, HashSet<String>>,
+pub struct Document {
+    pub blocks: HashMap<String, Block>,
+    pub unnamed_blocks: Vec<Block>,
+    pub dependencies: HashMap<String, HashSet<String>>,
 }
 
 // AI Service stub for integration with language models
@@ -797,7 +797,7 @@ pub fn parse_document(input: &str) -> Result<Document, String> {
     
     let mut questions_to_mark = Vec::new();
     
-    for (name, block) in &doc.blocks {
+    for (_name, block) in &doc.blocks {
         if block.block_type == "response" {
             for dep in &block.depends_on {
                 if let Some(question_block) = doc.blocks.get(dep) {
