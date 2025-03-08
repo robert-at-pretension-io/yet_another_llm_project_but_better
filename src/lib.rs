@@ -7,12 +7,14 @@ use std::time::Duration;
 use std::env;
 
 fn extract_references(content: &str) -> HashSet<String> {
+    println!("Debug: Extracting references from content: {}", content);
     let mut references = HashSet::new();
     let mut start = 0;
 
     while let Some(start_index) = content[start..].find("${") {
         start += start_index + 2;
         if let Some(end_index) = content[start..].find('}') {
+            println!("Debug: Found reference: {}", &content[start..start + end_index]);
             let reference = &content[start..start + end_index];
             references.insert(reference.to_string());
             start += end_index + 1;
@@ -224,7 +226,9 @@ impl Document {
     pub fn execute_block(&mut self, name: &str) -> Result<String, String> {
         println!("Debug: Executing block '{}'", name);
         println!("Debug: Attempting to retrieve block '{}'", name);
+        println!("Debug: Attempting to retrieve block '{}'", name);
         let block = self.blocks.get(name).ok_or(format!("Block '{}' not found", name))?.clone();
+        println!("Debug: Retrieved block '{}'", name);
         println!("Debug: Retrieved block '{}'", name);
         
         // Check if we have a cached execution result
@@ -235,12 +239,14 @@ impl Document {
         
         // Execute dependent blocks first
         let deps: Vec<String> = block.depends_on.iter().cloned().collect();
+        println!("Debug: Block '{}' has dependencies: {:?}", name, deps);
         for dep in deps {
             println!("Debug: Executing dependency '{}'", dep);
             self.execute_block(&dep)?;
         }
         
         // Execute the block based on its type
+        println!("Debug: Executing block type '{}'", block.block_type);
         println!("Debug: Executing block type '{}'", block.block_type);
         let result = match block.block_type.as_str() {
             "code" => self.execute_code_block(&block),
@@ -256,6 +262,7 @@ impl Document {
         }
         
         println!("Debug: Execution result for block '{}': {}", name, result);
+        println!("Debug: Finished executing block '{}'", name);
         println!("Debug: Finished executing block '{}'", name);
         Ok(result)
     }

@@ -6,7 +6,9 @@ mod tests {
     #[test]
     fn test_parse_document_success() {
         println!("Debug: Starting test_parse_document_success");
+        println!("Debug: Starting test_parse_document_success");
         let document = "[question name:sample]\nWhat is the answer?\n[/question]";
+        println!("Debug: Document content: {}", document);
         println!("Debug: Document content: {}", document);
         let doc = parse_document(document).expect("Failed to parse document");
         assert!(doc.blocks.contains_key("sample"), "Document should contain a block named 'sample'");
@@ -15,7 +17,9 @@ mod tests {
     #[test]
     fn test_resolve_dependencies() {
         println!("Debug: Starting test_resolve_dependencies");
+        println!("Debug: Starting test_resolve_dependencies");
         let document = "[question name:sample depends:other]\nWhat?\n[/question][question name:other]\nOther question?\n[/question]";
+        println!("Debug: Document content: {}", document);
         println!("Debug: Document content: {}", document);
         let doc = parse_document(document).expect("Failed to parse document");
         let deps: HashSet<String> = doc.dependencies.get("sample").cloned().unwrap_or_default();
@@ -26,7 +30,9 @@ mod tests {
     fn test_process_questions_no_error() {
         // Create a simple document with a question block.
         println!("Debug: Starting test_process_questions_no_error");
+        println!("Debug: Starting test_process_questions_no_error");
         let document = "[question name:test_question model:default debug:true]\nCompute X\n[/question]";
+        println!("Debug: Document content: {}", document);
         println!("Debug: Document content: {}", document);
         let mut doc = parse_document(document).expect("Failed to parse document");
         // Process questions which should generate a response block.
