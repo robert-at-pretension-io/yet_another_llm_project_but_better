@@ -22,8 +22,7 @@ fn extract_references(content: &str) -> HashSet<String> {
         } else {
             break;
         }
-        println!("Debug: Found response for question '{}': {:?}", question_name, response);
-        response
+
     }
 
     println!("Debug: Extracted references: {:?}", references);
@@ -152,7 +151,8 @@ impl Document {
         let response = self.blocks.values().find(|block| {
             block.block_type == "response" && 
             block.depends_on.contains(question_name)
-        })
+        });
+        response
     }
 
     fn add_block(&mut self, block: Block) -> Result<(), String> {
@@ -648,16 +648,7 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
         answered,
     };
     println!("Debug: Parsed block: {:?}", parsed_block);
-    Ok((input, parsed_block)
-        block_type,
-        name,
-        modifiers,
-        content: content.trim().to_string(),
-        execution_result: None,
-        depends_on,
-        requires,
-        answered,
-    }))
+    Ok((input, parsed_block))
 }
 
 pub fn run() {
