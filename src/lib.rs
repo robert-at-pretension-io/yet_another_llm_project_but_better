@@ -230,6 +230,7 @@ impl Document {
         let block = self.blocks.get(name).ok_or(format!("Block '{}' not found", name))?.clone();
         println!("Debug: Retrieved block '{}'", name);
         println!("Debug: Retrieved block '{}'", name);
+        println!("Debug: Retrieved block '{}'", name);
         
         // Check if we have a cached execution result
         if let Some(result) = &block.execution_result {
@@ -246,6 +247,7 @@ impl Document {
         }
         
         // Execute the block based on its type
+        println!("Debug: Executing block type '{}'", block.block_type);
         println!("Debug: Executing block type '{}'", block.block_type);
         println!("Debug: Executing block type '{}'", block.block_type);
         let result = match block.block_type.as_str() {
@@ -496,6 +498,7 @@ fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, Has
     let (input, _) = tag("[")(input)?;
     
     let (input, block_type_start) = alt((alpha1, tag("@"))).parse(input)?;
+    println!("Debug: Parsing block type: {}", block_type_start);
     
     let (input, block_type_suffix) = opt(preceded(char(':'), alphanumeric1)).parse(input)?;
     
@@ -550,6 +553,7 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
     
     let end_tag = format!("[/{}]", block_type.split(':').next().unwrap_or(&block_type));
     let (input, content) = take_until(end_tag.as_str())(input)?;
+    println!("Debug: Parsed content for block '{}': {}", block_type, content);
     let (input, _) = tag(end_tag.as_str())(input)?;
     
     let mut depends_on = HashSet::new();
