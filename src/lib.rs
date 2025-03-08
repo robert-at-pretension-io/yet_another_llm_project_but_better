@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::env;
 
 fn extract_references(content: &str) -> HashSet<String> {
+    println!("Debug: Starting extract_references with content: {}", content);
     println!("Debug: Extracting references from content: {}", content);
     let mut references = HashSet::new();
     let mut start = 0;
@@ -21,8 +22,11 @@ fn extract_references(content: &str) -> HashSet<String> {
         } else {
             break;
         }
+        println!("Debug: Found response for question '{}': {:?}", question_name, response);
+        response
     }
 
+    println!("Debug: Extracted references: {:?}", references);
     references
 }
 use nom::{
@@ -112,6 +116,7 @@ impl AIService {
 
 impl Document {
     fn new() -> Self {
+        println!("Debug: Creating new Document");
         Document {
             blocks: HashMap::new(),
             unnamed_blocks: Vec::new(),
@@ -121,6 +126,7 @@ impl Document {
     
     // Method to mark a question as answered
     fn mark_question_answered(&mut self, question_name: &str) -> Result<(), String> {
+        println!("Debug: Marking question '{}' as answered", question_name);
         if let Some(block) = self.blocks.get_mut(question_name) {
             if block.block_type == "question" {
                 block.answered = true;
@@ -133,6 +139,7 @@ impl Document {
     
     // Method to check if a question has been answered
     fn is_question_answered(&self, question_name: &str) -> bool {
+        println!("Debug: Checking if question '{}' is answered", question_name);
         if let Some(block) = self.blocks.get(question_name) {
             return block.answered;
         }
@@ -141,7 +148,8 @@ impl Document {
     
     // Find an existing response block for a question
     fn find_response_for_question(&self, question_name: &str) -> Option<&Block> {
-        self.blocks.values().find(|block| {
+        println!("Debug: Finding response for question '{}'", question_name);
+        let response = self.blocks.values().find(|block| {
             block.block_type == "response" && 
             block.depends_on.contains(question_name)
         })
@@ -149,6 +157,7 @@ impl Document {
 
     fn add_block(&mut self, block: Block) -> Result<(), String> {
         // Handle named blocks
+        println!("Debug: Adding block with name: {:?}", block.name);
         if let Some(name) = &block.name {
             if self.blocks.contains_key(name) {
                 println!("Debug: Namespace conflict detected for block '{}'", name);
@@ -166,7 +175,7 @@ impl Document {
     }
 
     fn resolve_dependencies(&mut self) -> Result<(), String> {
-        // Clear existing dependencies
+        println!("Debug: Resolving dependencies");
         self.dependencies.clear();
         
         // Collect all explicit dependencies
@@ -187,6 +196,7 @@ impl Document {
     }
     
     fn check_circular_dependencies(&self) -> Result<(), String> {
+        println!("Debug: Checking for circular dependencies");
         for name in self.dependencies.keys() {
             let mut visited = HashSet::new();
             let mut path = Vec::new();
@@ -226,19 +236,19 @@ impl Document {
     pub fn execute_block(&mut self, name: &str) -> Result<String, String> {
         println!("Debug: Executing block '{}'", name);
         println!("Debug: Attempting to retrieve block '{}'", name);
-        println!("Debug: Attempting to retrieve block '{}'", name);
         let block = self.blocks.get(name).ok_or(format!("Block '{}' not found", name))?.clone();
-        println!("Debug: Retrieved block '{}'", name);
-        println!("Debug: Retrieved block '{}'", name);
         println!("Debug: Retrieved block '{}'", name);
         
         // Check if we have a cached execution result
+        println!("Debug: Checking for cached execution result for block '{}'", name);
         if let Some(result) = &block.execution_result {
+            println!("Debug: Found cached result for block '{}'", name);
             println!("Debug: Using cached result for block '{}'", name);
             return Ok(result.clone());
         }
         
         // Execute dependent blocks first
+        println!("Debug: Executing dependencies for block '{}'", name);
         let deps: Vec<String> = block.depends_on.iter().cloned().collect();
         println!("Debug: Block '{}' has dependencies: {:?}", name, deps);
         for dep in deps {
@@ -248,8 +258,7 @@ impl Document {
         
         // Execute the block based on its type
         println!("Debug: Executing block type '{}'", block.block_type);
-        println!("Debug: Executing block type '{}'", block.block_type);
-        println!("Debug: Executing block type '{}'", block.block_type);
+        println!("Debug: Executing block logic for '{}'", name);
         let result = match block.block_type.as_str() {
             "code" => self.execute_code_block(&block),
             "shell" => self.execute_shell_block(&block),
@@ -259,6 +268,7 @@ impl Document {
         }?;
         
         // Update the block with the execution result
+        println!("Debug: Updating execution result for block '{}'", name);
         if let Some(block) = self.blocks.get_mut(name) {
             block.execution_result = Some(result.clone());
         }
@@ -275,6 +285,7 @@ impl Document {
         
         match lang {
             "python" => {
+                println!("Debug: Executing Python code block");
                 let output = Command::new("python")
                     .arg("-c")
                     .arg(&block.content)
@@ -292,7 +303,9 @@ impl Document {
                             return self.execute_code_block(fallback_block);
                         }
                     }
-                    Err(String::from_utf8_lossy(&output.stderr).to_string())
+                    let error_message = String::from_utf8_lossy(&output.stderr).to_string();
+                    println!("Error: Python code execution failed: {}", error_message);
+                    Err(error_message)
                 }
             },
             _ => Err(format!("Unsupported language: {}", lang)),
@@ -300,6 +313,7 @@ impl Document {
     }
     
     fn execute_shell_block(&self, block: &Block) -> Result<String, String> {
+        println!("Debug: Executing shell command block");
         let output = Command::new("sh")
             .arg("-c")
             .arg(&block.content)
@@ -316,7 +330,9 @@ impl Document {
                     return self.execute_shell_block(fallback_block);
                 }
             }
-            Err(String::from_utf8_lossy(&output.stderr).to_string())
+            let error_message = String::from_utf8_lossy(&output.stderr).to_string();
+            println!("Error: Shell command execution failed: {}", error_message);
+            Err(error_message)
         }
     }
     
@@ -331,6 +347,7 @@ impl Document {
             return Ok(format!("AI Response for: {}", url));
         }
         
+        println!("Debug: Executing API request block");
         let output = Command::new("curl")
             .arg("-X")
             .arg(method)
@@ -348,11 +365,14 @@ impl Document {
                     return self.execute_api_block(fallback_block);
                 }
             }
-            Err(String::from_utf8_lossy(&output.stderr).to_string())
+            let error_message = String::from_utf8_lossy(&output.stderr).to_string();
+            println!("Error: API request execution failed: {}", error_message);
+            Err(error_message)
         }
     }
     
     fn build_context_for_question(&self, block: &Block) -> Result<String, String> {
+        println!("Debug: Building context for question block '{}'", block.name.clone().unwrap_or_default());
         let mut context = String::new();
         context.push_str(&block.content);
         context.push_str("\n\n");
@@ -371,6 +391,7 @@ impl Document {
             }
         }
         
+        println!("Debug: Initial context for question block '{}': {}", block.name.clone().unwrap_or_default(), context);
         let mut result = context.clone();
         let references = extract_references(&context);
         
@@ -382,23 +403,28 @@ impl Document {
             }
         }
         
+        println!("Debug: Resolving references in context for question block '{}'", block.name.clone().unwrap_or_default());
         let model = block.modifiers.get("model").unwrap_or(&"default".to_string()).clone();
         
         let mut ai_service = AIService::new(&model);
         ai_service.configure(block.modifiers.clone());
         
         if block.modifiers.get("debug").unwrap_or(&"false".to_string()) == "true" {
+            println!("Debug: Returning debug context for question block '{}'", block.name.clone().unwrap_or_default());
             Ok(format!("DEBUG CONTEXT:\n{}", result))
         } else {
+            println!("Debug: Generating AI completion for question block '{}'", block.name.clone().unwrap_or_default());
             ai_service.generate_completion(&result)
         }
     }
     
     fn process_templates(&mut self) -> Result<(), String> {
+        println!("Debug: Processing templates");
         let mut template_invocations = Vec::new();
         let mut i = 0;
         
         while i < self.unnamed_blocks.len() {
+            println!("Debug: Checking unnamed block at index {}", i);
             let block = &self.unnamed_blocks[i];
             
             if block.block_type.starts_with('@') {
@@ -413,6 +439,7 @@ impl Document {
                 }
                 
                 if let Some(end_idx) = closing_idx {
+                    println!("Debug: Found template invocation for '{}'", template_name);
                     template_invocations.push((i, end_idx, template_name.to_string()));
                     i = end_idx + 1;
                     continue;
@@ -424,7 +451,9 @@ impl Document {
         
         template_invocations.sort_by(|a, b| b.0.cmp(&a.0));
         
+        println!("Debug: Expanding template invocations");
         for (start_idx, end_idx, template_name) in template_invocations {
+            println!("Debug: Expanding template '{}'", template_name);
             let template = self.blocks.get(&template_name).ok_or(
                 format!("Template '{}' not found", template_name)
             )?;
@@ -437,7 +466,9 @@ impl Document {
                 let placeholder = format!("${{{}}}", param_name);
                 expanded_content = expanded_content.replace(&placeholder, param_value);
             }
+            println!("Debug: Expanded content for template '{}': {}", template_name, expanded_content);
             if expanded_content.contains("${") {
+                println!("Error: Missing parameters for template '{}'", template_name);
                 return Err(format!("Missing parameters for template '{}'", template_name));
             }
             
@@ -446,6 +477,7 @@ impl Document {
                 expanded_modifiers.insert(key.clone(), value.clone());
             }
             
+            println!("Debug: Parsing expanded content for template '{}'", template_name);
             let (_, blocks) = many0(parse_block).parse(expanded_content.as_str())
                 .map_err(|e| format!("Failed to parse template content: {:?}", e))?;
             
@@ -460,6 +492,7 @@ impl Document {
     }
     
     fn expand_template(&self, template_name: &str, parameters: HashMap<String, String>) -> Result<Vec<Block>, String> {
+        println!("Debug: Expanding template '{}'", template_name);
         let template = self.blocks.get(template_name).ok_or(
             format!("Template '{}' not found", template_name)
         )?;
@@ -481,6 +514,7 @@ impl Document {
             }
         }
         
+        println!("Debug: Parsing expanded content for template '{}'", template_name);
         let (_, blocks) = many0(parse_block).parse(expanded_content.as_str())
             .map_err(|e| format!("Failed to parse template content: {:?}", e))?;
         
@@ -490,6 +524,7 @@ impl Document {
 
 
 fn parse_modifier(input: &str) -> IResult<&str, (String, String)> {
+    println!("Debug: Parsing modifier from input: {}", input);
     let (input, key) = take_while1(|c: char| c.is_alphanumeric() || c == '_' || c == '-')(input)?;
     let (input, _) = char(':')(input)?;
     
@@ -500,7 +535,9 @@ fn parse_modifier(input: &str) -> IResult<&str, (String, String)> {
     
     let (input, value) = value_parser.parse(input)?;
     
-    Ok((input, (key.to_string(), value.to_string())))
+    let parsed_modifier = (key.to_string(), value.to_string());
+    println!("Debug: Parsed modifier: {:?}", parsed_modifier);
+    Ok((input, parsed_modifier))
 }
 
 
@@ -513,6 +550,7 @@ use nom::{
 
 
 fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, HashMap<String, String>)> {
+    println!("Debug: Parsing block header from input: {}", input);
     let (input, _) = tag("[")(input)?;
     
     // Parse block type (either @template or normal type)
@@ -556,12 +594,15 @@ fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, Has
     // Parse closing bracket
     let (input, _) = preceded(space0, tag("]")).parse(input)?;
     
-    Ok((input, (block_type, name.map(|s| s.to_string()), modifiers)))
+    let parsed_header = (block_type.clone(), name.clone().map(|s| s.to_string()), modifiers.clone());
+    println!("Debug: Parsed block header: {:?}", parsed_header);
+    Ok((input, parsed_header))
 }
 
 
 
 fn parse_block(input: &str) -> IResult<&str, Block> {
+    println!("Debug: Parsing block from input: {}", input);
     let (input, _) = space0(input)?;
     let (input, (block_type, name, modifiers)) = parse_block_header(input)?;
     
@@ -596,7 +637,18 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
     
     let answered = block_type == "response";
     
-    Ok((input, Block {
+    let parsed_block = Block {
+        block_type: block_type.clone(),
+        name: name.clone(),
+        modifiers: modifiers.clone(),
+        content: content.trim().to_string(),
+        execution_result: None,
+        depends_on,
+        requires,
+        answered,
+    };
+    println!("Debug: Parsed block: {:?}", parsed_block);
+    Ok((input, parsed_block)
         block_type,
         name,
         modifiers,
@@ -613,31 +665,34 @@ pub fn run() {
     let args: Vec<String> = env::args().collect();
     let path = args.get(1).unwrap_or(&"./document.meta".to_string()).clone();
     
+    println!("Debug: Running document processing for path: {}", path);
     match fs::read_to_string(&path) {
         Ok(content) => {
+            println!("Debug: Successfully read document content");
             match parse_document(&content) {
                 Ok(mut doc) => {
-                    println!("Successfully parsed document with {} named blocks and {} unnamed blocks",
+                    println!("Debug: Successfully parsed document with {} named blocks and {} unnamed blocks",
                           doc.blocks.len(), doc.unnamed_blocks.len());
                     
                     if let Err(e) = process_questions(&mut doc) {
-                        println!("Error processing questions: {}", e);
+                        println!("Error: Failed to process questions: {}", e);
                     }
                     
                     if let Err(e) = write_responses_to_file(&doc, &path) {
-                        println!("Error writing responses: {}", e);
+                        println!("Error: Failed to write responses: {}", e);
                     }
                 },
-                Err(e) => println!("Error parsing document: {}", e),
+                Err(e) => println!("Error: Failed to parse document: {}", e),
             }
         },
-        Err(e) => println!("Error reading file: {}", e),
+        Err(e) => println!("Error: Failed to read file: {}", e),
     }
     
     watch_file(&path);
 }
 
 fn write_responses_to_file(doc: &Document, path: &str) -> Result<(), String> {
+    println!("Debug: Writing responses to file: {}", path);
     let content = fs::read_to_string(path)
         .map_err(|e| format!("Failed to read document: {}", e))?;
     
@@ -670,15 +725,17 @@ fn write_responses_to_file(doc: &Document, path: &str) -> Result<(), String> {
     }
     
     if new_content != content {
+        println!("Debug: Writing updated content to file");
         fs::write(path, new_content)
             .map_err(|e| format!("Failed to write document: {}", e))?;
-        println!("Updated document with new responses");
+        println!("Debug: Updated document with new responses");
     }
     
     Ok(())
 }
 
 fn watch_file(path: &str) {
+    println!("Debug: Setting up file watcher for path: {}", path);
     let (tx, rx) = channel();
     let mut watcher: RecommendedWatcher = Watcher::new(tx, notify::Config::default())
         .expect("Failed to create watcher");
@@ -686,19 +743,20 @@ fn watch_file(path: &str) {
     watcher.watch(std::path::Path::new(&path), RecursiveMode::NonRecursive)
         .expect("Failed to watch file");
     
-    println!("Watching file: {}", path);
+    println!("Debug: Watching file: {}", path);
     
     loop {
         match rx.recv() {
             Ok(Ok(Event { kind: EventKind::Modify(_), .. })) => {
-                println!("File changed, re-parsing...");
+                println!("Debug: File changed, re-parsing...");
                 std::thread::sleep(Duration::from_millis(100));
                 
                 match fs::read_to_string(path) {
                     Ok(content) => {
+                        println!("Debug: Successfully read changed document content");
                         match parse_document(&content) {
                             Ok(mut doc) => {
-                                println!("Successfully parsed document with {} named blocks and {} unnamed blocks",
+                                println!("Debug: Successfully parsed document with {} named blocks and {} unnamed blocks",
                                       doc.blocks.len(), doc.unnamed_blocks.len());
                                 
                                 for name in doc.blocks.keys().cloned().collect::<Vec<_>>() {
@@ -710,61 +768,62 @@ fn watch_file(path: &str) {
                                        block_type == "shell" || 
                                        block_type == "api" {
                                         match doc.execute_block(&name) {
-                                            Ok(_) => println!("Block '{}' executed successfully", name),
-                                            Err(e) => println!("Block '{}' execution failed: {}", name, e),
+                                            Ok(_) => println!("Debug: Block '{}' executed successfully", name),
+                                            Err(e) => println!("Error: Block '{}' execution failed: {}", name, e),
                                         }
                                     }
                                 }
                                 
                                 if let Err(e) = process_questions(&mut doc) {
-                                    println!("Error processing questions: {}", e);
+                                    println!("Error: Failed to process questions: {}", e);
                                 } else {
                                     if let Err(e) = write_responses_to_file(&doc, path) {
-                                        println!("Error writing responses: {}", e);
+                                        println!("Error: Failed to write responses: {}", e);
                                     }
                                 }
                                 
                                 if let Err(e) = process_visualizations(&mut doc) {
-                                    println!("Error processing visualizations: {}", e);
+                                    println!("Error: Failed to process visualizations: {}", e);
                                 }
                                 
-                                println!("Document processing complete");
+                                println!("Debug: Document processing complete");
                             },
-                            Err(e) => println!("Error parsing document: {}", e),
+                            Err(e) => println!("Error: Failed to parse document: {}", e),
                         }
                     },
-                    Err(e) => println!("Error reading file: {}", e),
+                    Err(e) => println!("Error: Failed to read file: {}", e),
                 }
             },
-            Err(e) => println!("Watch error: {:?}", e),
+            Err(e) => println!("Error: Watch error: {:?}", e),
             _ => {}
         }
     }
 }
 
 pub fn process_questions(doc: &mut Document) -> Result<(), String> {
+    println!("Debug: Processing questions");
     let question_blocks: Vec<String> = doc.blocks.iter()
         .filter(|(_, block)| block.block_type == "question" && !block.answered)
         .map(|(name, _)| name.clone())
         .collect();
     
     if question_blocks.is_empty() {
-        println!("No new questions to process");
+        println!("Debug: No new questions to process");
         return Ok(());
     }
     
-    println!("Found {} unanswered questions", question_blocks.len());
+    println!("Debug: Found {} unanswered questions", question_blocks.len());
     
     for name in question_blocks {
         if let Some(response) = doc.find_response_for_question(&name) {
-            println!("Question '{}' already has a response block: {}", 
+            println!("Debug: Question '{}' already has a response block: {}", 
                      name, response.name.clone().unwrap_or_default());
             
             doc.mark_question_answered(&name)?;
             continue;
         }
         
-        println!("Processing question block: {}", name);
+        println!("Debug: Processing question block: {}", name);
         
         match doc.execute_block(&name) {
             Ok(response) => {
@@ -786,10 +845,10 @@ pub fn process_questions(doc: &mut Document) -> Result<(), String> {
                 doc.add_block(response_block)?;
                 doc.mark_question_answered(&name)?;
                 
-                println!("Generated response for question: {}", name);
+                println!("Debug: Generated response for question: {}", name);
             },
             Err(e) => {
-                println!("Failed to process question {}: {}", name, e);
+                println!("Error: Failed to process question {}: {}", name, e);
                 
                 let error_block = Block {
                     block_type: "error".to_string(),
@@ -815,6 +874,7 @@ pub fn process_questions(doc: &mut Document) -> Result<(), String> {
 }
 
 fn process_visualizations(doc: &mut Document) -> Result<(), String> {
+    println!("Debug: Processing visualizations");
     let visualization_blocks: Vec<usize> = doc.unnamed_blocks.iter()
         .enumerate()
         .filter(|(_, block)| block.block_type == "visualization")
@@ -824,7 +884,7 @@ fn process_visualizations(doc: &mut Document) -> Result<(), String> {
     for idx in visualization_blocks {
         if idx < doc.unnamed_blocks.len() {
             let block = &doc.unnamed_blocks[idx];
-            println!("Processing visualization block at index {}", idx);
+            println!("Debug: Processing visualization block at index {}", idx);
             println!("Visualization content: {}", block.content);
         }
     }
@@ -833,10 +893,12 @@ fn process_visualizations(doc: &mut Document) -> Result<(), String> {
 }
 
 pub fn parse_document(input: &str) -> Result<Document, String> {
+    println!("Debug: Parsing document");
     let mut doc = Document::new();
     let (_, blocks) = many0(parse_block).parse(input)
         .map_err(|e| format!("Parsing error: {:?}", e))?;
     
+    println!("Debug: Adding parsed blocks to document");
     for block in blocks {
         doc.add_block(block)?;
     }
@@ -845,12 +907,13 @@ pub fn parse_document(input: &str) -> Result<Document, String> {
         .filter(|(_, block)| block.block_type.starts_with("section"))
         .map(|(name, _)| name.clone())
         .collect();
+    println!("Debug: Parsing nested blocks in sections");
     for sec_name in section_names {
         if let Some(section_block) = doc.blocks.get(&sec_name) {
             let content = &section_block.content;
             let (_, nested_blocks) = many0(parse_block).parse(content)
                 .map_err(|e| format!("Failed to parse nested blocks in section '{}': {:?}", sec_name, e))?;
-            println!("Debug: Nested blocks in section '{}': {:?}", sec_name, nested_blocks);
+            println!("Debug: Parsed nested blocks in section '{}': {:?}", sec_name, nested_blocks);
             for nested_block in nested_blocks {
                 doc.add_block(nested_block)?;
             }
@@ -871,6 +934,7 @@ pub fn parse_document(input: &str) -> Result<Document, String> {
         }
     }
     
+    println!("Debug: Marking questions with responses as answered");
     for question_name in questions_to_mark {
         if let Some(question) = doc.blocks.get_mut(&question_name) {
             question.answered = true;
@@ -882,5 +946,6 @@ pub fn parse_document(input: &str) -> Result<Document, String> {
     doc.process_templates()?;
     doc.resolve_dependencies()?;
     
+    println!("Debug: Finished parsing document");
     Ok(doc)
 }
