@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn test_unnamed_blocks() {
         let document = "\
-            [data]\
+            [data name:unnamed-data]\
             Unnamed data block\
             [/data]";
         
@@ -481,7 +481,7 @@ mod tests {
     #[test]
     fn test_visualization_block_preview() {
         let doc_str = r#"
-        [visualization]
+        [visualization name:visualization-example]
           [question debug:true]
           Visualization test
           [/question]
