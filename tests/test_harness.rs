@@ -243,9 +243,13 @@ mod tests {
     #[test]
     fn test_api_block_execution() {
         let document = "\
-            [api name:test-api-1 method:GET]\
+            [api name:test-api-1 method:GET fallback:test-api-fallback]\
             https://api.example.com/test\
-            [/api]";
+            [/api]\
+            \
+            [data name:test-api-fallback format:json]\
+            {\"status\": \"fallback\"}\
+            [/data]";
         
         let mut doc = parse_document(document).expect("Failed to parse document");
         let result = doc.execute_block("test-api-1").expect("API block should execute");
