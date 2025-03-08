@@ -1,11 +1,7 @@
 #[cfg(test)]
 mod tests {
-    // Include the main module from src/main.rs using the #[path] attribute.
-    #[path = "../src/main.rs"]
-    mod mainmod;
-
     use std::collections::HashSet;
-    use mainmod::*;
+    use yet_another_llm_project_but_better::*;
 
     #[test]
     fn test_parse_document_success() {
