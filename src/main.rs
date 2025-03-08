@@ -234,8 +234,8 @@ impl Document {
         }
         
         // Execute dependent blocks first
-        for dep in &block.depends_on {
-            self.execute_block(dep)?;
+        for dep in block.depends_on.clone() {
+            self.execute_block(&dep)?;
         }
         
         // Execute the block based on its type
@@ -313,7 +313,8 @@ impl Document {
         // This is a simplistic implementation for demonstration
         // A real implementation would use a proper HTTP client
         let url = block.content.trim();
-        let method = block.modifiers.get("method").unwrap_or(&"GET".to_string()).as_str();
+        let default_method = "GET".to_string();
+        let method = block.modifiers.get("method").unwrap_or(&default_method).as_str();
         
         let output = Command::new("curl")
             .arg("-X")
@@ -455,7 +456,7 @@ impl Document {
             }
             
             // Parse the expanded content to extract nested blocks
-            let (_, nested_blocks) = many0(parse_block)(&expanded_content)
+            let (_, nested_blocks) = many0(|i| parse_block(i))(&expanded_content)
                 .map_err(|e| format!("Failed to parse template content: {:?}", e))?;
             
             // Replace the template invocation with the expanded blocks
@@ -499,7 +500,7 @@ impl Document {
         }
         
         // Parse the expanded content to extract blocks
-        let (_, blocks) = many0(parse_block)(&expanded_content)
+        let (_, blocks) = many0(|i| parse_block(i))(&expanded_content)
             .map_err(|e| format!("Failed to parse template content: {:?}", e))?;
         
         Ok(blocks)
@@ -533,10 +534,10 @@ fn extract_references(content: &str) -> HashSet<String> {
 fn parse_modifier(input: &str) -> IResult<&str, (String, String)> {
     let (input, key) = alphanumeric1(input)?;
     let (input, _) = char(':')(input)?;
-    let (input, value) = alt((
+    let (input, value) = (|i| alt((
         delimited(char('"'), take_while(|c| c != '"'), char('"')),
         take_while(|c: char| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
-    ))(input)?;
+    ))(i))(input)?;
     
     Ok((input, (key.to_string(), value.to_string())))
 }
@@ -544,10 +545,10 @@ fn parse_modifier(input: &str) -> IResult<&str, (String, String)> {
 // Parse block header including type, name, and modifiers
 fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, HashMap<String, String>)> {
     let (input, _) = tag("[")(input)?;
-    let (input, block_type) = recognize(tuple((
+    let (input, block_type) = recognize(|i| tuple((
         alt((alpha1, tag("@"))),
         opt(preceded(char(':'), alphanumeric1))
-    )))(input)?;
+    ))(i))(input)?;
     
     // Parse name modifier specifically
     let (input, name_mod) = opt(preceded(
@@ -601,8 +602,8 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
     
     // Parse content and closing tag
     let end_tag = format!("[/{}]", block_type.split(':').next().unwrap_or(&block_type));
-    let (input, content) = take_until(&end_tag)(input)?;
-    let (input, _) = tag(&end_tag)(input)?;
+    let (input, content) = take_until(end_tag.as_str())(input)?;
+    let (input, _) = tag(end_tag.as_str())(input)?;
     
     // Extract depends_on and requires from modifiers
     let mut depends_on = HashSet::new();
@@ -634,7 +635,7 @@ fn parse_block(input: &str) -> IResult<&str, Block> {
 // Parse an entire document
 fn parse_document(input: &str) -> Result<Document, String> {
     let mut doc = Document::new();
-    let (_, blocks) = many0(parse_block)(input)
+    let (_, blocks) = many0(|i| parse_block(i))(input)
         .map_err(|e| format!("Parsing error: {:?}", e))?;
     
     // Add blocks to document
@@ -795,10 +796,10 @@ fn process_visualizations(doc: &mut Document) -> Result<(), String> {
 // Watch for file changes and reprocess
 fn watch_file(path: &str) {
     let (tx, rx) = channel();
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_secs(2))
+    let mut watcher: RecommendedWatcher = Watcher::new(tx, notify::Config::default())
         .expect("Failed to create watcher");
     
-    watcher.watch(path, RecursiveMode::NonRecursive)
+    watcher.watch(std::path::Path::new(&path), RecursiveMode::NonRecursive)
         .expect("Failed to watch file");
     
     println!("Watching file: {}", path);
