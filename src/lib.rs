@@ -550,55 +550,51 @@ use nom::{
 
 
 fn parse_block_header(input: &str) -> IResult<&str, (String, Option<String>, HashMap<String, String>)> {
-    // Parse everything between '[' and ']' as header content.
-    let (input, header_content) = delimited(char('['), take_until("]"), tag("]"))(input)?;
-    let mut block_type = String::new();
+    let (input, _) = tag("[")(input)?;
+    
+    // Parse block type (either @template or normal type)
+    let (input, block_type) = alt((
+        // Template invocation: @template_name
+        map(preceded(char::<&str, Error<&str>>('@'), take_while1(|c: char| c.is_alphanumeric() || c == '-' || c == '_')), 
+            |name: &str| format!("@{}", name)),
+        
+        // Regular block type with optional subtype
+        map(pair(
+            take_while1(|c: char| c.is_alphabetic()),
+            opt(preceded(char::<&str, Error<&str>>(':'), take_while1(|c: char| c.is_alphanumeric())))
+        ), |(main, sub)| {
+            match sub {
+                Some(s) => format!("{}:{}", main, s),
+                None => main.to_string()
+            }
+        })
+    )).parse(input)?;
+    
+    // Parse optional name field
+    let (input, name) = opt(preceded(
+        pair(space0, tag("name:")),
+        alt((
+            delimited(
+                char::<&str, Error<&str>>('"'), 
+                take_while(|c| c != '"'), 
+                char::<&str, Error<&str>>('"')
+            ),
+            take_while1(|c: char| c.is_alphanumeric() || c == '-' || c == '_')
+        ))
+    )).parse(input)?;
+    
+    // Parse remaining modifiers
+    let (input, modifiers_list) = many0(preceded(space0, parse_modifier)).parse(input)?;
     let mut modifiers = HashMap::new();
-    let mut name: Option<String> = None;
-    let header_content = header_content.trim();
-    if header_content.starts_with('@') {
-        // Invocation block: block type is the part after '@' up to first occurrence of "name:" if any.
-        if let Some(pos) = header_content.find("name:") {
-            block_type = header_content[1..pos].trim().to_string();
-            let modifiers_str = &header_content[pos..];
-            let mut rem = modifiers_str;
-            while !rem.is_empty() {
-                if let Ok((rest, (k, v))) = parse_modifier(rem) {
-                    modifiers.insert(k, v);
-                    rem = rest;
-                } else {
-                    break;
-                }
-            }
-        } else {
-            block_type = header_content[1..].trim().to_string();
-        }
-    } else {
-        // Normal block: block type is the part before the first occurrence of "name:" if present.
-        if let Some(pos) = header_content.find("name:") {
-            block_type = header_content[..pos].trim().to_string();
-            let modifiers_str = &header_content[pos..];
-            let mut rem = modifiers_str;
-            while !rem.is_empty() {
-                if let Ok((rest, (k, v))) = parse_modifier(rem) {
-                    modifiers.insert(k, v);
-                    rem = rest;
-                } else {
-                    break;
-                }
-            }
-        } else {
-            block_type = header_content.to_string();
-        }
+    for (k, v) in modifiers_list {
+        modifiers.insert(k, v);
     }
-    // If modifiers contain "name", set name.
-    if let Some(n) = modifiers.remove("name") {
-        name = Some(n);
-    }
-    println!("Debug: Parsed block header: ({}, {:?}, {:?})", block_type, name, modifiers);
-    Ok((input, (block_type, name, modifiers)))
+    
+    // Parse closing bracket
+    let (input, _) = preceded(space0, tag("]")).parse(input)?;
+    
+    Ok((input, (block_type, name.map(|s| s.to_string()), modifiers)))
 }
-
 
 
 fn parse_block(input: &str) -> IResult<&str, Block> {

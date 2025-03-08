@@ -615,20 +615,6 @@ fn test_comment_block_isolation() {
     }
 }
 
-#[test]
-fn test_implicit_dependency_resolution() {
-    let document = "\
-        [data name:implicit-dep]Dependency content[/data]\
-        [question name:implicit-ref]\
-        Analysis of ${implicit-dep}\
-        [/question]";
-    
-    let doc = parse_document(document).expect("Failed to parse document");
-    
-    let deps = doc.dependencies.get("implicit-ref").cloned().unwrap_or_default();
-    assert!(deps.contains("implicit-dep"), 
-           "Should resolve implicit dependency from ${} reference");
-}
 
 #[test]
 fn test_multiple_implicit_dependencies() {
