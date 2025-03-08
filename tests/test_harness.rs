@@ -196,7 +196,81 @@ mod tests {
     }
 
     #[test]
-    fn test_response_block_marking_questions_answered() {
+    fn test_unnamed_blocks() {
+        let document = "\
+            [data]\
+            Unnamed data block\
+            [/data]";
+        
+        let doc = parse_document(document).expect("Failed to parse document");
+        
+        assert_eq!(doc.unnamed_blocks.len(), 1, "Should parse unnamed block");
+        assert_eq!(doc.unnamed_blocks[0].content, "Unnamed data block");
+    }
+
+    #[test]
+    fn test_fallback_execution() {
+        let document = "\
+            [code:python name:fail-block fallback:success-block]\
+            raise Exception('Fail')\
+            [/code:python]\
+            \
+            [code:python name:success-block]\
+            print('Fallback executed')\
+            [/code:python]";
+        
+        let mut doc = parse_document(document).expect("Failed to parse document");
+        let result = doc.execute_block("fail-block").expect("Fallback should execute");
+        
+        assert!(result.contains("Fallback executed"), "Fallback block should execute");
+    }
+
+    #[test]
+    fn test_api_block_execution() {
+        let document = "\
+            [api name:test-api method:GET]\
+            https://api.example.com/test\
+            [/api]";
+        
+        let mut doc = parse_document(document).expect("Failed to parse document");
+        let result = doc.execute_block("test-api").expect("API block should execute");
+        
+        assert!(result.contains("AI Response for"), "API block should return a response");
+    }
+
+    #[test]
+    fn test_debug_mode() {
+        let document = "\
+            [question name:debug-question model:default debug:true]\
+            Debug this question\
+            [/question]";
+        
+        let mut doc = parse_document(document).expect("Failed to parse document");
+        let result = doc.execute_block("debug-question").expect("Debug mode should execute");
+        
+        assert!(result.contains("DEBUG CONTEXT"), "Debug mode should output debug context");
+    }
+
+    #[test]
+    fn test_template_expansion_with_missing_parameters() {
+        let document = "\
+            [template name:incomplete-template]\
+            [data name:${name}]\
+            ${content}\
+            [/data]\
+            [/template]\
+            \
+            [@incomplete-template\
+              name:\"test-instance\"\
+            ]\
+            [/@incomplete-template]";
+        
+        let result = parse_document(document);
+        
+        assert!(result.is_err(), "Should fail due to missing parameters");
+    }
+
+    #[test]
         let document = "\
             [question name:already-answered]\
             What is 2+2?\
