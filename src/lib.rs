@@ -274,7 +274,7 @@ impl ProcessorRegistry {
 /// Context provided to block processors
 pub struct BlockProcessorContext<'a, 'w, 's> {
     pub commands: &'a mut Commands<'w, 's>,
-    pub named_blocks: &'a mut NamedBlocks,
+    pub named_blocks: &'a NamedBlocks,
     pub execution_state: &'a mut ExecutionState,
     pub world: &'a mut World,
 }
@@ -394,8 +394,6 @@ impl DocumentParser {
                     let content = document[end_pos..content_end].trim().to_string();
                     
                     // Create block entity
-                    let mut commands = Commands::new(world);
-                    
                     // Create block content based on type
                     let block_content = match &block_type {
                         BlockType::Code(language) => {
@@ -444,7 +442,7 @@ impl DocumentParser {
                     }
                     
                     // Create the block entity
-                    let block_entity = commands.spawn(Block {
+                    let entity = world.spawn(Block {
                         block_type: block_type.clone(),
                         name: name.clone(),
                         content: block_content,
@@ -518,100 +516,67 @@ impl DocumentParser {
     
     /// Validates the document after parsing
     fn validate_document(&self, world: &mut World) -> Result<()> {
-        // Validate dependencies and fallbacks
-        let config = world.resource::<ParserConfig>().clone();
-
-        {
-            let named_blocks = world.resource::<NamedBlocks>();
-            let execution_state = world.resource::<ExecutionState>();
+    // Get resources
+    let named_blocks = world.resource::<NamedBlocks>();
+    let execution_state = world.resource::<ExecutionState>();
+    let config = world.resource::<ParserConfig>();
     
-            if !config.allow_circular_dependencies {
-                // ... dependency checks ...
-            }
-    
-            // ... dependency existence checks ...
-        }
-
-        {
-            let named_blocks = world.resource::<NamedBlocks>();
-            let block_entities: Vec<(Entity, BlockType, Option<String>, Option<String>)> = world
-                .query::<(Entity, &Block)>()
-                .iter(world)
-                .filter_map(|(entity, block)| {
-                    if block.block_type.requires_fallback() {
-                        Some((entity, block.block_type.clone(), block.name.clone(), block.fallback.clone()))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-        
-            for (entity, block_type, name, fallback) in block_entities {
-                if let Some(fallback_name) = fallback {
-                    if !named_blocks.0.contains_key(&fallback_name) {
-                        return Err(Error::MissingFallback(
-                            fallback_name,
-                            name.unwrap_or_else(|| entity.to_string())
-                        ));
-                    }
-                } else {
-                    return Err(Error::MissingFallback(
-                        "None".to_string(),
-                        name.unwrap_or_else(|| entity.to_string())
-                    ));
-                }
-            }
-        }
-        
-        // Check for circular dependencies
-        if !config.allow_circular_dependencies {
-            for (block_name, deps) in &execution_state.dependencies {
-                for dep_name in deps {
-                    if let Some(dep_deps) = execution_state.dependencies.get(dep_name) {
-                        if dep_deps.contains(block_name) {
-                            return Err(Error::CircularDependency(
-                                block_name.clone(), 
-                                dep_name.clone()
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Check that all dependencies exist
+    // Check for circular dependencies
+    if !config.allow_circular_dependencies {
         for (block_name, deps) in &execution_state.dependencies {
             for dep_name in deps {
-                if !named_blocks.0.contains_key(dep_name) {
-                    return Err(Error::MissingDependency(
-                        block_name.clone(),
-                        dep_name.clone()
-                    ));
-                }
-            }
-        }
-        
-        // Check that all executable blocks have fallbacks
-        let block_query = world.query::<(Entity, &Block)>();
-        for (entity, block) in block_query.iter(world) {
-            if block.block_type.requires_fallback() {
-                if let Some(fallback_name) = &block.fallback {
-                    if !named_blocks.0.contains_key(fallback_name) {
-                        return Err(Error::MissingFallback(
-                            fallback_name.clone(),
-                            block.name.clone().unwrap_or_else(|| entity.to_string())
+                if let Some(dep_deps) = execution_state.dependencies.get(dep_name) {
+                    if dep_deps.contains(block_name) {
+                        return Err(Error::CircularDependency(
+                            block_name.clone(), 
+                            dep_name.clone()
                         ));
                     }
-                } else {
-                    return Err(Error::MissingFallback(
-                        "None".to_string(),
-                        block.name.clone().unwrap_or_else(|| entity.to_string())
-                    ));
                 }
             }
         }
-        
-        Ok(())
+    }
+    
+    // Check that all dependencies exist
+    for (block_name, deps) in &execution_state.dependencies {
+        for dep_name in deps {
+            if !named_blocks.0.contains_key(dep_name) {
+                return Err(Error::MissingDependency(
+                    block_name.clone(),
+                    dep_name.clone()
+                ));
+            }
+        }
+    }
+    
+    // Store fallback checks to avoid borrow issues
+    let fallback_checks: Vec<(String, String, Option<String>)> = world.query::<(Entity, &Block)>()
+        .iter(world)
+        .filter_map(|(entity, block)| {
+            if block.block_type.requires_fallback() {
+                Some((
+                    entity.to_string(), 
+                    block.name.clone().unwrap_or_else(|| entity.to_string()),
+                    block.fallback.clone()
+                ))
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    // Check fallbacks
+    for (_, block_name, fallback) in fallback_checks {
+        if let Some(fallback_name) = fallback {
+            if !named_blocks.0.contains_key(&fallback_name) {
+                return Err(Error::MissingFallback(fallback_name, block_name));
+            }
+        } else {
+            return Err(Error::MissingFallback("None".to_string(), block_name));
+        }
+    }
+    
+    Ok(())
     }
 }
 
@@ -648,11 +613,9 @@ impl Plugin for ParserPlugin {
            .add_event::<BlockExecutedEvent>()
            .add_event::<BlockExecutionRequestEvent>()
            .add_systems(Startup, parse_document)
-           .add_systems(Update, (
-               on_block_parsed,
-               execute_blocks,
-               process_executed_blocks,
-           ));
+           .add_systems(Update, on_block_parsed)
+           .add_systems(Update, execute_blocks.after(on_block_parsed))
+           .add_systems(Update, process_executed_blocks.after(execute_blocks));
     }
 }
 
@@ -1074,7 +1037,7 @@ pub struct DataBlockProcessorPlugin;
 
 impl Plugin for DataBlockProcessorPlugin {
     fn build(&self, app: &mut App) {
-        let mut registry = app.world.resource_mut::<ProcessorRegistry>();
+        let mut registry = app.world_mut().resource_mut::<ProcessorRegistry>();
         registry.register(DataBlockProcessor);
     }
 }
