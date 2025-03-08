@@ -349,4 +349,142 @@ mod tests {
         assert!(result.unwrap_err().contains("Circular dependency"), 
                 "Error message should mention circular dependency");
     }
+
+
+    #[test]
+    fn test_block_modifier_defaults() {
+        let doc_str = "[data name:test-data]value[/data]";
+        let doc = parse_document(doc_str).unwrap();
+
+        let block = doc.blocks.get("test-data").unwrap();
+        assert_eq!(block.modifiers.get("cache_result"), None, "Default cache_result should be false");
+    }
+
+    #[test]
+    fn test_always_include_modifier() {
+        let doc_str = "[data name:always-include-block always_include:true]value[/data]";
+        let doc = parse_document(doc_str).unwrap();
+
+        let block = doc.blocks.get("always-include-block").unwrap();
+        assert_eq!(block.modifiers.get("always_include").unwrap(), "true", "always_include should be explicitly set to true");
+    }
+
+    #[test]
+    fn test_fallback_mandatory() {
+        let doc_str = "[shell name:critical-shell]false[/shell]";
+        let result = parse_document(doc_str);
+        assert!(result.is_err(), "Parsing should fail due to missing fallback");
+    }
+
+    #[test]
+    fn test_fallback_auto_generated() {
+        let doc_str = "[shell name:auto-fallback-shell fallback:auto-fallback-shell-fallback]false[/shell][shell name:auto-fallback-shell-fallback]echo fallback[/shell]";
+        let doc = parse_document(doc_str).unwrap();
+        assert!(doc.blocks.contains_key("auto-fallback-shell-fallback"), "Fallback block should be parsed and recognized");
+    }
+
+    #[test]
+    fn test_conditional_block_parsing() {
+        let doc_str = "[conditional name:conditional-example depends:test-data]Conditional content[/conditional]";
+        let doc = parse_document(doc_str).unwrap();
+        let conditional_block = doc.blocks.get("conditional-example").unwrap();
+        assert!(conditional_block.depends_on.contains("test-data"), "Conditional block should have explicit dependency");
+    }
+
+    #[test]
+    fn test_debug_verbosity_levels() {
+        let doc_str = "[debug enabled:true verbosity:full][/debug]";
+        let doc = parse_document(doc_str).unwrap();
+
+        assert_eq!(doc.unnamed_blocks.len(), 1);
+        let debug_block = &doc.unnamed_blocks[0];
+        assert_eq!(debug_block.modifiers.get("enabled").unwrap(), "true");
+        assert_eq!(debug_block.modifiers.get("verbosity").unwrap(), "full");
+    }
+
+    #[test]
+    fn test_template_with_optional_placeholders() {
+        let doc_str = r#"
+        [template name:optional-placeholder]
+        [question name:${name} model:${model}]
+        ${content}
+        [/question]
+        [/template]
+
+        [@optional-placeholder name:"optional-test" model:"gpt-4" content:"Test content"]
+        [/@optional-placeholder]
+        "#;
+
+        let doc = parse_document(doc_str).unwrap();
+        assert!(doc.blocks.contains_key("optional-test"), "Template expansion should generate named question block");
+    }
+
+    #[test]
+    fn test_explicit_error_block() {
+        let doc_str = "[error type:namespace_conflict]Duplicate block names[/error]";
+        let doc = parse_document(doc_str).unwrap();
+
+        assert_eq!(doc.unnamed_blocks.len(), 1);
+        let error_block = &doc.unnamed_blocks[0];
+        assert_eq!(error_block.block_type, "error");
+        assert_eq!(error_block.modifiers.get("type").unwrap(), "namespace_conflict");
+    }
+
+    #[test]
+    fn test_priority_modifier_for_context_ordering() {
+        let doc_str = "[data name:low-priority priority:1]low[/data][data name:high-priority priority:10]high[/data]";
+        let doc = parse_document(doc_str).unwrap();
+
+        let high_priority_block = doc.blocks.get("high-priority").unwrap();
+        assert_eq!(high_priority_block.modifiers.get("priority").unwrap(), "10");
+
+        let low_priority_block = doc.blocks.get("low-priority").unwrap();
+        assert_eq!(low_priority_block.modifiers.get("priority").unwrap(), "1");
+    }
+
+    #[test]
+    fn test_context_pruning_order() {
+        let doc_str = "[data name:essential priority:10]Keep[/data][data name:non-essential priority:2]Prune[/data]";
+        let doc = parse_document(doc_str).unwrap();
+
+        let essential_block = doc.blocks.get("essential").unwrap();
+        assert_eq!(essential_block.modifiers.get("priority").unwrap(), "10");
+    }
+
+    #[test]
+    fn test_secret_block_handling() {
+        let doc_str = "[secret name:api-key]SECRET_ENV_VAR[/secret]";
+        let doc = parse_document(doc_str).unwrap();
+
+        assert!(doc.blocks.contains_key("api-key"));
+        let secret_block = doc.blocks.get("api-key").unwrap();
+        assert_eq!(secret_block.block_type, "secret");
+    }
+
+    #[test]
+    fn test_memory_block_parsing() {
+        let doc_str = "[memory name:user-state]persistent content[/memory]";
+        let doc = parse_document(doc_str).unwrap();
+
+        assert!(doc.blocks.contains_key("user-state"));
+        let memory_block = doc.blocks.get("user-state").unwrap();
+        assert_eq!(memory_block.block_type, "memory");
+    }
+
+    #[test]
+    fn test_visualization_block_preview() {
+        let doc_str = r#"
+        [visualization]
+          [question debug:true]
+          Visualization test
+          [/question]
+          [preview]
+          Auto-generated preview here
+          [/preview]
+        [/visualization]"#;
+
+        let doc = parse_document(doc_str).unwrap();
+        assert_eq!(doc.unnamed_blocks.len(), 1, "Should parse visualization block");
+    }
+
 }
