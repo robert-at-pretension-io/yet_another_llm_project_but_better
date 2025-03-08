@@ -276,7 +276,7 @@ pub struct BlockProcessorContext<'a, 'w, 's> {
     pub commands: &'a mut Commands<'w, 's>,
     pub named_blocks: &'a mut NamedBlocks,
     pub execution_state: &'a mut ExecutionState,
-    pub block_query: &'a Query<&Block>,
+    pub block_query: &'a Query<'w, 's, &Block>,
 }
 
 /// Trait for block processors
@@ -651,17 +651,17 @@ fn on_block_parsed(
     for event in ev_reader.read() {
         let entity = event.block_id.entity();
         
-        // Find the block's type
-        if let Some(block) = world.get::<Block>(entity) {
+        // Find the block's type using the query
+        if let Ok(block) = block_query.get(entity) {
             let block_type = block.block_type.as_str();
             
             // Call the appropriate processor's on_parse method
             if let Some(processor) = registry.get(&block_type) {
                 let mut ctx = BlockProcessorContext {
                     commands: &mut commands,
-                    named_blocks: &named_blocks,
-                    execution_state: &mut execution_state,
-                    world,
+                    named_blocks: &mut *named_blocks,
+                    execution_state: &mut *execution_state,
+                    block_query: &block_query,
                 };
                 
                 if let Err(err) = processor.on_parse(event.block_id, &mut ctx) {
@@ -753,9 +753,11 @@ fn execute_blocks(
                                     execution_state.queue.push_front(fallback_id);
                                     
                                     // Update block status
-                                    commands.entity(entity).update(|block: &mut Block| {
-                                        block.error = Some(err.to_string());
-                                    });
+                                    if let Some(mut entity_commands) = commands.get_entity(entity) {
+                                        if let Some(mut block) = entity_commands.get_mut::<Block>() {
+                                            block.error = Some(err.to_string());
+                                        }
+                                    }
                                 }
                             } else {
                                 // No fallback, report error
@@ -801,7 +803,7 @@ fn process_executed_blocks(
         
         if let Some(output) = &event.output {
             // Update the block with the execution result
-            if let Some(mut entity_commands) = commands.get_entity_mut(entity) {
+            if let Some(mut entity_commands) = commands.get_entity(entity) {
                 if let Some(mut block) = entity_commands.get_mut::<Block>() {
                     block.executed = true;
                     block.output = Some(output.clone());
@@ -809,7 +811,7 @@ fn process_executed_blocks(
             }
         } else if let Some(error) = &event.error {
             // Update the block with the error
-            if let Some(mut entity_commands) = commands.get_entity_mut(entity) {
+            if let Some(mut entity_commands) = commands.get_entity(entity) {
                 if let Some(mut block) = entity_commands.get_mut::<Block>() {
                     block.error = Some(error.clone());
                     block.executed = true;
