@@ -271,6 +271,7 @@ mod tests {
     }
 
     #[test]
+    fn already_answered() {
         let document = "\
             [question name:already-answered]\
             What is 2+2?\

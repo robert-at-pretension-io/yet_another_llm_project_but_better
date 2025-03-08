@@ -218,7 +218,7 @@ impl Document {
         false
     }
     
-    fn execute_block(&mut self, name: &str) -> Result<String, String> {
+    pub fn execute_block(&mut self, name: &str) -> Result<String, String> {
         let block = self.blocks.get(name).ok_or(format!("Block '{}' not found", name))?.clone();
         
         // Check if we have a cached execution result
