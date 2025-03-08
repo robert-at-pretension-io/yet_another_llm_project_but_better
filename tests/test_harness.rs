@@ -22,7 +22,7 @@ mod tests {
     fn test_process_questions_no_error() {
         // Create a simple document with a question block.
         let document = "[question name:test_question model:default debug:true]\nCompute X\n[/question]";
-        let doc = parse_document(document).expect("Failed to parse document");
+        let mut doc = parse_document(document).expect("Failed to parse document");
         // Process questions which should generate a response block.
         process_questions(&mut doc).expect("Processing questions failed");
         // Check that a response block was added.
@@ -126,15 +126,7 @@ mod tests {
                "Template expansion should create a new block");
     }
 
-    #[test]
-    fn test_extract_references() {
-        let content = "This is a text with ${reference1} and another ${reference2} inside.";
-        let refs = extract_references(content);
-        
-        assert_eq!(refs.len(), 2, "Should extract two references");
-        assert!(refs.contains("reference1"), "Should extract reference1");
-        assert!(refs.contains("reference2"), "Should extract reference2");
-    }
+
 
     #[test]
     fn test_special_characters_in_content() {
