@@ -1,8 +1,31 @@
+[workspace]
+
 [package]
 name = "yet_another_llm_project_but_better"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-nom = "8.0.0"
-notify = "8.0.0"
+pest = "2.7.5"
+pest_derive = "2.7.5"
+notify = "4.0.17"
+regex = "1.10.2"
+serde = { version = "1.0.193", features = ["derive"] }
+serde_json = "1.0.108"
+thiserror = "1.0.50"
+anyhow = "1.0.75"
+tempfile = "3.8.1"
+rand = "0.8.5"
+
+[dev-dependencies]
+criterion = "0.5.1"
+proptest = "1.2.0"
+mockall = "0.11.4"
+
+[[bin]]
+name = "test_harness"
+path = "src/bin/test_harness.rs"
+
+[[bin]]
+name = "fuzzer"
+path = "src/bin/fuzzer.rs"

@@ -15,6 +15,10 @@ Blocks are the basic building units:
 [code:python name:greet]
 print("Hello World")
 [/code:python]
+
+[results for:greet format:plain]
+Hello World
+[/results]
 ```
 
 ## 🌳 Structuring Your Document
@@ -51,6 +55,10 @@ Run code directly within your document:
 [code:python name:calculate-sum]
 print(sum([1, 2, 3, 4, 5]))
 [/code:python]
+
+[results for:calculate-sum format:plain]
+15
+[/results]
 ```
 
 ### Shell Commands
@@ -59,6 +67,13 @@ Execute system-level operations:
 [shell name:list-directory]
 ls -l
 [/shell]
+
+[results for:list-directory format:plain]
+total 12
+drwxr-xr-x 2 user user 4096 Jan 15 10:30 docs
+drwxr-xr-x 4 user user 4096 Jan 15 10:25 src
+drwxr-xr-x 3 user user 4096 Jan 15 10:28 tests
+[/results]
 ```
 
 ### API Interactions
@@ -68,9 +83,79 @@ Integrate with external APIs:
 https://api.example.com/info
 [/api]
 
+[results for:get-info format:json]
+{
+  "status": "success",
+  "data": {
+    "name": "Example API",
+    "version": "1.0"
+  }
+}
+[/results]
+
 [data name:get-info-fallback format:json]
 {"status": "unavailable"}
 [/data]
+```
+
+## 📋 Results Blocks
+
+### Automatic Results
+Results are automatically generated after execution:
+```markdown
+[code:python name:analyze-data]
+data = [10, 20, 30, 40, 50]
+print(f"Average: {sum(data)/len(data)}")
+print(f"Max: {max(data)}")
+[/code:python]
+
+[results for:analyze-data]
+Average: 30.0
+Max: 50
+[/results]
+```
+
+### Customizing Results Display
+Control how results appear:
+```markdown
+[code:python name:generate-table display:block format:markdown max_lines:10]
+import pandas as pd
+
+df = pd.DataFrame({'Name': ['Alice', 'Bob', 'Charlie'], 
+                  'Score': [85, 92, 78]})
+print(df.to_markdown())
+[/code:python]
+
+[results for:generate-table format:markdown]
+|    | Name    |   Score |
+|---:|:--------|--------:|
+|  0 | Alice   |      85 |
+|  1 | Bob     |      92 |
+|  2 | Charlie |      78 |
+[/results]
+```
+
+### Referencing Results
+Use results in other blocks:
+```markdown
+[code:python name:get-numbers]
+numbers = [1, 2, 3, 4, 5]
+print(numbers)
+[/code:python]
+
+[results for:get-numbers]
+[1, 2, 3, 4, 5]
+[/results]
+
+[code:python name:process-numbers]
+prev_numbers = ${get-numbers.results}
+total = sum(eval(prev_numbers))
+print(f"The sum is: {total}")
+[/code:python]
+
+[results for:process-numbers]
+The sum is: 15
+[/results]
 ```
 
 ## 📦 Data Management
@@ -159,6 +244,10 @@ load_data_from_source()
 [code:python name:data-loader-fallback]
 print("Default data loaded")
 [/code:python]
+
+[results for:data-loader-fallback]
+Default data loaded
+[/results]
 ```
 
 The daemon auto-inserts these if omitted.
@@ -169,6 +258,18 @@ Clearly handle and report errors:
 [error type:namespace_conflict]
 Multiple blocks named "user-details" found. Execution stopped until resolved.
 [/error]
+```
+
+### Error Results
+When execution fails, error results are shown:
+```markdown
+[code:python name:will-fail]
+print(undefined_variable)
+[/code:python]
+
+[error_results for:will-fail]
+NameError: name 'undefined_variable' is not defined
+[/error_results]
 ```
 
 ## 🚦 Workflow Management
@@ -186,7 +287,8 @@ Multiple blocks named "user-details" found. Execution stopped until resolved.
 - Preview often to ensure accurate context.
 - Enable debugging selectively when troubleshooting.
 - Manage tokens and prioritize content effectively.
+- Review execution results to verify expected behavior.
+- Use appropriate formats for different result types.
 
 ## 🎓 Congratulations!
 You now have everything you need to become an expert in our powerful meta-programming language. Dive in and start creating your dynamic, AI-enhanced documents today!
-

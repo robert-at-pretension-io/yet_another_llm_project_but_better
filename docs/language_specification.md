@@ -11,7 +11,7 @@ block content
 ```
 - `block_type`: Required. Specifies functionality (e.g., `code`, `question`, `data`).
 - `name`: Required. A unique identifier for block referencing. **Must be unique across the document.**
-- `modifiers`: Optional. Controls behavior and execution specifics.
+- `modifiers` *(optional)*: Controls behavior and execution specifics.
 
 ## 2. Core Block Types
 
@@ -30,6 +30,10 @@ block content
 - `variable`: Stores named, reusable values.
 - `secret`: Loads sensitive data from environment variables.
 - `filename`: Includes external file content into the context, path can be relative or absolute.
+
+### Results Blocks
+- `results`: Contains execution outputs from executable blocks (auto-inserted by daemon).
+- `error_results`: Displays execution errors (auto-inserted by daemon when execution fails).
 
 ### Control Blocks
 - `template`: Defines reusable block structures with placeholders.
@@ -57,6 +61,12 @@ block content
 - `order:[0.0-1.0]` (default: document order)
 - `weight:[0.0-1.0]` (default: `1.0`)
 - `summarize:brief|semantic|tabular` (optional)
+
+### Results Modifiers
+- `display:inline|block|none` (default: `block`)
+- `format:plain|json|csv|markdown` (default: based on output content)
+- `trim:true|false` (default: `true`)
+- `max_lines:<int>` (default: `0` for unlimited)
 
 ### Debugging Modifiers
 - `debug:true|false` (default: `false`)
@@ -92,7 +102,35 @@ Upon exceeding token limits:
 - Summarization modifiers applied (`summarize:brief|semantic|tabular`).
 - Blocks with highest priority (`10`) preserved at all costs.
 
-## 6. Template Expansion
+## 6. Execution Results
+When executing blocks:
+
+1. Automatic results inclusion: 
+   - The daemon automatically inserts a `results` block after each executed block.
+   - The `results` block contains the stdout/stderr of the executed block.
+
+2. Results block syntax:
+   ```markdown
+   [results for:block_name format:format_type display:display_type]
+   execution output content
+   [/results]
+   ```
+
+3. Error results:
+   - If execution fails, an `error_results` block is inserted instead.
+   ```markdown
+   [error_results for:block_name]
+   error message and stack trace
+   [/error_results]
+   ```
+
+4. Results processing:
+   - Results can be referenced using `${block_name.results}` in subsequent blocks.
+   - Results are formatted according to the `format` modifier.
+   - Display can be controlled with the `display` modifier.
+   - Large outputs can be truncated using the `max_lines` modifier.
+
+## 7. Template Expansion
 - Template blocks define placeholders (`${placeholder}` syntax).
 - Placeholders substituted during template invocation.
 
@@ -106,7 +144,7 @@ block definitions with placeholders
 [/@template_name]
 ```
 
-## 7. Mandatory Fallbacks
+## 8. Mandatory Fallbacks
 All executable blocks must specify a fallback block explicitly:
 - Fallback blocks named `<original-block-name>-fallback`.
 - Daemon auto-generates and inserts if missing:
@@ -122,7 +160,7 @@ handle_error_gracefully()
 [/code:python]
 ```
 
-## 8. Error Handling
+## 9. Error Handling
 Explicit error blocks halt execution, require manual resolution:
 ```markdown
 [error type:error_type]
@@ -135,7 +173,7 @@ Descriptive error message.
 - `circular_dependency`: Circular block dependency detected.
 - `execution_failure`: Execution of block failed with no fallback.
 
-## 9. Debugging and Visualization
+## 10. Debugging and Visualization
 Debugging blocks clearly provide:
 - Dependency graphs.
 - Execution timestamps and logs.
@@ -155,21 +193,20 @@ Visualization wraps question blocks to produce explicit previews:
 [/visualization]
 ```
 
-## 10. Version Control
+## 11. Version Control
 - Automatic commits on document changes.
 - Each commit includes block-level change metadata.
 - Supports rollback and branching for version management.
 
-## 11. Security Considerations
+## 12. Security Considerations
 - Secrets loaded from environment variables.
 - Secret blocks never included in AI contexts.
 - Permission modifiers can restrict access at the block-level.
 
-## 12. Environment
+## 13. Environment
 - Document daemon continuously monitors, resolves dependencies, and executes as per the specification.
 - On daemon restart, pending question blocks resolved automatically.
 
 ---
 
 This specification provides precise and unambiguous guidance, ensuring exact implementation without requiring external clarification.
-

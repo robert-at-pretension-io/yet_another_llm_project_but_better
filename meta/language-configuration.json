@@ -1,0 +1,48 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Meta Programming Language",
+    "scopeName": "source.meta-programming-language",
+    "patterns": [
+      {
+        "name": "entity.name.tag.block.begin.meta",
+        "match": "\\[(\\w+(:\\w+)?)(\\s+name:\\w+)?(\\s+[\\w_:]+(\\:\\S+)?)*\\]"
+      },
+      {
+        "name": "entity.name.tag.block.end.meta",
+        "match": "\\[/\\w+(:\\w+)?\\]"
+      },
+      {
+        "name": "entity.other.attribute-name.meta",
+        "match": "(\\w+:)(true|false|\\d+(\\.\\d+)?|\\w+)"
+      },
+      {
+        "name": "constant.language.placeholder.meta",
+        "match": "\\$\\{[\\w_.]+\\}"
+      },
+      {
+        "name": "string.quoted.double.meta",
+        "begin": "\"",
+        "end": "\"",
+        "patterns": [
+          {
+            "match": "\\\\.",
+            "name": "constant.character.escape.meta"
+          }
+        ]
+      },
+      {
+        "name": "comment.block.meta",
+        "begin": "\\[comment.*?\\]",
+        "end": "\\[/comment\\]"
+      },
+      {
+        "name": "markup.raw.block.meta",
+        "begin": "```[\\w]*$",
+        "end": "```"
+      }
+    ],
+    "repository": {},
+    "fileTypes": ["mpl", "meta"],
+    "uuid": "b8e7d1a0-3b68-4f0c-8c7f-94d4f3f2a821"
+  }
+  

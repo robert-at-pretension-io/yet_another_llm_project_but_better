@@ -1,0 +1,107 @@
+// Meta Programming Language Grammar
+
+// Whitespace and Comments
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT = _{ "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
+
+// Main document structure
+document = { SOI ~ block* ~ EOI }
+
+// Block structure
+block = { 
+    question_block |
+    response_block |
+    code_block |
+    shell_block |
+    api_block |
+    data_block |
+    variable_block |
+    secret_block |
+    template_block |
+    template_invocation_block |
+    error_block |
+    visualization_block |
+    preview_block |
+    filename_block |
+    memory_block |
+    section_block |
+    conditional_block
+}
+
+// Common components
+block_name = @{ (ASCII_ALPHA | ASCII_DIGIT | "-" | "_")+ }
+modifier_key = @{ (ASCII_ALPHA | ASCII_DIGIT | "_")+ }
+modifier_value = @{ 
+    quoted_string | 
+    boolean |
+    number |
+    block_reference
+}
+quoted_string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+boolean = @{ "true" | "false" }
+number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+block_reference = @{ block_name }
+
+modifier = { modifier_key ~ ":" ~ modifier_value }
+modifiers = { modifier ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ modifier)* }
+
+// Block open/close tags
+open_tag = { "[" ~ block_type ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" }
+close_tag = { "[/" ~ block_type ~ "]" }
+
+// Block types
+block_type = @{ 
+    ("code:" ~ language) |
+    "question" |
+    "response" |
+    "comment" |
+    "shell" |
+    "api" |
+    "data" |
+    "variable" |
+    "secret" |
+    "template" |
+    "error" |
+    "visualization" |
+    "preview" |
+    "filename" |
+    "memory" |
+    "section:" ~ section_type |
+    "conditional"
+}
+
+language = @{ ASCII_ALPHA+ }
+section_type = @{ ASCII_ALPHA+ }
+
+// Template invocation syntax
+template_name = @{ ASCII_ALPHA ~ (ASCII_ALPHA | ASCII_DIGIT | "-" | "_")* }
+template_invocation_open = { "[@" ~ template_name ~ (WHITESPACE* ~ modifiers)? ~ "]" }
+template_invocation_close = { "[/@" ~ template_name ~ "]" }
+
+// Name attribute
+name_attr = { "name:" ~ block_name }
+
+// Block content
+block_content = { (!close_tag ~ ANY)* }
+
+// Specific block types
+question_block = { "[question" ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/question]" }
+response_block = { "[response" ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/response]" }
+code_block = { "[code:" ~ language ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/code:" ~ language ~ "]" }
+shell_block = { "[shell" ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/shell]" }
+api_block = { "[api" ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/api]" }
+data_block = { "[data" ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/data]" }
+variable_block = { "[variable" ~ WHITESPACE* ~ name_attr ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/variable]" }
+secret_block = { "[secret" ~ WHITESPACE* ~ name_attr ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/secret]" }
+template_block = { "[template" ~ WHITESPACE* ~ name_attr ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/template]" }
+template_invocation_block = { template_invocation_open ~ block_content ~ template_invocation_close }
+error_block = { "[error" ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/error]" }
+visualization_block = { "[visualization" ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/visualization]" }
+preview_block = { "[preview" ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/preview]" }
+filename_block = { "[filename" ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/filename]" }
+memory_block = { "[memory" ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/memory]" }
+section_block = { "[section:" ~ section_type ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/section:" ~ section_type ~ "]" }
+conditional_block = { "[conditional" ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/conditional]" }
+
+// Variable references
+variable_reference = ${ "${" ~ block_name ~ "}" }

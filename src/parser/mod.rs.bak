@@ -1,0 +1,177 @@
+use pest::Parser;
+use pest_derive::Parser;
+use std::collections::HashMap;
+use anyhow::Result;
+use thiserror::Error;
+
+// Define the parser using pest
+#[derive(Parser)]
+#[grammar = "parser/meta_language.pest"]
+pub struct MetaLanguageParser;
+
+// Import sub-modules
+mod blocks;
+mod block_parser;
+
+// Re-export important types
+pub use blocks::Block;
+pub use block_parser::parse_single_block;
+
+// Define error type
+#[derive(Error, Debug)]
+pub enum ParserError {
+    #[error("Failed to parse document: {0}")]
+    ParseError(String),
+    
+    #[error("Invalid block structure: {0}")]
+    InvalidBlockStructure(String),
+    
+    #[error("Duplicate block name: {0}")]
+    DuplicateBlockName(String),
+}
+
+// Parse a document string into blocks
+pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
+    let mut blocks = Vec::new();
+    
+    // Handle multiple blocks separated by blank lines
+    if input.contains("\n\n") {
+        let parts = input.split("\n\n").collect::<Vec<&str>>();
+        
+        for part in parts {
+            if !part.trim().is_empty() {
+                // Try to parse as individual block
+                if let Ok(block) = parse_single_block(part) {
+                    blocks.push(block);
+                } else {
+                    // If we fail to parse, we might have syntax errors
+                    return Err(ParserError::ParseError(format!("Failed to parse block: {}", part)));
+                }
+            }
+        }
+        
+        if !blocks.is_empty() {
+            // Check for duplicate block names
+            check_duplicate_names(&blocks)?;
+            return Ok(blocks);
+        }
+    } else {
+        // Try as a single block
+        if let Ok(block) = parse_single_block(input) {
+            blocks.push(block);
+            return Ok(blocks);
+        }
+    }
+    
+    // If above approaches fail, try the full document parser
+    let pairs = MetaLanguageParser::parse(Rule::document, input)
+        .map_err(|e| ParserError::ParseError(e.to_string()))?;
+    
+    blocks.clear();
+    
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::document => {
+                // Process all blocks in the document
+                for block_pair in pair.into_inner() {
+                    if let Rule::block = block_pair.as_rule() {
+                        if let Some(block) = blocks::process_block(block_pair) {
+                            blocks.push(block);
+                        }
+                    }
+                }
+            }
+            Rule::EOI => {}, // End of input, ignore
+            _ => {},
+        }
+    }
+    
+    // Check for duplicate block names
+    check_duplicate_names(&blocks)?;
+    
+    Ok(blocks)
+}
+
+// Helper function to check for duplicate block names
+fn check_duplicate_names(blocks: &[Block]) -> Result<(), ParserError> {
+    let mut block_names = HashMap::new();
+    for block in blocks {
+        if let Some(name) = &block.name {
+            if block_names.contains_key(name) {
+                return Err(ParserError::DuplicateBlockName(name.clone()));
+            }
+            block_names.insert(name.clone(), true);
+        }
+    }
+    Ok(())
+}
+
+// Helper functions for extracting common components
+pub fn extract_name(pair: pest::iterators::Pair<Rule>) -> Option<String> {
+    for inner_pair in pair.into_inner() {
+        if inner_pair.as_rule() == Rule::block_name {
+            return Some(inner_pair.as_str().to_string());
+        }
+    }
+    None
+}
+
+pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, String)> {
+    let mut modifiers = Vec::new();
+    
+    for modifier_pair in pair.into_inner() {
+        if modifier_pair.as_rule() == Rule::modifier {
+            let mut key = String::new();
+            let mut value = String::new();
+            
+            for part in modifier_pair.into_inner() {
+                match part.as_rule() {
+                    Rule::modifier_key => {
+                        key = part.as_str().to_string();
+                    }
+                    Rule::modifier_value => {
+                        value = extract_modifier_value(part);
+                    }
+                    _ => {}
+                }
+            }
+            
+            if !key.is_empty() {
+                modifiers.push((key, value));
+            }
+        }
+    }
+    
+    modifiers
+}
+
+fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
+    if let Some(inner) = pair.into_inner().next() {
+        match inner.as_rule() {
+            Rule::quoted_string => {
+                let s = inner.as_str();
+                // Remove the quotes
+                if s.len() >= 2 {
+                    s[1..s.len()-1].to_string()
+                } else {
+                    s.to_string()
+                }
+            }
+            _ => inner.as_str().to_string(),
+        }
+    } else {
+        "".to_string() // Return empty string if no inner value
+    }
+}
+
+// Function to find and extract variable references from content
+pub fn extract_variable_references(content: &str) -> Vec<String> {
+    let mut references = Vec::new();
+    let re = regex::Regex::new(r"\$\{([a-zA-Z0-9_-]+)\}").unwrap();
+    
+    for cap in re.captures_iter(content) {
+        references.push(cap[1].to_string());
+    }
+    
+    references
+}
