@@ -25,7 +25,7 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
                 
                 // Update block type if _type modifier was found
                 if template_type != "template" {
-                    block.block_type = template_type;
+                    block.block_type = template_type.clone();
                 }
             }
             Rule::block_content => {
@@ -65,7 +65,7 @@ pub fn process_template_invocation(pair: pest::iterators::Pair<Rule>) -> Block {
                         
                         // Update block type if _type modifier was found
                         if invocation_type != "template_invocation" {
-                            block.block_type = invocation_type;
+                            block.block_type = invocation_type.clone();
                         }
                     }
                 }
