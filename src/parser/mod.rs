@@ -67,7 +67,23 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
             if let Some(open_bracket) = content.find('[') {
                 let block_start = &content[open_bracket..];
                 
-                // Find the matching closing tag
+                // Check for template invocation with [@template_name] syntax
+                if block_start.starts_with("[@") {
+                    if let Some(close_bracket) = block_start.find(']') {
+                        // Extract template name
+                        let template_name = &block_start[2..close_bracket];
+                        
+                        // Create a template invocation block
+                        let mut block = Block::new("template_invocation", Some(template_name), "");
+                        blocks.push(block);
+                        
+                        // Move past this template invocation
+                        content = &content[open_bracket + close_bracket + 1..].trim_start();
+                        continue;
+                    }
+                }
+                
+                // Find the matching closing tag for regular blocks
                 if let Some(block) = try_parse_single_block(block_start) {
                     // Successfully parsed a block
                     blocks.push(block.0);
