@@ -419,11 +419,9 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     let open_end = trimmed_content[start..].find(']')? + start + 1;
     let section_content = trimmed_content[open_end..close_pos].trim();
     
-    // Extract name and modifiers
-    let mut name = None;
-    let mut modifiers = Vec::new();
-    
     // Extract name
+    let mut name = None;
+    
     if let Some(name_pos) = trimmed_content[start..open_end].find("name:") {
         let name_start = start + name_pos + 5;
         let name_end = trimmed_content[name_start..open_end].find(' ').map(|pos| name_start + pos)
@@ -431,20 +429,28 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
         name = Some(trimmed_content[name_start..name_end].trim().to_string());
     }
     
-    // Extract other modifiers (could be expanded)
-    let opening_tag = &trimmed_content[start..open_end];
-    if let Some(modifiers_text) = opening_tag.find(' ') {
-        let modifiers_text = &opening_tag[modifiers_text..];
-        // Use the existing modifier extraction logic if needed
-        // modifiers = extract_modifiers_from_text(modifiers_text);
-    }
-    
     // Create the block
     let mut block = Block::new(&block_type, name.as_deref(), section_content);
     
-    // Add any extracted modifiers
-    for (key, value) in modifiers {
-        block.add_modifier(&key, &value);
+    // Extract other modifiers (could be expanded)
+    let opening_tag = &trimmed_content[start..open_end];
+    if let Some(modifiers_pos) = opening_tag.find(' ') {
+        let modifiers_text = &opening_tag[modifiers_pos..];
+        // Use modifiers::extract_modifiers_from_text if we implement this later
+        // For now, we'll just extract common modifiers manually
+        
+        // Example of extracting a specific modifier (can be expanded as needed)
+        if let Some(format_pos) = modifiers_text.find("format:") {
+            let format_start = format_pos + 7; // "format:".len()
+            let format_end = modifiers_text[format_start..].find(' ')
+                .map(|pos| format_start + pos)
+                .unwrap_or_else(|| modifiers_text[format_start..].find(']')
+                    .map(|pos| format_start + pos)
+                    .unwrap_or(modifiers_text.len()));
+            
+            let format_value = modifiers_text[format_start..format_end].trim();
+            block.add_modifier("format", format_value);
+        }
     }
     
     // Parse child blocks from the content
