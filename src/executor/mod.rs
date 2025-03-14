@@ -271,34 +271,49 @@ impl MetaLanguageExecutor {
     
     // Helper function to look up a variable value, handling dotted names
     fn lookup_variable(&self, var_name: &str) -> Option<String> {
+        println!("lookup_variable called with: '{}'", var_name);
+        
         // First try direct lookup
         if let Some(value) = self.outputs.get(var_name) {
+            println!("  Direct lookup succeeded for '{}'", var_name);
             return Some(value.clone());
         }
         
         // If the name contains dots, it might be a reference to a result
         // Format could be: block_name.results
         if var_name.contains('.') {
+            println!("  Variable contains dots: '{}'", var_name);
             let parts: Vec<&str> = var_name.split('.').collect();
+            println!("  Split into parts: {:?}", parts);
+            
             if parts.len() == 2 {
                 let block_name = parts[0];
                 let suffix = parts[1];
                 
+                println!("  Checking block_name: '{}', suffix: '{}'", block_name, suffix);
+                
                 // Handle common suffixes
                 if suffix == "results" {
                     let results_key = format!("{}_results", block_name);
+                    println!("  Looking up results_key: '{}'", results_key);
+                    
                     if let Some(value) = self.outputs.get(&results_key) {
+                        println!("  Found value for '{}': '{}'", results_key, value);
                         return Some(value.clone());
                     }
                 } else if suffix == "error" {
                     let error_key = format!("{}_error", block_name);
+                    println!("  Looking up error_key: '{}'", error_key);
+                    
                     if let Some(value) = self.outputs.get(&error_key) {
+                        println!("  Found value for '{}': '{}'", error_key, value);
                         return Some(value.clone());
                     }
                 }
             }
         }
         
+        println!("  No value found for '{}'", var_name);
         None
     }
     
