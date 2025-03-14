@@ -269,6 +269,39 @@ impl MetaLanguageExecutor {
         self.process_variable_references_internal(content, &mut Vec::new())
     }
     
+    // Helper function to look up a variable value, handling dotted names
+    fn lookup_variable(&self, var_name: &str) -> Option<String> {
+        // First try direct lookup
+        if let Some(value) = self.outputs.get(var_name) {
+            return Some(value.clone());
+        }
+        
+        // If the name contains dots, it might be a reference to a result
+        // Format could be: block_name.results
+        if var_name.contains('.') {
+            let parts: Vec<&str> = var_name.split('.').collect();
+            if parts.len() == 2 {
+                let block_name = parts[0];
+                let suffix = parts[1];
+                
+                // Handle common suffixes
+                if suffix == "results" {
+                    let results_key = format!("{}_results", block_name);
+                    if let Some(value) = self.outputs.get(&results_key) {
+                        return Some(value.clone());
+                    }
+                } else if suffix == "error" {
+                    let error_key = format!("{}_error", block_name);
+                    if let Some(value) = self.outputs.get(&error_key) {
+                        return Some(value.clone());
+                    }
+                }
+            }
+        }
+        
+        None
+    }
+    
     // Internal implementation that tracks processing variables to detect circular references
     fn process_variable_references_internal(&self, content: &str, processing_vars: &mut Vec<String>) -> String {
         let mut result = content.to_string();
@@ -298,10 +331,15 @@ impl MetaLanguageExecutor {
             // Debug output for troubleshooting
             println!("Looking for variable: {}", actual_var_name);
             
-            // Try to get the value from outputs
-            if let Some(output) = self.outputs.get(&actual_var_name) {
-                println!("Found value for {}: {}", actual_var_name, output);
-                let value = output.clone();
+            // Debug: Print all available outputs for troubleshooting
+            println!("Available outputs:");
+            for (k, v) in &self.outputs {
+                println!("  '{}' => '{}'", k, v);
+            }
+            
+            // Try to get the value using our lookup function
+            if let Some(value) = self.lookup_variable(&actual_var_name) {
+                println!("Found value for {}: {}", actual_var_name, value);
                 
                 // Apply any modifiers to the value
                 let modified_value = self.apply_modifiers_to_variable(&actual_var_name, &value);
