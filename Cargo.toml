@@ -29,3 +29,7 @@ path = "src/bin/test_harness.rs"
 [[bin]]
 name = "fuzzer"
 path = "src/bin/fuzzer.rs"
+
+[lib]
+name = "yet_another_llm_project_but_better"
+path = "src/lib.rs"
