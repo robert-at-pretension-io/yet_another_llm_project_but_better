@@ -224,8 +224,12 @@ impl MetaLanguageExecutor {
         // Handle execution result
         match result {
             Ok(output) => {
-                // Store output
+                // Store output with the block name
                 self.outputs.insert(name.to_string(), output.clone());
+                
+                // Also store with block_name.results format
+                let results_key = format!("{}.results", name);
+                self.outputs.insert(results_key, output.clone());
                 
                 // Cache if needed
                 if self.is_cacheable(&block) {
