@@ -197,12 +197,31 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
 
 // Find the end position of a block
 fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
-    let close_tag = format!("[/{}", block_type);
-    if let Some(close_pos) = content.find(&close_tag) {
+    // Extract the base block type (before any colon)
+    let base_type = if let Some(colon_pos) = block_type.find(':') {
+        &block_type[0..colon_pos]
+    } else {
+        block_type
+    };
+    
+    // Try with the full block type first
+    let full_close_tag = format!("[/{}", block_type);
+    if let Some(close_pos) = content.find(&full_close_tag) {
         if let Some(end_pos) = content[close_pos..].find(']') {
             return Some(close_pos + end_pos + 1);
         }
     }
+    
+    // If that fails and we have a subtype, try with just the base type
+    if block_type != base_type {
+        let base_close_tag = format!("[/{}", base_type);
+        if let Some(close_pos) = content.find(&base_close_tag) {
+            if let Some(end_pos) = content[close_pos..].find(']') {
+                return Some(close_pos + end_pos + 1);
+            }
+        }
+    }
+    
     None
 }
 
