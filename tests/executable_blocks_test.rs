@@ -86,7 +86,7 @@ df -h
     
     #[test]
     fn test_api_block() {
-        let input = r#"[api name:weather-api url:"https://api.weather.com/forecast" method:GET headers:"Authorization: Bearer ${api-key}"]
+        let input = r#"[api name:weather-api url:"https://api.weather.com/forecast" method:GET headers:"Authorization: Bearer ${{api-key}}"]
 {
   "location": "New York",
   "units": "metric",
@@ -143,7 +143,7 @@ result = {"status": "fallback", "data": None}
     
     #[test]
     fn debug_api_block() {
-        let input = r#"[api name:weather-api url:"https://api.weather.com/forecast" method:GET headers:"Authorization: Bearer ${api-key}"]
+        let input = r#"[api name:weather-api url:"https://api.weather.com/forecast" method:GET headers:"Authorization: Bearer ${{api-key}}"]
 {
   "location": "New York",
   "units": "metric",
@@ -198,7 +198,7 @@ result = {"status": "fallback", "data": None}
         
         let headers = blocks[0].get_modifier("headers");
         println!("DEBUG: headers modifier = {:?}", headers);
-        assert_eq!(headers, Some(&"Authorization: Bearer ${api-key}".to_string()),
-                  "headers modifier should be 'Authorization: Bearer ${api-key}'");
+        assert_eq!(headers, Some(&"Authorization: Bearer ${{api-key}}".to_string()),
+                  "headers modifier should be 'Authorization: Bearer ${{api-key}}'");
     }
 }
