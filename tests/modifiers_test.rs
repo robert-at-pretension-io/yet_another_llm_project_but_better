@@ -88,6 +88,16 @@ mod tests {
         assert_eq!(block.get_modifier("order"), Some(&"0.5".to_string()));
         assert_eq!(block.get_modifier("weight"), Some(&"0.7".to_string()));
         assert_eq!(block.get_modifier("summarize"), Some(&"brief".to_string()));
+        
+        // Test boolean interpretation
+        assert!(block.is_modifier_true("always_include"));
+        assert!(!block.is_modifier_true("nonexistent"));
+        
+        // Test numeric interpretation
+        assert_eq!(block.get_modifier_as_f64("priority"), Some(8.0));
+        assert_eq!(block.get_modifier_as_f64("order"), Some(0.5));
+        assert_eq!(block.get_modifier_as_f64("weight"), Some(0.7));
+        assert_eq!(block.get_modifier_as_f64("nonexistent"), None);
     }
     
     #[test]
