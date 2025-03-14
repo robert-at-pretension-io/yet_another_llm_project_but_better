@@ -57,21 +57,50 @@ pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, Stri
 
 // Extract the value from a modifier_value pair
 fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
-    if let Some(inner) = pair.into_inner().next() {
+    println!("DEBUG: Extracting value from: '{}'", pair.as_str());
+    
+    // Try to get inner part
+    if let Some(inner) = pair.clone().into_inner().next() {
         match inner.as_rule() {
             Rule::quoted_string => {
+                // For a quoted string, extract content between quotes
                 let s = inner.as_str();
-                // Remove the quotes
-                if s.len() >= 2 {
+                println!("DEBUG: Found quoted string: '{}'", s);
+                if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
                     s[1..s.len()-1].to_string()
                 } else {
                     s.to_string()
                 }
+            },
+            Rule::boolean | Rule::number => {
+                // For booleans and numbers, just use the raw text
+                let val = inner.as_str().to_string();
+                println!("DEBUG: Found boolean/number: '{}'", val);
+                val
+            },
+            Rule::block_reference => {
+                // For block references, use the raw text
+                let val = inner.as_str().to_string();
+                println!("DEBUG: Found block reference: '{}'", val);
+                val
+            },
+            _ => {
+                // For any other rule type, extract as is
+                let val = inner.as_str().to_string();
+                println!("DEBUG: Found other type: '{:?}' with value '{}'", inner.as_rule(), val);
+                val
             }
-            _ => inner.as_str().to_string(),
         }
     } else {
-        "".to_string() // Return empty string if no inner value
+        // If no inner rules, the value might be after the colon as plain text
+        // Try to extract directly from pair text
+        let pair_str = pair.as_str().trim();
+        
+        // Debug what we're trying to process
+        println!("DEBUG: No inner rule found, using raw text: '{}'", pair_str);
+        
+        // Return the raw value as a fallback
+        pair_str.to_string()
     }
 }
 
