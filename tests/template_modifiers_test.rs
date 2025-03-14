@@ -4,20 +4,27 @@ use yet_another_llm_project_but_better::parser::Block;
 
 #[test]
 fn test_template_with_modifiers() {
-    println!("TEST: Creating template block directly");
+    println!("TEST: Parsing template block from text");
 
-    // Create the template block directly instead of parsing
-    let mut template_block = Block::new("template", Some("test-template"), "This is a template with ${data-block}");
+    // Create a template block using the parser
+    let template_text = r#"
+    @template:custom name:test-template requires:data-block cache:true
+    This is a template with ${data-block}
+    @end
+    "#;
     
-    // Add the template type as a modifier
-    template_block.add_modifier("_type", "custom");
+    // Parse the template
+    let parsed_blocks = parser::parse_document(template_text).expect("Failed to parse template");
     
-    // Set the block_type to include the template type
-    template_block.block_type = "template:custom".to_string();
+    // Find the template block
+    let template_block = parsed_blocks.iter()
+        .find(|b| b.name.as_ref().map_or(false, |n| n == "test-template"))
+        .expect("Template block not found in parsed result")
+        .clone();
     
-    // Add other modifiers
-    template_block.add_modifier("requires", "data-block");
-    template_block.add_modifier("cache", "true");
+    // Check the block type
+    println!("TEST: Template block_type: '{}'", template_block.block_type);
+    assert_eq!(template_block.block_type, "template:custom", "Incorrect block type");
     
     // Check the modifiers
     println!("TEST: Template has {} modifiers:", template_block.modifiers.len());
