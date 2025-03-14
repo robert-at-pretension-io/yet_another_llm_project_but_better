@@ -151,8 +151,8 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     let mut name = None;
     if let Some(name_pos) = content[start..open_end].find("name:") {
         let name_start = start + name_pos + 5;
-        let name_end = content[name_start..].find(' ').map(|pos| name_start + pos)
-            .or_else(|| content[name_start..].find(']').map(|pos| name_start + pos))?;
+        let name_end = content[name_start..open_end].find(' ').map(|pos| name_start + pos)
+            .or_else(|| content[name_start..open_end].find(']').map(|pos| name_start + pos))?;
         name = Some(content[name_start..name_end].trim().to_string());
     }
     
