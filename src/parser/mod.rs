@@ -198,6 +198,11 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
     let block_type = if trimmed_content.starts_with("[code:") {
         // Extract language from [code:language]
         let lang_start = 6; // "[code:".len()
+        // Make sure we don't go out of bounds
+        if lang_start >= trimmed_content.len() {
+            return None;
+        }
+        
         let lang_end = trimmed_content[lang_start..].find(' ')
             .or_else(|| trimmed_content[lang_start..].find(']'))
             .map(|pos| lang_start + pos)
@@ -257,7 +262,18 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
     
     // Manual fallback parsing for common block types
     let open_bracket = trimmed_content.find('[')?;
-    let close_bracket = trimmed_content[open_bracket..].find(']').map(|pos| open_bracket + pos)?;
+    // Make sure we don't go out of bounds
+    if open_bracket >= trimmed_content.len() {
+        return None;
+    }
+    
+    let close_bracket = trimmed_content[open_bracket..].find(']')
+        .map(|pos| open_bracket + pos)?;
+    
+    // Validate that close_bracket is within bounds
+    if close_bracket >= trimmed_content.len() {
+        return None;
+    }
     
     // Extract the opening tag
     let opening_tag = &trimmed_content[open_bracket..=close_bracket];
@@ -277,12 +293,34 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
     
     // Find the closing tag
     let closing_tag = format!("[/{}", block_type);
+    
+    // Make sure close_bracket + 1 doesn't overflow
+    if close_bracket >= trimmed_content.len() {
+        return None;
+    }
+    
     let content_start = close_bracket + 1;
+    
+    // Make sure content_start is within bounds
+    if content_start >= trimmed_content.len() {
+        return None;
+    }
     
     if let Some(closing_start) = trimmed_content[content_start..].find(&closing_tag) {
         let closing_start = content_start + closing_start;
+        
+        // Make sure closing_start is within bounds
+        if closing_start >= trimmed_content.len() {
+            return None;
+        }
+        
         let closing_end = trimmed_content[closing_start..].find(']')
             .map(|pos| closing_start + pos + 1)?;
+        
+        // Make sure closing_end is within bounds
+        if closing_end > trimmed_content.len() {
+            return None;
+        }
         
         // Extract content
         let content = trimmed_content[content_start..closing_start].trim();
@@ -297,8 +335,13 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
             // For now, just look for name: which we already handled
         }
         
-        // Adjust for whitespace
-        let whitespace_offset = content.len() - trimmed_content.len();
+        // Adjust for whitespace, but be careful with subtraction
+        let whitespace_offset = if content.len() > trimmed_content.len() {
+            0 // This shouldn't happen, but prevents overflow
+        } else {
+            trimmed_content.len() - content.len()
+        };
+        
         return Some((block, closing_end + whitespace_offset));
     }
     
