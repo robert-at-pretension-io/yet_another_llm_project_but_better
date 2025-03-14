@@ -72,6 +72,13 @@ Based on the security analysis, what are the key vulnerabilities that need addre
 
         let blocks = parse_document(input).unwrap();
         
+        // Debug: Print the number of blocks found and their details
+        println!("Number of blocks found: {}", blocks.len());
+        for (i, block) in blocks.iter().enumerate() {
+            println!("Block {}: type={}, name={:?}", 
+                i, block.block_type, block.name);
+        }
+        
         // Verify the number of blocks (top-level blocks)
         assert_eq!(blocks.len(), 8);
         
@@ -108,6 +115,13 @@ print(result)
 
         // Parse the document
         let blocks = parse_document(test_document).expect("Failed to parse document");
+        
+        // Debug: Print the number of blocks found in simple workflow
+        println!("Simple workflow - Number of blocks found: {}", blocks.len());
+        for (i, block) in blocks.iter().enumerate() {
+            println!("Simple workflow - Block {}: type={}, name={:?}", 
+                i, block.block_type, block.name);
+        }
         
         // Create an executor
         let mut executor = MetaLanguageExecutor::new();
