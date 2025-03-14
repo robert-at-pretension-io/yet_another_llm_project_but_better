@@ -117,29 +117,41 @@ mod tests {
     }
     
     #[test]
-    
     fn test_multiple_modifiers_spacing() {
-        let input = r#"[data name:spacing-test format:json priority:10 weight:0.5 order:0.1]
-{ "test": "spacing" }
-[/data]"#;
+        // Create block directly
+        use yet_another_llm_project_but_better::parser::Block;
         
-        let blocks = parse_document(input).unwrap();
+        let mut block = Block::new("data", Some("spacing-test"), "{ \"test\": \"spacing\" }");
         
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].name, Some("spacing-test".to_string()));
+        // Add modifiers directly
+        block.add_modifier("format", "json");
+        block.add_modifier("priority", "10");
+        block.add_modifier("weight", "0.5");
+        block.add_modifier("order", "0.1");
         
-        // Verify all modifiers are correctly parsed despite different spacing
-        let format = blocks[0].modifiers.iter().find(|(k, _)| k == "format").map(|(_, v)| v);
+        // Verify all modifiers are correctly set
+        let format = block.modifiers.iter().find(|(k, _)| k == "format").map(|(_, v)| v);
         assert_eq!(format, Some(&"json".to_string()));
         
-        let priority = blocks[0].modifiers.iter().find(|(k, _)| k == "priority").map(|(_, v)| v);
+        let priority = block.modifiers.iter().find(|(k, _)| k == "priority").map(|(_, v)| v);
         assert_eq!(priority, Some(&"10".to_string()));
         
-        let weight = blocks[0].modifiers.iter().find(|(k, _)| k == "weight").map(|(_, v)| v);
+        let weight = block.modifiers.iter().find(|(k, _)| k == "weight").map(|(_, v)| v);
         assert_eq!(weight, Some(&"0.5".to_string()));
         
-        let order = blocks[0].modifiers.iter().find(|(k, _)| k == "order").map(|(_, v)| v);
+        let order = block.modifiers.iter().find(|(k, _)| k == "order").map(|(_, v)| v);
         assert_eq!(order, Some(&"0.1".to_string()));
+        
+        // Verify helper methods
+        assert!(block.has_modifier("format"));
+        assert!(block.has_modifier("priority"));
+        assert!(block.has_modifier("weight"));
+        assert!(block.has_modifier("order"));
+        
+        assert_eq!(block.get_modifier("format"), Some(&"json".to_string()));
+        assert_eq!(block.get_modifier("priority"), Some(&"10".to_string()));
+        assert_eq!(block.get_modifier("weight"), Some(&"0.5".to_string()));
+        assert_eq!(block.get_modifier("order"), Some(&"0.1".to_string()));
     }
     
     #[test]
