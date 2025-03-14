@@ -50,13 +50,23 @@ mod tests {
         code_block.add_modifier("depends", "test-data");
         executor.blocks.insert("process-data".to_string(), code_block);
         
+        // Print block information before execution
+        println!("Executing block 'process-data'");
+        println!("Block content: {:?}", executor.blocks.get("process-data").map(|b| &b.content));
+        
         // Execute the code block
         let result = executor.execute_block("process-data");
+        
+        // Print detailed execution result
+        println!("Execution result: {:?}", result);
         
         // Verify the result
         assert!(result.is_ok(), "Block execution should succeed");
         if let Ok(output) = result {
-            assert!(output.trim() == "15", "Sum of [1,2,3,4,5] should be 15");
+            println!("Output: '{}'", output);
+            assert!(output.trim() == "15", "Sum of [1,2,3,4,5] should be 15, got '{}' instead", output.trim());
+        } else if let Err(err) = &result {
+            println!("Error details: {:?}", err);
         }
     }
 }
