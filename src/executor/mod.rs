@@ -339,8 +339,16 @@ impl MetaLanguageExecutor {
             } else if let Some(fallback_value) = inline_fallback {
                 // Use inline fallback if provided
                 result = result.replace(&var_ref, &fallback_value);
+            } else {
+                // Check if the block has a fallback modifier
+                if let Some(block) = self.blocks.get(&actual_var_name) {
+                    if let Some(fallback_value) = block.get_modifier("fallback") {
+                        result = result.replace(&var_ref, fallback_value);
+                        continue;
+                    }
+                }
+                // If no value or fallback found, leave the reference as is (do nothing)
             }
-            // If no value or fallback found, leave the reference as is (do nothing)
         }
         
         result
