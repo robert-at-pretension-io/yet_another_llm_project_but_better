@@ -29,7 +29,7 @@ pub fn parse_template_block(input: &str) -> Result<Block, ParserError> {
         // Extract content
         let content = input[close_bracket + 1..close_tag_pos].trim();
         
-        // Create block
+        // Create block - ensure we're explicitly creating a template block
         let mut block = Block::new("template", Some(&name), content);
         
         // Extract other modifiers
@@ -50,6 +50,9 @@ pub fn parse_template_block(input: &str) -> Result<Block, ParserError> {
                 }
             }
         }
+        
+        // Add a special modifier to identify this as a template
+        block.add_modifier("_type", "template");
         
         return Ok(block);
     }
@@ -87,12 +90,25 @@ pub fn parse_template_block(input: &str) -> Result<Block, ParserError> {
 }
 
 pub fn parse_template_invocation(input: &str) -> Result<Block, ParserError> {
-    // Find the opening and closing tags
-    let open_tag_start = input.find("[@");
+    // Find the opening and closing tags - support both [@template] and [template:invoke] formats
+    let open_tag_start = input.find("[@").or_else(|| input.find("[template:invoke"));
     
     if let Some(open_tag_start) = open_tag_start {
+        let is_at_format = input[open_tag_start..].starts_with("[@");
+        
         // Extract template name
-        let template_name_start = open_tag_start + 2; // +2 to skip "[@"
+        let template_name_start = if is_at_format {
+            open_tag_start + 2 // +2 to skip "[@"
+        } else {
+            // Find the name: attribute in [template:invoke name:template_name]
+            let name_attr_start = input[open_tag_start..].find("name:");
+            if let Some(pos) = name_attr_start {
+                open_tag_start + pos + 5 // +5 to skip "name:"
+            } else {
+                return Err(ParserError::ParseError("Template invocation requires a name".to_string()));
+            }
+        };
+        
         let template_name_end = input[template_name_start..].find(" ")
             .map(|pos| template_name_start + pos)
             .unwrap_or_else(|| input[template_name_start..].find("]")
@@ -107,7 +123,12 @@ pub fn parse_template_invocation(input: &str) -> Result<Block, ParserError> {
             .ok_or_else(|| ParserError::ParseError("Invalid template invocation format".to_string()))?;
         
         // Find the closing tag
-        let close_tag = format!("[/@{}]", template_name);
+        let close_tag = if is_at_format {
+            format!("[/@{}]", template_name)
+        } else {
+            "[/template:invoke]".to_string()
+        };
+        
         let close_tag_pos = input.rfind(&close_tag)
             .ok_or_else(|| ParserError::ParseError(format!("Missing closing tag: {}", close_tag)))?;
         
@@ -118,11 +139,17 @@ pub fn parse_template_invocation(input: &str) -> Result<Block, ParserError> {
         let mut block = Block::new("template_invocation", Some(template_name), content);
         
         // Extract modifiers
-        let modifiers_text = input[template_name_end..close_bracket].trim();
+        let modifiers_text = if is_at_format {
+            input[template_name_end..close_bracket].trim()
+        } else {
+            // For [template:invoke] format, get all text between open tag and close bracket
+            let invoke_text = input[open_tag_start + 16..close_bracket].trim(); // +16 to skip "[template:invoke"
+            invoke_text
+        };
         
         // Parse modifiers - they might be a bit different in template invocations
         for modifier in modifiers_text.split_whitespace() {
-            if modifier.contains(":") {
+            if modifier.contains(":") && !modifier.starts_with("name:") {
                 let parts: Vec<&str> = modifier.split(":").collect();
                 if parts.len() >= 2 {
                     let key = parts[0].trim();
@@ -137,6 +164,9 @@ pub fn parse_template_invocation(input: &str) -> Result<Block, ParserError> {
                 }
             }
         }
+        
+        // Add a special modifier to identify this as a template invocation
+        block.add_modifier("_type", "template_invocation");
         
         return Ok(block);
     }
