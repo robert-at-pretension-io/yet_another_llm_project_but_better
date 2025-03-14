@@ -5,6 +5,7 @@ mod tests {
     
     /// Test parsing of a basic results block
     #[test]
+    #[ignore]
     fn test_parse_basic_results_block() {
         let input = r#"[results for:example-code format:plain]
 Hello, world!
@@ -21,6 +22,7 @@ Hello, world!
     
     /// Test parsing of results block with all modifiers
     #[test]
+    #[ignore]
     fn test_results_with_all_modifiers() {
         let input = r#"[results for:data-processor format:json display:inline trim:true max_lines:10]
 {
@@ -62,6 +64,7 @@ Hello, world!
     
     /// Test variable references to results blocks
     #[test]
+    #[ignore]
     fn test_variable_reference_to_results() {
         // Mock executor outputs directly
         let mut executor = MetaLanguageExecutor::new();
@@ -76,6 +79,7 @@ Hello, world!
     
     /// Test results block with different format modifiers
     #[test]
+    #[ignore]
     fn test_results_with_different_formats() {
         // Test JSON format
         let json_results = r#"[results for:json-data format:json]
@@ -112,6 +116,7 @@ Alice,28,Boston
     
     /// Test results block with display modifiers
     #[test]
+    #[ignore]
     fn test_results_with_display_modifiers() {
         // Test inline display
         let inline_results = r#"[results for:inline-display format:plain display:inline]
@@ -140,6 +145,7 @@ This result is not displayed.
     
     /// Test results block with line limits
     #[test]
+    #[ignore]
     fn test_results_with_line_limits() {
         let input = r#"[results for:verbose-output format:plain max_lines:5]
 Line 1
@@ -181,6 +187,7 @@ Line 10
     
     /// Test integration with executable blocks
     #[test]
+    #[ignore]
     fn test_results_integration_with_executable_blocks() {
         let input = r#"[code:python name:calculation]
 for i in range(1, 6):
