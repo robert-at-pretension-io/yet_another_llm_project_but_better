@@ -82,7 +82,7 @@ sk-1234567890abcdef
     }
     
     #[test]
-    #[ignore]
+    
     fn test_block_with_modifiers() {
         let input = r#"[data name:config format:json cache_result:true]
 {"server": "localhost", "port": 8080}
