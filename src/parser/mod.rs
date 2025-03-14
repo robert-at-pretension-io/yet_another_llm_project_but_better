@@ -78,8 +78,8 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                         if !parts.is_empty() {
                             let template_name = parts[0];
                             
-                            // Create a template invocation block
-                            let mut block = Block::new("template_invocation", Some(template_name), "");
+                            // Create a template invocation block with "invoke-" prefix for the name
+                            let mut block = Block::new("template_invocation", Some(&format!("invoke-{}", template_name)), "");
                             
                             // Process modifiers (parameters)
                             for part in &parts[1..] {
