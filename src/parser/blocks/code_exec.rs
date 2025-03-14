@@ -227,14 +227,18 @@ pub fn process_shell_block(pair: pest::iterators::Pair<Rule>) -> Block {
 fn extract_api_modifiers_from_tag(tag_text: &str) -> Vec<(String, String)> {
     let mut modifiers = Vec::new();
     
+    println!("DEBUG: Extracting modifiers from raw tag: '{}'", tag_text);
+    
     // Skip the "[api" part
     if let Some(after_api) = tag_text.strip_prefix("[api") {
         let mut remaining = after_api.trim();
+        println!("DEBUG: After stripping [api prefix: '{}'", remaining);
         
         // Process each modifier
         while !remaining.is_empty() && !remaining.starts_with(']') {
             // Skip leading spaces
             remaining = remaining.trim_start();
+            println!("DEBUG: Processing remaining text: '{}'", remaining);
             
             // Check for name: attribute first
             if remaining.starts_with("name:") {
@@ -244,51 +248,70 @@ fn extract_api_modifiers_from_tag(tag_text: &str) -> Vec<(String, String)> {
                     .map_or(remaining.len(), |pos| name_start + pos);
                 
                 let name_value = &remaining[name_start..name_end];
+                println!("DEBUG: Found name attribute: '{}'", name_value);
                 modifiers.push(("name".to_string(), name_value.to_string()));
                 
                 remaining = &remaining[name_end..];
+                println!("DEBUG: Remaining after name: '{}'", remaining);
                 continue;
             }
             
             // Look for key:value pattern
             if let Some(colon_pos) = remaining.find(':') {
                 let key = remaining[..colon_pos].trim();
+                println!("DEBUG: Found key: '{}'", key);
                 
                 // Skip the colon
                 remaining = &remaining[colon_pos + 1..];
+                println!("DEBUG: After colon: '{}'", remaining);
                 
                 // Check if value is quoted
                 if remaining.starts_with('"') {
+                    println!("DEBUG: Found quoted value");
                     // Find the closing quote
                     if let Some(quote_end) = remaining[1..].find('"') {
                         let value = &remaining[1..=quote_end];
+                        println!("DEBUG: Extracted quoted value: '{}'", value);
                         modifiers.push((key.to_string(), value.to_string()));
                         
                         // Move past the closing quote
                         remaining = &remaining[quote_end + 2..];
+                        println!("DEBUG: Remaining after quoted value: '{}'", remaining);
                     } else {
                         // Malformed quoted value, just take until next space
+                        println!("DEBUG: Malformed quoted value, no closing quote");
                         let value_end = remaining.find(|c: char| c.is_whitespace() || c == ']')
                             .unwrap_or(remaining.len());
                         let value = &remaining[..value_end];
+                        println!("DEBUG: Extracted malformed value: '{}'", value);
                         modifiers.push((key.to_string(), value.to_string()));
                         
                         remaining = &remaining[value_end..];
+                        println!("DEBUG: Remaining after malformed value: '{}'", remaining);
                     }
                 } else {
                     // Unquoted value - read until whitespace or closing bracket
+                    println!("DEBUG: Found unquoted value");
                     let value_end = remaining.find(|c: char| c.is_whitespace() || c == ']')
                         .unwrap_or(remaining.len());
                     let value = &remaining[..value_end];
+                    println!("DEBUG: Extracted unquoted value: '{}'", value);
                     modifiers.push((key.to_string(), value.to_string()));
                     
                     remaining = &remaining[value_end..];
+                    println!("DEBUG: Remaining after unquoted value: '{}'", remaining);
                 }
             } else {
                 // No more colons, break out
+                println!("DEBUG: No more colons found, breaking out");
                 break;
             }
         }
+    }
+    
+    println!("DEBUG: Extracted {} modifiers in total", modifiers.len());
+    for (i, (key, value)) in modifiers.iter().enumerate() {
+        println!("DEBUG: Modifier {}: '{}' = '{}'", i+1, key, value);
     }
     
     modifiers
