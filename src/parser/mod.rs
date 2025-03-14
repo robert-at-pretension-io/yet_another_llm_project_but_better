@@ -16,7 +16,7 @@ mod block_parsers;
 mod modifiers;
 
 // Re-export important types
-pub use blocks::Block;
+pub use self::blocks::Block;
 pub use block_parser::parse_single_block;
 pub use utils::extractors::{extract_name, extract_modifiers, extract_variable_references};
 pub use utils::validators::check_duplicate_names;
