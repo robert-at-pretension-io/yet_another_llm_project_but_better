@@ -5,7 +5,6 @@ mod tests {
     
     /// Test parsing of a basic results block
     #[test]
-    #[ignore]
     fn test_parse_basic_results_block() {
         let input = r#"[results for:example-code format:plain]
 Hello, world!
