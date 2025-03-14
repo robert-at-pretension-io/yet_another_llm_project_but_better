@@ -528,3 +528,9 @@ impl MetaLanguageExecutor {
         Ok(updated_doc)
     }
 }
+// Implement Default for MetaLanguageExecutor
+impl Default for MetaLanguageExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
