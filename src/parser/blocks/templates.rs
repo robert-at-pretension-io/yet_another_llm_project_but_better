@@ -30,16 +30,13 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
                     }
                     if modifier.0 == "_type" {
                         template_type = format!("template:{}", modifier.1);
+                        // Update block type immediately when _type modifier is found
+                        block.block_type = template_type.clone();
+                        println!("DEBUG: Updated template type to: {}", template_type);
                     }
                     
                     // Ensure we're properly adding all modifiers to the block
                     block.add_modifier(&modifier.0, &modifier.1);
-                }
-                
-                // Update block type if _type modifier was found
-                if template_type != "template" {
-                    println!("DEBUG: Updated template type to: {}", template_type);
-                    block.block_type = template_type.clone();
                 }
                 
                 // Debug: Print all modifiers in the block
