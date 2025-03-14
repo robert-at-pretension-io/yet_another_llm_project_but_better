@@ -63,7 +63,6 @@ mod tests {
     
     /// Test variable references to results blocks
     #[test]
-    #[ignore]
     fn test_variable_reference_to_results() {
         // Mock executor outputs directly
         let mut executor = MetaLanguageExecutor::new();
