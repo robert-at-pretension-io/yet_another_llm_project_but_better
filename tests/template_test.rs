@@ -136,4 +136,46 @@ This is a simple template with no parameters.
             assert!(template.content.contains("This is a simple template"));
         }
     }
+    
+    /// Test simple template invocation parsing
+    #[test]
+    fn test_simple_template_invocation() {
+        let input = r#"[template name:greeting-template param1:default-value]
+Hello, ${param1}! Welcome to our service.
+[/template]
+
+[@greeting-template param1:"World"]
+[/@greeting-template]"#;
+
+        let blocks = parse_document(input).unwrap();
+        
+        // Print out the parsed blocks for debugging
+        println!("Number of blocks parsed: {}", blocks.len());
+        for (i, block) in blocks.iter().enumerate() {
+            println!("Block {}: type={}, name={:?}", 
+                i, 
+                block.block_type, 
+                block.name
+            );
+            println!("  Content: {}", block.content);
+            println!("  Modifiers:");
+            for (key, value) in &block.modifiers {
+                println!("    {} = {}", key, value);
+            }
+        }
+        
+        // Basic assertions
+        assert_eq!(blocks.len(), 2, "Should parse exactly two blocks");
+        
+        // Find the template block
+        let template = blocks.iter().find(|b| b.block_type == "template").unwrap();
+        assert_eq!(template.name, Some("greeting-template".to_string()));
+        assert_eq!(template.get_modifier("param1"), Some(&"default-value".to_string()));
+        assert!(template.content.contains("Hello, ${param1}!"));
+        
+        // Find the template invocation block
+        let invocation = blocks.iter().find(|b| b.block_type == "template_invocation").unwrap();
+        assert_eq!(invocation.name, Some("greeting-template".to_string()));
+        assert_eq!(invocation.get_modifier("param1"), Some(&"World".to_string()));
+    }
 }
