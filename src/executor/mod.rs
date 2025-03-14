@@ -500,7 +500,7 @@ impl MetaLanguageExecutor {
                 // Get the original block
                 if let Some(block) = self.blocks.get(name) {
                     // Create an error results block
-                    let error_block = self.generate_error_results_block(block, &err.to_string());
+                    let _error_block = self.generate_error_results_block(block, &err.to_string());
                 }
                 
                 // Return the error anyway so the caller knows execution failed
