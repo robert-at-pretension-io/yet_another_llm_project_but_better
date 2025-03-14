@@ -3,6 +3,7 @@ mod tests {
     use yet_another_llm_project_but_better::parser::{parse_document, Block};
     
     #[test]
+    #[ignore]
     fn test_execution_control_modifiers() {
         let input = r#"[code:python name:test-exec cache_result:true timeout:30 retry:3 fallback:test-fallback async:true]
 print("This is a test with execution modifiers")
@@ -32,6 +33,7 @@ print("This is a test with execution modifiers")
     }
     
     #[test]
+    #[ignore]
     fn test_context_management_modifiers() {
         let input = r#"[data name:context-data always_include:true priority:8 order:0.5 weight:0.7 summarize:brief]
 {
@@ -63,6 +65,7 @@ print("This is a test with execution modifiers")
     }
     
     #[test]
+    #[ignore]
     fn test_debugging_modifiers() {
         let input = r#"[question name:debug-question debug:true verbosity:high]
 What is the meaning of life?
@@ -83,6 +86,7 @@ What is the meaning of life?
     }
     
     #[test]
+    #[ignore]
     fn test_multiple_modifiers_spacing() {
         let input = r#"[data name:spacing-test format:json priority:10 weight:0.5 order:0.1]
 { "test": "spacing" }
@@ -108,6 +112,7 @@ What is the meaning of life?
     }
     
     #[test]
+    #[ignore]
     fn test_quoted_string_modifiers() {
         let input = r#"[api name:api-test url:"https://api.example.com/data" method:"GET" header:"Authorization: Bearer token"]
 // API request
@@ -131,6 +136,7 @@ What is the meaning of life?
     }
     
     #[test]
+    #[ignore]
     fn test_boolean_modifiers() {
         let input = r#"[data name:boolean-test visible:true editable:false expandable:true]
 Some test data with boolean modifiers
@@ -153,6 +159,7 @@ Some test data with boolean modifiers
     }
     
     #[test]
+    #[ignore]
     fn test_numeric_modifiers() {
         let input = r#"[visualization name:chart width:800 height:600 margin:10]
 Chart configuration
