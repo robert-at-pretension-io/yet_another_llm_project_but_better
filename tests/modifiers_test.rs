@@ -117,7 +117,7 @@ mod tests {
     }
     
     #[test]
-    #[ignore]
+    
     fn test_multiple_modifiers_spacing() {
         let input = r#"[data name:spacing-test format:json priority:10 weight:0.5 order:0.1]
 { "test": "spacing" }
