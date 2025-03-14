@@ -8,9 +8,9 @@ fn test_template_with_modifiers() {
 
     // Create a template block using the parser
     let template_text = r#"
-    [template:custom name:test-template requires:data-block cache:true]
+    [template name:test-template _type:custom requires:data-block cache:true]
     This is a template with ${data-block}
-    [/template:custom]
+    [/template]
     "#;
     
     // Parse the template
@@ -24,7 +24,7 @@ fn test_template_with_modifiers() {
     
     // Check the block type
     println!("TEST: Template block_type: '{}'", template_block.block_type);
-    assert_eq!(template_block.block_type, "template:custom", "Incorrect block type");
+    assert_eq!(template_block.block_type, "template", "Incorrect block type");
     
     // Check the modifiers
     println!("TEST: Template has {} modifiers:", template_block.modifiers.len());
