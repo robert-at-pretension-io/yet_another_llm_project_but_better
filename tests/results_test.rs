@@ -70,9 +70,26 @@ mod tests {
         
         // Test variable resolution with the mock data
         let content = "import json\ndata = ${generate-data.results}\nprint(f\"Sum: {sum(data)}\")";
+        
+        // Print the output map for debugging
+        println!("Output map contents:");
+        for (key, value) in &executor.outputs {
+            println!("  '{}' => '{}'", key, value);
+        }
+        
         let processed = executor.process_variable_references(content);
         
-        assert!(processed.contains("[1, 2, 3, 4, 5]"));
+        // Print the processed content for debugging
+        println!("Processed content: '{}'", processed);
+        println!("Original content: '{}'", content);
+        
+        // Check if the variable reference is gone
+        assert!(!processed.contains("${generate-data.results}"), 
+                "Variable reference should be replaced");
+        
+        // Check that the content contains the expected value
+        assert!(processed.contains("[1, 2, 3, 4, 5]"), 
+                "Processed content should contain the data array");
     }
     
     /// Test results block with different format modifiers
