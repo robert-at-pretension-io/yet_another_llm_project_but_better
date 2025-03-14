@@ -63,10 +63,10 @@ pub fn parse_code_block(input: &str) -> Result<Block, ParserError> {
             
             // Find the key
             let key_start = i;
-            while i < modifiers_text.len() && modifiers_text[i..i+1] != ":" && !modifiers_text[i..i+1].trim().is_empty() {
+            while i < modifiers_text.len() && !modifiers_text[i..i+1].contains(':') && !modifiers_text[i..i+1].trim().is_empty() {
                 i += 1;
             }
-            if i >= modifiers_text.len() || modifiers_text[i..i+1] != ":" {
+            if i >= modifiers_text.len() || !modifiers_text[i..i+1].contains(':') {
                 i += 1;
                 continue;
             }
@@ -83,12 +83,12 @@ pub fn parse_code_block(input: &str) -> Result<Block, ParserError> {
             }
             
             // Check if value is quoted
-            if modifiers_text[i..i+1] == "\"" {
+            if modifiers_text[i..i+1].contains('"') {
                 i += 1; // Skip opening quote
                 let value_start = i;
                 
                 // Find closing quote
-                while i < modifiers_text.len() && modifiers_text[i..i+1] != "\"" {
+                while i < modifiers_text.len() && !modifiers_text[i..i+1].contains('"') {
                     i += 1;
                 }
                 
@@ -198,10 +198,10 @@ pub fn parse_shell_block(input: &str) -> Result<Block, ParserError> {
             
             // Find the key
             let key_start = i;
-            while i < modifiers_text.len() && modifiers_text[i..i+1] != ":" && !modifiers_text[i..i+1].trim().is_empty() {
+            while i < modifiers_text.len() && !modifiers_text[i..i+1].contains(':') && !modifiers_text[i..i+1].trim().is_empty() {
                 i += 1;
             }
-            if i >= modifiers_text.len() || modifiers_text[i..i+1] != ":" {
+            if i >= modifiers_text.len() || !modifiers_text[i..i+1].contains(':') {
                 i += 1;
                 continue;
             }
@@ -218,12 +218,12 @@ pub fn parse_shell_block(input: &str) -> Result<Block, ParserError> {
             }
             
             // Check if value is quoted
-            if modifiers_text[i..i+1] == "\"" {
+            if modifiers_text[i..i+1].contains('"') {
                 i += 1; // Skip opening quote
                 let value_start = i;
                 
                 // Find closing quote
-                while i < modifiers_text.len() && modifiers_text[i..i+1] != "\"" {
+                while i < modifiers_text.len() && !modifiers_text[i..i+1].contains('"') {
                     i += 1;
                 }
                 
@@ -324,10 +324,10 @@ pub fn parse_api_block(input: &str) -> Result<Block, ParserError> {
             
             // Find the key
             let key_start = i;
-            while i < modifiers_text.len() && modifiers_text[i..i+1] != ":" && !modifiers_text[i..i+1].trim().is_empty() {
+            while i < modifiers_text.len() && !modifiers_text[i..i+1].contains(':') && !modifiers_text[i..i+1].trim().is_empty() {
                 i += 1;
             }
-            if i >= modifiers_text.len() || modifiers_text[i..i+1] != ":" {
+            if i >= modifiers_text.len() || !modifiers_text[i..i+1].contains(':') {
                 i += 1;
                 continue;
             }
@@ -344,12 +344,12 @@ pub fn parse_api_block(input: &str) -> Result<Block, ParserError> {
             }
             
             // Check if value is quoted
-            if modifiers_text[i..i+1] == "\"" {
+            if modifiers_text[i..i+1].contains('"') {
                 i += 1; // Skip opening quote
                 let value_start = i;
                 
                 // Find closing quote
-                while i < modifiers_text.len() && modifiers_text[i..i+1] != "\"" {
+                while i < modifiers_text.len() && !modifiers_text[i..i+1].contains('"') {
                     i += 1;
                 }
                 
