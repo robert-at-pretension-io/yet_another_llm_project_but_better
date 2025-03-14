@@ -29,56 +29,66 @@ pub fn parse_single_block(input: &str) -> Result<Block, ParserError> {
     }
 }
 
-// Helper function to validate block structure (check for matching closing tags)
-fn has_matching_closing_tag(content: &str) -> bool {
-    // Find the block type from the opening tag
+// Extract the block type from a block opening tag
+// This handles all variations of block syntax:
+// - Simple blocks: [blocktype]
+// - Blocks with subtypes: [blocktype:subtype]
+// - Blocks with modifiers: [blocktype name:value]
+// - Blocks with specific modifiers: [blocktype for:value]
+fn extract_block_type(content: &str) -> Option<(String, String)> {
+    // Find the opening bracket
     if let Some(open_start) = content.find('[') {
         let after_open = &content[open_start + 1..];
         
-        // Handle special block types with modifiers directly after opening bracket
-        // Examples: [results for:simple-calc format:plain], [error_results for:test]
-        let known_block_types = ["results", "error_results", "api", "preview", "template"];
-        for block_type in known_block_types.iter() {
-            if after_open.starts_with(block_type) && 
-               (after_open.len() > block_type.len()) && 
-               (after_open.as_bytes()[block_type.len()] == b' ') {
-                // Found a known block type with space after it (indicating modifiers)
-                let close_tag = format!("[/{}", block_type);
-                return content.contains(&close_tag);
-            }
+        // Find where the block type ends (at a space, colon, or closing bracket)
+        if let Some(type_end) = after_open.find(|c: char| c == ' ' || c == ':' || c == ']') {
+            let block_type = &after_open[..type_end];
             
-            // Also check for special case like [results for:simple-calc]
-            let for_modifier = format!("{} for:", block_type);
-            if after_open.starts_with(&for_modifier) {
-                let close_tag = format!("[/{}", block_type);
-                return content.contains(&close_tag);
-            }
-        }
-        
-        // Standard block type extraction (including subtypes with colons)
-        if let Some(type_end) = after_open.find(|c: char| c == ' ' || c == ']') {
-            let full_block_type = &after_open[..type_end];
-            
-            // Handle block types with subtypes (e.g., "code:python")
-            let base_type = if let Some(colon_pos) = full_block_type.find(':') {
-                &full_block_type[..colon_pos]
+            // If we have a colon immediately after the block type, it's a subtype
+            let full_type = if after_open.len() > type_end && after_open.as_bytes()[type_end] == b':' {
+                // Find the end of the subtype (at a space or closing bracket)
+                if let Some(subtype_end) = after_open[type_end + 1..].find(|c: char| c == ' ' || c == ']') {
+                    let subtype = &after_open[type_end + 1..type_end + 1 + subtype_end];
+                    format!("{}:{}", block_type, subtype)
+                } else {
+                    // If no space or closing bracket, use everything up to the end
+                    let remaining = &after_open[type_end + 1..];
+                    format!("{}:{}", block_type, remaining)
+                }
             } else {
-                full_block_type
+                block_type.to_string()
             };
             
-            // Check for matching closing tag - try both the full type and base type
-            let full_close_tag = format!("[/{}", full_block_type);
-            let base_close_tag = format!("[/{}", base_type);
+            // Extract the base type (before any colon)
+            let base_type = if let Some(colon_pos) = full_type.find(':') {
+                full_type[..colon_pos].to_string()
+            } else {
+                full_type.clone()
+            };
             
-            // First check if the full type closing tag exists
-            if content.contains(&full_close_tag) {
-                return true;
-            }
-            
-            // If not found, check if the base type closing tag exists
-            // This handles cases where a block might be closed with just the base type
-            return content.contains(&base_close_tag);
+            return Some((base_type, full_type));
         }
+    }
+    
+    None
+}
+
+// Helper function to validate block structure (check for matching closing tags)
+fn has_matching_closing_tag(content: &str) -> bool {
+    // Extract the block type from the opening tag
+    if let Some((base_type, full_type)) = extract_block_type(content) {
+        // Check for matching closing tag - try both the full type and base type
+        let full_close_tag = format!("[/{}", full_type);
+        let base_close_tag = format!("[/{}", base_type);
+        
+        // First check if the full type closing tag exists
+        if content.contains(&full_close_tag) {
+            return true;
+        }
+        
+        // If not found, check if the base type closing tag exists
+        // This handles cases where a block might be closed with just the base type
+        return content.contains(&base_close_tag);
     }
     
     false
@@ -87,8 +97,54 @@ fn has_matching_closing_tag(content: &str) -> bool {
 // Validate block structure before parsing
 pub fn validate_block_structure(content: &str) -> Result<(), ParserError> {
     if !has_matching_closing_tag(content) {
-        return Err(ParserError::InvalidBlockStructure("Missing or invalid closing tag".to_string()));
+        // Try to extract the block type for a better error message
+        if let Some((base_type, _)) = extract_block_type(content) {
+            return Err(ParserError::InvalidBlockStructure(
+                format!("Missing closing tag for block type: {}", base_type)
+            ));
+        } else {
+            return Err(ParserError::InvalidBlockStructure("Missing or invalid closing tag".to_string()));
+        }
     }
     
     Ok(())
+}
+
+// Make extract_block_type public so it can be used from other modules
+pub fn extract_block_type(content: &str) -> Option<(String, String)> {
+    // Find the opening bracket
+    if let Some(open_start) = content.find('[') {
+        let after_open = &content[open_start + 1..];
+        
+        // Find where the block type ends (at a space, colon, or closing bracket)
+        if let Some(type_end) = after_open.find(|c: char| c == ' ' || c == ':' || c == ']') {
+            let block_type = &after_open[..type_end];
+            
+            // If we have a colon immediately after the block type, it's a subtype
+            let full_type = if after_open.len() > type_end && after_open.as_bytes()[type_end] == b':' {
+                // Find the end of the subtype (at a space or closing bracket)
+                if let Some(subtype_end) = after_open[type_end + 1..].find(|c: char| c == ' ' || c == ']') {
+                    let subtype = &after_open[type_end + 1..type_end + 1 + subtype_end];
+                    format!("{}:{}", block_type, subtype)
+                } else {
+                    // If no space or closing bracket, use everything up to the end
+                    let remaining = &after_open[type_end + 1..];
+                    format!("{}:{}", block_type, remaining)
+                }
+            } else {
+                block_type.to_string()
+            };
+            
+            // Extract the base type (before any colon)
+            let base_type = if let Some(colon_pos) = full_type.find(':') {
+                full_type[..colon_pos].to_string()
+            } else {
+                full_type.clone()
+            };
+            
+            return Some((base_type, full_type));
+        }
+    }
+    
+    None
 }

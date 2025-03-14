@@ -17,7 +17,7 @@ mod modifiers;
 
 // Re-export important types
 pub use self::blocks::Block;
-pub use block_parser::parse_single_block;
+pub use block_parser::{parse_single_block, extract_block_type};
 pub use utils::extractors::{extract_name, extract_modifiers, extract_variable_references};
 pub use utils::validators::check_duplicate_names;
 
@@ -195,20 +195,11 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         return try_parse_section_block(content);
     }
     
-    // Check for special block types with modifiers directly after opening bracket
+    // Extract the block type
     if let Some(block_type) = extract_base_block_type(content) {
         // Try to parse using the extracted block type
         if let Ok(block) = block_parser::parse_single_block(content) {
             if let Some(end_pos) = find_block_end(content, &block.block_type) {
-                return Some((block, end_pos));
-            }
-        }
-    }
-    
-    // Special handling for results blocks with for: modifier
-    if content.starts_with("[results for:") {
-        if let Ok(block) = block_parser::parse_single_block(content) {
-            if let Some(end_pos) = find_block_end(content, "results") {
                 return Some((block, end_pos));
             }
         }
@@ -229,59 +220,15 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
 
 // Helper function to extract the base block type from content
 fn extract_base_block_type(content: &str) -> Option<String> {
-    if let Some(open_start) = content.find('[') {
-        let after_open = &content[open_start + 1..];
-        
-        // Handle special block types with modifiers directly after opening bracket
-        let known_block_types = ["results", "error_results", "api", "preview", "template"];
-        for block_type in known_block_types.iter() {
-            if after_open.starts_with(block_type) && 
-               (after_open.len() > block_type.len()) && 
-               (after_open.as_bytes()[block_type.len()] == b' ') {
-                // Found a known block type with space after it (indicating modifiers)
-                return Some(block_type.to_string());
-            }
-            
-            // Also check for special case like [results for:simple-calc]
-            let for_modifier = format!("{} for:", block_type);
-            if after_open.starts_with(&for_modifier) {
-                return Some(block_type.to_string());
-            }
-        }
-        
-        // Standard block type extraction
-        if let Some(type_end) = after_open.find(|c: char| c == ' ' || c == ']') {
-            let full_block_type = &after_open[..type_end];
-            
-            // Handle block types with subtypes (e.g., "code:python")
-            if let Some(colon_pos) = full_block_type.find(':') {
-                return Some(full_block_type[..colon_pos].to_string());
-            } else {
-                return Some(full_block_type.to_string());
-            }
-        }
+    if let Some((base_type, _)) = block_parser::extract_block_type(content) {
+        return Some(base_type);
     }
-    
     None
 }
 
 // Find the end position of a block
 fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
-    // Handle special block types with modifiers directly after opening bracket
-    // Examples: [results for:simple-calc format:plain], [error_results for:test]
-    let known_block_types = ["results", "error_results", "api", "preview", "template"];
-    for &known_type in known_block_types.iter() {
-        if block_type == known_type || block_type.starts_with(&format!("{}:", known_type)) {
-            let close_tag = format!("[/{}", known_type);
-            if let Some(close_pos) = content.find(&close_tag) {
-                if let Some(end_pos) = content[close_pos..].find(']') {
-                    return Some(close_pos + end_pos + 1);
-                }
-            }
-        }
-    }
-    
-    // For other block types, extract the base block type (before any colon)
+    // Extract the base type (before any colon)
     let base_type = if let Some(colon_pos) = block_type.find(':') {
         &block_type[0..colon_pos]
     } else {
