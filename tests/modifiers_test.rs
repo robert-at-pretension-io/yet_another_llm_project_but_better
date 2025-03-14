@@ -136,7 +136,6 @@ What is the meaning of life?
     }
     
     #[test]
-    #[ignore]
     fn test_boolean_modifiers() {
         let input = r#"[data name:boolean-test visible:true editable:false expandable:true]
 Some test data with boolean modifiers
