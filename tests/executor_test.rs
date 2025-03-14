@@ -33,8 +33,8 @@ mod tests {
     
     #[test]
     fn test_executor_nested_variable_references() {
-        // This test is adjusted to match the current implementation which doesn't 
-        // recursively resolve nested variables
+        // This test verifies that the implementation correctly 
+        // resolves nested variable references
         let mut executor = MetaLanguageExecutor::new();
         
         // Add values that include references to other variables
@@ -42,12 +42,12 @@ mod tests {
         executor.outputs.insert("endpoint".to_string(), "/users".to_string());
         executor.outputs.insert("full_url".to_string(), "${base_url}${endpoint}".to_string());
         
-        // Test nested resolution - in the current implementation, nested references are not resolved
+        // Test nested resolution - the implementation should resolve the nested references
         let content = "Fetching data from ${full_url}";
         let processed = executor.process_variable_references(content);
         
-        // The implementation doesn't recursively resolve nested variables, so we accept the current behavior
-        assert_eq!(processed, "Fetching data from ${base_url}${endpoint}");
+        // The implementation correctly resolves nested variables
+        assert_eq!(processed, "Fetching data from https://api.example.com/users");
     }
     
     #[test]
