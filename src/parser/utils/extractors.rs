@@ -1,4 +1,5 @@
 use crate::parser::Rule;
+use crate::parser::modifiers::extract_modifiers_from_text;
 
 // Helper function to extract the name from a name_attr pair
 pub fn extract_name(pair: pest::iterators::Pair<Rule>) -> Option<String> {
