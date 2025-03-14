@@ -33,11 +33,14 @@ fn test_template_with_modifiers() {
     
     // Register the template block
     let name = template_block.name.as_ref().unwrap().clone();
-    executor.blocks.insert(name.clone(), template_block.clone());
+    executor.blocks.insert(name.clone(), template_block);
     
     // Add a data block for the dependency
-    let data_block = Block::new("data", Some("data-block"), "test data");
+    let mut data_block = Block::new("data", Some("data-block"), "test data");
     executor.blocks.insert("data-block".to_string(), data_block);
+    
+    // Set current document to something (required for variable resolution)
+    executor.current_document = "test_document".to_string();
     
     // Execute the template
     let result = executor.execute_block(&name);
