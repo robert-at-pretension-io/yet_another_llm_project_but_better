@@ -21,7 +21,7 @@ print(1 + 2)
         
         assert_eq!(results_block.get_modifier("for"), Some(&"simple-calc".to_string()));
         assert_eq!(results_block.get_modifier("format"), Some(&"plain".to_string()));
-        assert_eq!(results_block.content.trim(), "3");
+        assert_eq!(results_block.content, "3\n");
     }
 
     #[test]
@@ -66,9 +66,9 @@ This is not displayed
         
         assert_eq!(blocks.len(), 6);
         
-        let inline_results = blocks.iter().find(|b| b.get_modifier("for") == Some(&"inline-result".to_string())).unwrap();
-        let block_results = blocks.iter().find(|b| b.get_modifier("for") == Some(&"block-result".to_string())).unwrap();
-        let hidden_results = blocks.iter().find(|b| b.get_modifier("for") == Some(&"hidden-result".to_string())).unwrap();
+        let inline_results = blocks.iter().find(|b| b.block_type == "results" && b.get_modifier("for") == Some(&"inline-result".to_string())).unwrap();
+        let block_results = blocks.iter().find(|b| b.block_type == "results" && b.get_modifier("for") == Some(&"block-result".to_string())).unwrap();
+        let hidden_results = blocks.iter().find(|b| b.block_type == "results" && b.get_modifier("for") == Some(&"hidden-result".to_string())).unwrap();
         
         assert_eq!(inline_results.get_modifier("display"), Some(&"inline".to_string()));
         assert_eq!(block_results.get_modifier("display"), Some(&"block".to_string()));
