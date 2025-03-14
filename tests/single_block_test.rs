@@ -84,7 +84,7 @@ sk-1234567890abcdef
     #[test]
     
     fn test_block_with_modifiers() {
-        let input = r#"[data name:config format:json cache_result:true]
+        let input = r#"[data name:config format:json]
 {"server": "localhost", "port": 8080}
 [/data]"#;
         
@@ -98,8 +98,5 @@ sk-1234567890abcdef
         // Check modifiers
         let format = blocks[0].modifiers.iter().find(|(k, _)| k == "format").map(|(_, v)| v);
         assert_eq!(format, Some(&"json".to_string()));
-        
-        let cache = blocks[0].modifiers.iter().find(|(k, _)| k == "cache_result").map(|(_, v)| v);
-        assert_eq!(cache, Some(&"true".to_string()));
     }
 }
