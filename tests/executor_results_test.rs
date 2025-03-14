@@ -26,7 +26,7 @@ mod executor_results_tests {
         executor.outputs.insert("data-generator.results".to_string(), "[10, 20, 30, 40, 50]".to_string());
         
         // Process variable references in the question
-        let processed = executor.process_variable_references(&question_block.content);
+        let processed = executor.process_variable_references_internal(&question_block.content, &mut Vec::new());
         
         // Verify that the results reference is replaced
         assert_eq!(processed, "Analyze this data: [10, 20, 30, 40, 50]");
@@ -243,14 +243,14 @@ mod executor_results_tests {
         );
         question_block.add_modifier("depends", "step3");
         
-        // Add all blocks to the vector
-        blocks.push(step1_code);
-        blocks.push(step1_results);
-        blocks.push(step2_code);
-        blocks.push(step2_results);
-        blocks.push(step3_code);
-        blocks.push(step3_results);
-        blocks.push(question_block.clone());
+        // Add blocks to executor
+        executor.blocks.insert("step1".to_string(), step1_code);
+        executor.blocks.insert("step1.results".to_string(), step1_results);
+        executor.blocks.insert("step2".to_string(), step2_code);
+        executor.blocks.insert("step2.results".to_string(), step2_results);
+        executor.blocks.insert("step3".to_string(), step3_code);
+        executor.blocks.insert("step3.results".to_string(), step3_results);
+        executor.blocks.insert("question".to_string(), question_block.clone());
         
         // Mock execution by adding outputs
         executor.outputs.insert("step1.results".to_string(), "Initial data: [1, 2, 3, 4, 5]".to_string());
@@ -258,7 +258,7 @@ mod executor_results_tests {
         executor.outputs.insert("step3.results".to_string(), "Total: 30".to_string());
         
         // Process variable references
-        let processed = executor.process_variable_references(&question_block.content);
+        let processed = executor.process_variable_references_internal(&question_block.content, &mut Vec::new());
         
         // Verify all references are resolved
         assert!(processed.contains("Initial data: Initial data: [1, 2, 3, 4, 5]"));
@@ -291,12 +291,17 @@ mod executor_results_tests {
             "What went wrong with the code? Here's the error: ${will-fail.error_results}"
         );
         
+        // Add blocks to executor
+        executor.blocks.insert("will-fail".to_string(), code_block);
+        executor.blocks.insert("will-fail.error_results".to_string(), error_results_block);
+        executor.blocks.insert("question".to_string(), question_block.clone());
+        
         // Mock execution error
         let error_msg = "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nNameError: name 'undefined_variable' is not defined";
         executor.outputs.insert("will-fail.error_results".to_string(), error_msg.to_string());
         
         // Process variable references
-        let processed = executor.process_variable_references(&question_block.content);
+        let processed = executor.process_variable_references_internal(&question_block.content, &mut Vec::new());
         
         // Verify error results are included
         assert!(processed.contains("What went wrong with the code? Here's the error:"));
