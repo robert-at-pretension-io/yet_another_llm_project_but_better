@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use yet_another_llm_project_but_better::parser::parse_document;
-    use yet_another_llm_project_but_better::parser::blocks::Block;
+    use yet_another_llm_project_but_better::parser::{parse_document, Block};
     
     #[test]
     fn test_question_block() {
