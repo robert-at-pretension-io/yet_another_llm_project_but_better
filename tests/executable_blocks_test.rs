@@ -151,40 +151,54 @@ result = {"status": "fallback", "data": None}
 }
 [/api]"#;
         
-        println!("DEBUG: Starting API block test");
+        println!("DEBUG: Starting API block test with input:\n{}", input);
         
         let blocks = parse_document(input).unwrap();
         
-        println!("DEBUG: Parsed API block");
+        println!("DEBUG: Parsed API block successfully");
         println!("DEBUG: Found {} blocks", blocks.len());
         
         for (i, block) in blocks.iter().enumerate() {
             println!("DEBUG: Block {}: type = {}, name = {:?}", i, block.block_type, block.name);
+            println!("DEBUG: Block {} raw content length: {}", i, block.content.len());
             
-            // Print all modifiers
-            println!("DEBUG: Block {} modifiers:", i);
-            for (key, value) in &block.modifiers {
-                println!("DEBUG:   '{}' = '{}'", key, value);
+            // Print all modifiers with more detail
+            println!("DEBUG: Block {} has {} modifiers:", i, block.modifiers.len());
+            for (j, (key, value)) in block.modifiers.iter().enumerate() {
+                println!("DEBUG:   Modifier {}: '{}' = '{}'", j, key, value);
+            }
+            
+            // Print child blocks if any
+            println!("DEBUG: Block {} has {} children", i, block.children.len());
+            for (j, child) in block.children.iter().enumerate() {
+                println!("DEBUG:   Child {}: type = {}, name = {:?}", j, child.block_type, child.name);
             }
         }
         
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].block_type, "api");
-        assert_eq!(blocks[0].name, Some("weather-api".to_string()));
+        assert_eq!(blocks.len(), 1, "Expected exactly 1 block");
+        assert_eq!(blocks[0].block_type, "api", "Block type should be 'api'");
+        assert_eq!(blocks[0].name, Some("weather-api".to_string()), "Block name should be 'weather-api'");
         
-        // Test the content
+        // Test the content with more details
         let content = blocks[0].content.as_str();
-        println!("DEBUG: Content: '{}'", content);
-        assert!(content.contains("New York"));
-        assert!(content.contains("metric"));
+        println!("DEBUG: Content ({}): '{}'", content.len(), content);
+        println!("DEBUG: Content bytes: {:?}", content.as_bytes());
+        assert!(content.contains("New York"), "Content should contain 'New York'");
+        assert!(content.contains("metric"), "Content should contain 'metric'");
         
-        // Test the modifiers
+        // Test the modifiers with more details
         let url = blocks[0].get_modifier("url");
         println!("DEBUG: url modifier = {:?}", url);
-        assert_eq!(url, Some(&"https://api.weather.com/forecast".to_string()));
+        assert_eq!(url, Some(&"https://api.weather.com/forecast".to_string()), 
+                  "url modifier should be 'https://api.weather.com/forecast'");
         
         let method = blocks[0].get_modifier("method");
         println!("DEBUG: method modifier = {:?}", method);
-        assert_eq!(method, Some(&"GET".to_string()));
+        assert_eq!(method, Some(&"GET".to_string()), "method modifier should be 'GET'");
+        
+        let headers = blocks[0].get_modifier("headers");
+        println!("DEBUG: headers modifier = {:?}", headers);
+        assert_eq!(headers, Some(&"Authorization: Bearer ${api-key}".to_string()),
+                  "headers modifier should be 'Authorization: Bearer ${api-key}'");
     }
 }
