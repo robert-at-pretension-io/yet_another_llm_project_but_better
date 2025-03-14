@@ -319,6 +319,9 @@ impl MetaLanguageExecutor {
     
     // Internal implementation that tracks processing variables to detect circular references
     fn process_variable_references_internal(&self, content: &str, processing_vars: &mut Vec<String>) -> String {
+        println!("process_variable_references_internal called with: '{}'", content);
+        println!("Current processing_vars: {:?}", processing_vars);
+        
         let mut result = content.to_string();
         
         // Find all variable references

@@ -77,12 +77,16 @@ fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
 
 // Function to find and extract variable references from content
 pub fn extract_variable_references(content: &str) -> Vec<String> {
-    let mut references = Vec::new();
-    let re = regex::Regex::new(r"\$\{([a-zA-Z0-9_-]+)\}").unwrap();
+    println!("extract_variable_references input: '{}'", content);
+    let reference_regex = regex::Regex::new(r"\$\{([^}]+)\}").unwrap();
     
-    for cap in re.captures_iter(content) {
-        references.push(cap[1].to_string());
+    let mut references = Vec::new();
+    for cap in reference_regex.captures_iter(content) {
+        let ref_name = cap[1].to_string();
+        println!("  Found reference: '{}'", ref_name);
+        references.push(ref_name);
     }
     
+    println!("  Total references found: {}", references.len());
     references
 }
