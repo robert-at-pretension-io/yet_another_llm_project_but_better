@@ -295,8 +295,12 @@ impl MetaLanguageExecutor {
                 (var_name.clone(), None)
             };
             
+            // Debug output for troubleshooting
+            println!("Looking for variable: {}", actual_var_name);
+            
             // Try to get the value from outputs
             if let Some(output) = self.outputs.get(&actual_var_name) {
+                println!("Found value for {}: {}", actual_var_name, output);
                 let value = output.clone();
                 
                 // Apply any modifiers to the value
@@ -348,6 +352,7 @@ impl MetaLanguageExecutor {
                     }
                 }
                 // If no value or fallback found, leave the reference as is (do nothing)
+                println!("No value found for variable: {}", actual_var_name);
             }
         }
         
@@ -742,3 +747,6 @@ impl Default for MetaLanguageExecutor {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests;
