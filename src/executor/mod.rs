@@ -79,6 +79,11 @@ impl MetaLanguageExecutor {
                     let original_name = name.trim_end_matches("-fallback");
                     self.fallbacks.insert(original_name.to_string(), name.clone());
                 }
+                
+                // Store content of data blocks directly in outputs
+                if block.block_type == "data" {
+                    self.outputs.insert(name.clone(), block.content.clone());
+                }
             }
         }
         
@@ -109,6 +114,11 @@ impl MetaLanguageExecutor {
         matches!(block.block_type.as_str(), 
                 "code:python" | "code:javascript" | "code:rust" | 
                 "shell" | "api")
+    }
+    
+    // Check if a block is a data block
+    pub fn is_data_block(&self, block: &Block) -> bool {
+        block.block_type == "data"
     }
     
     // Check if a block has a fallback defined
