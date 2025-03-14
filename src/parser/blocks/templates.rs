@@ -7,13 +7,24 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut has_requires_modifier = false;
     let mut template_type = String::from("template");
     
+    println!("DEBUG: Processing template block: '{}'", pair.as_str());
+    
     for inner_pair in pair.into_inner() {
+        println!("DEBUG: Template inner rule: {:?}", inner_pair.as_rule());
+        
         match inner_pair.as_rule() {
             Rule::name_attr => {
                 block.name = extract_name(inner_pair);
+                println!("DEBUG: Template name: {:?}", block.name);
             }
             Rule::modifiers => {
-                for modifier in extract_modifiers(inner_pair) {
+                println!("DEBUG: Processing template modifiers: '{}'", inner_pair.as_str());
+                let modifiers = extract_modifiers(inner_pair);
+                println!("DEBUG: Extracted {} modifiers for template", modifiers.len());
+                
+                for modifier in modifiers {
+                    println!("DEBUG: Template modifier: '{}' = '{}'", modifier.0, modifier.1);
+                    
                     if modifier.0 == "requires" {
                         has_requires_modifier = true;
                     }
@@ -27,7 +38,14 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
                 
                 // Update block type if _type modifier was found
                 if template_type != "template" {
+                    println!("DEBUG: Updated template type to: {}", template_type);
                     block.block_type = template_type.clone();
+                }
+                
+                // Debug: Print all modifiers in the block
+                println!("DEBUG: Template block now has {} modifiers:", block.modifiers.len());
+                for (k, v) in &block.modifiers {
+                    println!("DEBUG:   '{}' = '{}'", k, v);
                 }
             }
             Rule::block_content => {

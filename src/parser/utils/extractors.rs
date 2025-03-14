@@ -14,29 +14,44 @@ pub fn extract_name(pair: pest::iterators::Pair<Rule>) -> Option<String> {
 pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, String)> {
     let mut modifiers = Vec::new();
     
+    // Debug: Print the raw modifier text
+    println!("DEBUG: Raw modifiers text: '{}'", pair.as_str());
+    
     for modifier_pair in pair.into_inner() {
         if modifier_pair.as_rule() == Rule::modifier {
             let mut key = String::new();
             let mut value = String::new();
             
+            // Debug: Print the raw modifier pair
+            println!("DEBUG: Modifier pair: '{}'", modifier_pair.as_str());
+            
             for part in modifier_pair.into_inner() {
                 match part.as_rule() {
                     Rule::modifier_key => {
                         key = part.as_str().to_string();
+                        println!("DEBUG: Found modifier key: '{}'", key);
                     }
                     Rule::modifier_value => {
                         value = extract_modifier_value(part);
+                        println!("DEBUG: Found modifier value: '{}'", value);
                     }
-                    _ => {}
+                    _ => {
+                        println!("DEBUG: Unknown modifier part: '{}'", part.as_str());
+                    }
                 }
             }
             
             if !key.is_empty() {
+                println!("DEBUG: Adding modifier: '{}' = '{}'", key, value);
                 modifiers.push((key, value));
             }
+        } else {
+            println!("DEBUG: Non-modifier rule found: '{:?}' with text '{}'", 
+                     modifier_pair.as_rule(), modifier_pair.as_str());
         }
     }
     
+    println!("DEBUG: Extracted {} modifiers", modifiers.len());
     modifiers
 }
 
