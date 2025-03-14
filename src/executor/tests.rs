@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::executor::MetaLanguageExecutor;
+    use crate::parser::Block;
     
     /// Test variable references to results blocks
     #[test]
@@ -31,5 +32,31 @@ mod tests {
         // Check that the content contains the expected value
         assert!(processed.contains("[1, 2, 3, 4, 5]"), 
                 "Processed content should contain the data array");
+    }
+    
+    /// Test block execution with dependencies
+    #[test]
+    fn test_block_execution_with_dependencies() {
+        let mut executor = MetaLanguageExecutor::new();
+        
+        // Create a data block
+        let mut data_block = Block::new("data", Some("test-data"), "[1, 2, 3, 4, 5]");
+        executor.blocks.insert("test-data".to_string(), data_block);
+        executor.outputs.insert("test-data".to_string(), "[1, 2, 3, 4, 5]".to_string());
+        
+        // Create a code block that depends on the data block
+        let mut code_block = Block::new("code:python", Some("process-data"), 
+            "data = ${test-data}\nresult = sum(data)\nprint(result)");
+        code_block.add_modifier("depends", "test-data");
+        executor.blocks.insert("process-data".to_string(), code_block);
+        
+        // Execute the code block
+        let result = executor.execute_block("process-data");
+        
+        // Verify the result
+        assert!(result.is_ok(), "Block execution should succeed");
+        if let Ok(output) = result {
+            assert!(output.trim() == "15", "Sum of [1,2,3,4,5] should be 15");
+        }
     }
 }
