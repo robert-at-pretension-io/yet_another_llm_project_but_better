@@ -27,7 +27,7 @@ pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, Stri
             // Debug: Print the raw modifier pair
             println!("DEBUG: Modifier pair: '{}'", modifier_pair.as_str());
             
-            for part in modifier_pair.into_inner() {
+            for part in modifier_pair.clone().into_inner() {
                 match part.as_rule() {
                     Rule::modifier_key => {
                         key = part.as_str().to_string();
