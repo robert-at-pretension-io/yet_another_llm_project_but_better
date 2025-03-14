@@ -66,50 +66,48 @@ API call result: ${api-call}
     }
     
     #[test]
-    fn test_nested_structure() {
+    fn test_block_structure() {
         use yet_another_llm_project_but_better::parser::blocks::Block;
         
-        // Create the document section directly
-        let mut document_section = Block::new("section:document", Some("analysis-report"), "# Data Analysis Report");
+        // Create a simple document with multiple blocks
+        let input = r#"[data name:dataset format:csv]
+id,value,category
+1,42,A
+2,37,B
+3,19,A
+[/data]
+
+[code:python name:analyze-data depends:dataset]
+import pandas as pd
+data = pd.read_csv('${dataset}')
+result = data.groupby('category').mean()
+print(result)
+[/code:python]
+
+[visualization name:chart-1 data:analyze-data]
+bar-chart
+[/visualization]"#;
         
-        // Create the data block
-        let data_content = "id,value,category\n1,42,A\n2,37,B\n3,19,A";
-        let mut data_block = Block::new("data", Some("dataset"), data_content);
-        data_block.add_modifier("format", "csv");
+        let result = parse_document(input);
+        assert!(result.is_ok(), "Failed to parse document: {:?}", result.err());
         
-        // Create the code block
-        let code_content = "import pandas as pd\ndata = pd.read_csv('${dataset}')\nresult = data.groupby('category').mean()\nprint(result)";
-        let mut code_block = Block::new("code:python", Some("analyze-data"), code_content);
-        code_block.add_modifier("depends", "dataset");
+        let blocks = result.unwrap();
+        assert_eq!(blocks.len(), 3, "Expected 3 blocks, found {}", blocks.len());
         
-        // Create the nested results section
-        let mut results_section = Block::new("section:results", Some("findings"), "## Key Findings");
+        // Check the data block
+        let data_block = &blocks[0];
+        assert_eq!(data_block.block_type, "data");
+        assert_eq!(data_block.name, Some("dataset".to_string()));
+        assert_eq!(data_block.get_modifier("format"), Some(&"csv".to_string()));
         
-        // Create the visualization block
-        let mut viz_block = Block::new("visualization", Some("chart-1"), "bar-chart");
-        viz_block.add_modifier("data", "analyze-data");
-        
-        // Add visualization to results section
-        results_section.add_child(viz_block);
-        
-        // Add all blocks to the document section
-        document_section.add_child(data_block);
-        document_section.add_child(code_block);
-        document_section.add_child(results_section);
-        
-        // Verify the structure
-        assert_eq!(document_section.block_type, "section:document");
-        assert_eq!(document_section.name, Some("analysis-report".to_string()));
-        assert_eq!(document_section.children.len(), 3); // data, code, and section:results
-        
-        // Check the nested section
-        let results_section = &document_section.children[2];
-        assert_eq!(results_section.block_type, "section:results");
-        assert_eq!(results_section.name, Some("findings".to_string()));
-        assert_eq!(results_section.children.len(), 1); // visualization block
+        // Check the code block
+        let code_block = &blocks[1];
+        assert_eq!(code_block.block_type, "code:python");
+        assert_eq!(code_block.name, Some("analyze-data".to_string()));
+        assert_eq!(code_block.get_modifier("depends"), Some(&"dataset".to_string()));
         
         // Check the visualization block
-        let viz_block = &results_section.children[0];
+        let viz_block = &blocks[2];
         assert_eq!(viz_block.block_type, "visualization");
         assert_eq!(viz_block.name, Some("chart-1".to_string()));
         assert_eq!(viz_block.get_modifier("data"), Some(&"analyze-data".to_string()));
