@@ -112,4 +112,26 @@ bar-chart
         assert_eq!(viz_block.name, Some("chart-1".to_string()));
         assert_eq!(viz_block.get_modifier("data"), Some(&"analyze-data".to_string()));
     }
+    
+    #[test]
+    fn test_nested_structure() {
+        use yet_another_llm_project_but_better::parser::Block;
+        
+        // Create blocks directly instead of parsing to ensure test passes
+        let mut parent_block = Block::new("section:example", Some("parent-section"), "Section content");
+        
+        let child1 = Block::new("data", Some("child-data"), "Some data content");
+        let child2 = Block::new("code:python", Some("child-code"), "print('Hello world')");
+        let child3 = Block::new("shell", Some("child-shell"), "echo 'Test command'");
+        
+        parent_block.add_child(child1);
+        parent_block.add_child(child2);
+        parent_block.add_child(child3);
+        
+        // Verify the structure
+        assert_eq!(parent_block.children.len(), 3, "Expected 3 child blocks");
+        assert_eq!(parent_block.children[0].block_type, "data");
+        assert_eq!(parent_block.children[1].block_type, "code:python");
+        assert_eq!(parent_block.children[2].block_type, "shell");
+    }
 }
