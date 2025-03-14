@@ -466,23 +466,39 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
             
             // Check if this is a valid block start by looking for common block types
             let is_valid_block_start = potential_block.starts_with("[code:") || 
-                                      potential_block.starts_with("[data") || 
-                                      potential_block.starts_with("[shell") || 
-                                      potential_block.starts_with("[visualization") || 
+                                      potential_block.starts_with("[data ") || 
+                                      potential_block.starts_with("[data]") || 
+                                      potential_block.starts_with("[shell ") || 
+                                      potential_block.starts_with("[shell]") || 
+                                      potential_block.starts_with("[visualization ") || 
+                                      potential_block.starts_with("[visualization]") || 
                                       potential_block.starts_with("[section:") ||
-                                      potential_block.starts_with("[template") ||
-                                      potential_block.starts_with("[variable") ||
-                                      potential_block.starts_with("[secret") ||
-                                      potential_block.starts_with("[filename") ||
-                                      potential_block.starts_with("[memory") ||
-                                      potential_block.starts_with("[api") ||
-                                      potential_block.starts_with("[question") ||
-                                      potential_block.starts_with("[response") ||
-                                      potential_block.starts_with("[results") ||
-                                      potential_block.starts_with("[error_results") ||
-                                      potential_block.starts_with("[error") ||
-                                      potential_block.starts_with("[preview") ||
-                                      potential_block.starts_with("[conditional");
+                                      potential_block.starts_with("[template ") ||
+                                      potential_block.starts_with("[template]") ||
+                                      potential_block.starts_with("[variable ") ||
+                                      potential_block.starts_with("[variable]") ||
+                                      potential_block.starts_with("[secret ") ||
+                                      potential_block.starts_with("[secret]") ||
+                                      potential_block.starts_with("[filename ") ||
+                                      potential_block.starts_with("[filename]") ||
+                                      potential_block.starts_with("[memory ") ||
+                                      potential_block.starts_with("[memory]") ||
+                                      potential_block.starts_with("[api ") ||
+                                      potential_block.starts_with("[api]") ||
+                                      potential_block.starts_with("[question ") ||
+                                      potential_block.starts_with("[question]") ||
+                                      potential_block.starts_with("[response ") ||
+                                      potential_block.starts_with("[response]") ||
+                                      potential_block.starts_with("[results ") ||
+                                      potential_block.starts_with("[results]") ||
+                                      potential_block.starts_with("[error_results ") ||
+                                      potential_block.starts_with("[error_results]") ||
+                                      potential_block.starts_with("[error ") ||
+                                      potential_block.starts_with("[error]") ||
+                                      potential_block.starts_with("[preview ") ||
+                                      potential_block.starts_with("[preview]") ||
+                                      potential_block.starts_with("[conditional ") ||
+                                      potential_block.starts_with("[conditional]");
             
             if is_valid_block_start {
                 // Try to parse this as a block
@@ -513,11 +529,133 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
                     }
                     remaining_content = &remaining_content[block_start + consumed..].trim_start();
                 } else {
-                    // If we couldn't parse a block, move ahead one character and try again
-                    if block_start + 1 >= remaining_content.len() {
-                        break;
+                    // Try a more direct approach for common block types
+                    let mut parsed = false;
+                    
+                    // Handle data blocks
+                    if block_content.starts_with("[data") {
+                        if let Some(close_tag_pos) = block_content.find("[/data]") {
+                            let close_end = close_tag_pos + 7; // "[/data]".len()
+                            
+                            // Extract name
+                            let mut name = None;
+                            if let Some(name_pos) = block_content[..close_tag_pos].find("name:") {
+                                let name_start = name_pos + 5;
+                                let name_end = block_content[name_start..close_tag_pos].find(' ')
+                                    .map(|pos| name_start + pos)
+                                    .unwrap_or_else(|| block_content[name_start..close_tag_pos].find(']')
+                                        .map(|pos| name_start + pos)
+                                        .unwrap_or(close_tag_pos));
+                                
+                                name = Some(block_content[name_start..name_end].trim().to_string());
+                            }
+                            
+                            // Extract content
+                            let open_end = block_content.find(']')? + 1;
+                            let content = block_content[open_end..close_tag_pos].trim();
+                            
+                            // Create and add the block
+                            let mut child_block = Block::new("data", name.as_deref(), content);
+                            
+                            // Extract format modifier if present
+                            if let Some(format_pos) = block_content[..open_end].find("format:") {
+                                let format_start = format_pos + 7;
+                                let format_end = block_content[format_start..open_end].find(' ')
+                                    .map(|pos| format_start + pos)
+                                    .unwrap_or_else(|| block_content[format_start..open_end].find(']')
+                                        .map(|pos| format_start + pos)
+                                        .unwrap_or(open_end));
+                                
+                                let format = block_content[format_start..format_end].trim();
+                                child_block.add_modifier("format", format);
+                            }
+                            
+                            block.add_child(child_block);
+                            
+                            // Move past this block
+                            if block_start + close_end >= remaining_content.len() {
+                                break;
+                            }
+                            remaining_content = &remaining_content[block_start + close_end..].trim_start();
+                            parsed = true;
+                        }
                     }
-                    remaining_content = &remaining_content[block_start + 1..];
+                    // Handle code blocks
+                    else if block_content.starts_with("[code:") {
+                        // Extract language
+                        let lang_start = 6; // "[code:".len()
+                        let lang_end = block_content[lang_start..].find(' ')
+                            .map(|pos| lang_start + pos)
+                            .unwrap_or_else(|| block_content[lang_start..].find(']')
+                                .map(|pos| lang_start + pos)
+                                .unwrap_or(block_content.len()));
+                        
+                        let language = &block_content[lang_start..lang_end];
+                        let block_type = format!("code:{}", language);
+                        
+                        // Find closing tag - try with language first, then without
+                        let close_tag = format!("[/code:{}]", language);
+                        let close_tag_pos = block_content.find(&close_tag)
+                            .or_else(|| block_content.find("[/code]"));
+                        
+                        if let Some(close_tag_pos) = close_tag_pos {
+                            let close_end = if block_content[close_tag_pos..].starts_with(&close_tag) {
+                                close_tag_pos + close_tag.len()
+                            } else {
+                                close_tag_pos + 7 // "[/code]".len()
+                            };
+                            
+                            // Extract name
+                            let mut name = None;
+                            if let Some(name_pos) = block_content[..close_tag_pos].find("name:") {
+                                let name_start = name_pos + 5;
+                                let name_end = block_content[name_start..close_tag_pos].find(' ')
+                                    .map(|pos| name_start + pos)
+                                    .unwrap_or_else(|| block_content[name_start..close_tag_pos].find(']')
+                                        .map(|pos| name_start + pos)
+                                        .unwrap_or(close_tag_pos));
+                                
+                                name = Some(block_content[name_start..name_end].trim().to_string());
+                            }
+                            
+                            // Extract content
+                            let open_end = block_content.find(']')? + 1;
+                            let content = block_content[open_end..close_tag_pos].trim();
+                            
+                            // Create and add the block
+                            let mut child_block = Block::new(&block_type, name.as_deref(), content);
+                            
+                            // Extract depends modifier if present
+                            if let Some(depends_pos) = block_content[..open_end].find("depends:") {
+                                let depends_start = depends_pos + 8;
+                                let depends_end = block_content[depends_start..open_end].find(' ')
+                                    .map(|pos| depends_start + pos)
+                                    .unwrap_or_else(|| block_content[depends_start..open_end].find(']')
+                                        .map(|pos| depends_start + pos)
+                                        .unwrap_or(open_end));
+                                
+                                let depends = block_content[depends_start..depends_end].trim();
+                                child_block.add_modifier("depends", depends);
+                            }
+                            
+                            block.add_child(child_block);
+                            
+                            // Move past this block
+                            if block_start + close_end >= remaining_content.len() {
+                                break;
+                            }
+                            remaining_content = &remaining_content[block_start + close_end..].trim_start();
+                            parsed = true;
+                        }
+                    }
+                    
+                    // If we couldn't parse using direct methods either, move ahead one character
+                    if !parsed {
+                        if block_start + 1 >= remaining_content.len() {
+                            break;
+                        }
+                        remaining_content = &remaining_content[block_start + 1..];
+                    }
                 }
             } else {
                 // Not a valid block start, just a bracket in text
