@@ -27,29 +27,52 @@ pub fn parse_results_block(input: &str) -> Result<Block, ParserError> {
     let mut block = Block::new("results", None, content);
     
     // Extract modifiers using regex for more precise matching
-    let for_re = Regex::new(r"for:([^\s\]]+)").unwrap();
+    // Improved regex patterns to better handle various formats
+    
+    // Extract "for" modifier - handles both for:name and for:"name" formats
+    let for_re = Regex::new(r#"for:(?:"([^"]+)"|([^\s\]"]+))"#).unwrap();
     if let Some(cap) = for_re.captures(opening_tag) {
-        block.add_modifier("for", &cap[1]);
+        // Get either the quoted or unquoted capture group
+        let value = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !value.is_empty() {
+            block.add_modifier("for", value);
+        }
     }
     
-    let format_re = Regex::new(r"format:([^\s\]]+)").unwrap();
+    // Extract "format" modifier
+    let format_re = Regex::new(r#"format:(?:"([^"]+)"|([^\s\]"]+))"#).unwrap();
     if let Some(cap) = format_re.captures(opening_tag) {
-        block.add_modifier("format", &cap[1]);
+        let value = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !value.is_empty() {
+            block.add_modifier("format", value);
+        }
     }
     
-    let display_re = Regex::new(r"display:([^\s\]]+)").unwrap();
+    // Extract "display" modifier
+    let display_re = Regex::new(r#"display:(?:"([^"]+)"|([^\s\]"]+))"#).unwrap();
     if let Some(cap) = display_re.captures(opening_tag) {
-        block.add_modifier("display", &cap[1]);
+        let value = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !value.is_empty() {
+            block.add_modifier("display", value);
+        }
     }
     
-    let max_lines_re = Regex::new(r"max_lines:([^\s\]]+)").unwrap();
+    // Extract "max_lines" modifier
+    let max_lines_re = Regex::new(r#"max_lines:(?:"([^"]+)"|([^\s\]"]+))"#).unwrap();
     if let Some(cap) = max_lines_re.captures(opening_tag) {
-        block.add_modifier("max_lines", &cap[1]);
+        let value = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !value.is_empty() {
+            block.add_modifier("max_lines", value);
+        }
     }
     
-    let trim_re = Regex::new(r"trim:([^\s\]]+)").unwrap();
+    // Extract "trim" modifier
+    let trim_re = Regex::new(r#"trim:(?:"([^"]+)"|([^\s\]"]+))"#).unwrap();
     if let Some(cap) = trim_re.captures(opening_tag) {
-        block.add_modifier("trim", &cap[1]);
+        let value = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !value.is_empty() {
+            block.add_modifier("trim", value);
+        }
     }
     
     Ok(block)
@@ -78,10 +101,22 @@ pub fn parse_error_results_block(input: &str) -> Result<Block, ParserError> {
     // Create block
     let mut block = Block::new("error_results", None, content);
     
-    // Extract for modifier using regex for more precise matching
-    let for_re = Regex::new(r"for:([^\s\]]+)").unwrap();
+    // Extract "for" modifier with improved regex
+    let for_re = Regex::new(r#"for:(?:"([^"]+)"|([^\s\]"]+))"#).unwrap();
     if let Some(cap) = for_re.captures(opening_tag) {
-        block.add_modifier("for", &cap[1]);
+        let value = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !value.is_empty() {
+            block.add_modifier("for", value);
+        }
+    }
+    
+    // Also extract format modifier for error results if present
+    let format_re = Regex::new(r#"format:(?:"([^"]+)"|([^\s\]"]+))"#).unwrap();
+    if let Some(cap) = format_re.captures(opening_tag) {
+        let value = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str()).unwrap_or("");
+        if !value.is_empty() {
+            block.add_modifier("format", value);
+        }
     }
     
     Ok(block)
