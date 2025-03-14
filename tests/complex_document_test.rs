@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use yet_another_llm_project_but_better::parser::{parse_document, Block};
+    use yet_another_llm_project_but_better::parser::parse_document;
     
     #[test]
     fn test_mixed_block_types() {

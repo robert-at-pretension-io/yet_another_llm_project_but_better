@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use yet_another_llm_project_but_better::parser::{parse_document, extract_variable_references, Block};
+    use yet_another_llm_project_but_better::parser::{parse_document, extract_variable_references};
     
     #[test]
     fn test_basic_variable_references() {
