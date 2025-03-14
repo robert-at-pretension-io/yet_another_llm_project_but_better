@@ -45,7 +45,7 @@ number = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
 block_reference = @{ block_name }
 
 modifier = { modifier_key ~ ":" ~ modifier_value }
-modifiers = { modifier ~ (WHITESPACE* ~ "," ~ WHITESPACE* ~ modifier)* }
+modifiers = { modifier ~ (WHITESPACE* ~ ("," ~ WHITESPACE* | WHITESPACE+) ~ modifier)* }
 
 // Block open/close tags
 open_tag = { "[" ~ block_type ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" }
