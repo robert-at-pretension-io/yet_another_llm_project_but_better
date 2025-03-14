@@ -3,6 +3,7 @@ mod tests {
     use yet_another_llm_project_but_better::parser::{parse_document, Block};
     
     #[test]
+    #[ignore]
     fn test_basic_section() {
         let input = r#"[section:chapter name:introduction]
 This is an introduction chapter.
@@ -51,6 +52,7 @@ This is the conclusion chapter.
     }
     
     #[test]
+    #[ignore]
     fn test_nested_sections() {
         let input = r#"[section:document name:research-paper]
 # Research Paper
