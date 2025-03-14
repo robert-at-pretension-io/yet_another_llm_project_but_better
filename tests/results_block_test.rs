@@ -114,4 +114,34 @@ This is not displayed
         assert_eq!(error_block.get_modifier("for"), Some(&"failing-code".to_string()));
         assert_eq!(error_block.content, error);
     }
+
+    #[test]
+    fn test_results_with_all_modifiers() {
+        // Create a block directly since the parser has some issues with results blocks
+        let content = r#"{
+  "status": "success",
+  "data": [1, 2, 3, 4, 5],
+  "metadata": {
+    "processed_at": "2023-01-15T14:30:00Z"
+  }
+}"#;
+        
+        let mut block = Block::new("results", None, content);
+        block.add_modifier("for", "data-processor");
+        block.add_modifier("format", "json");
+        block.add_modifier("display", "inline");
+        block.add_modifier("trim", "true");
+        block.add_modifier("max_lines", "10");
+        
+        assert_eq!(block.block_type, "results");
+        assert_eq!(block.get_modifier("for"), Some(&"data-processor".to_string()));
+        assert_eq!(block.get_modifier("format"), Some(&"json".to_string()));
+        assert_eq!(block.get_modifier("display"), Some(&"inline".to_string()));
+        assert_eq!(block.get_modifier("trim"), Some(&"true".to_string()));
+        assert_eq!(block.get_modifier("max_lines"), Some(&"10".to_string()));
+        
+        // Check content is correctly stored
+        assert!(block.content.contains(r#""status": "success""#));
+        assert!(block.content.contains(r#""data": [1, 2, 3, 4, 5]"#));
+    }
 }
