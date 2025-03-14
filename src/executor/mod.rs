@@ -189,7 +189,7 @@ impl MetaLanguageExecutor {
         
         // Execute dependencies first
         for (key, value) in &block.modifiers {
-            if key == "depends" {
+            if key == "depends" || key == "requires" {
                 self.execute_block(value)?;
             }
         }
@@ -253,7 +253,7 @@ impl MetaLanguageExecutor {
         Duration::from_secs(600)
     }
     
-    // Process variable references like ${block_name}
+    // Process variable references like ${block_name} or ${block_name:fallback_value}
     pub fn process_variable_references(&self, content: &str) -> String {
         self.process_variable_references_internal(content, &mut Vec::new())
     }
@@ -273,17 +273,31 @@ impl MetaLanguageExecutor {
                 continue;
             }
             
+            // Check if the variable name contains a fallback value (format: var_name:fallback)
+            let (actual_var_name, inline_fallback) = if var_name.contains(':') {
+                let parts: Vec<&str> = var_name.splitn(2, ':').collect();
+                (parts[0].to_string(), Some(parts[1].to_string()))
+            } else {
+                (var_name.clone(), None)
+            };
+            
             // Try to get the value from outputs
-            let value = if let Some(output) = self.outputs.get(&var_name) {
+            let value = if let Some(output) = self.outputs.get(&actual_var_name) {
                 output.clone()
-            } else if let Some(fallback_name) = self.fallbacks.get(&var_name) {
-                // Try fallback if available
+            } else if let Some(fallback_name) = self.fallbacks.get(&actual_var_name) {
+                // Try registered fallback if available
                 if let Some(fallback_output) = self.outputs.get(fallback_name) {
                     fallback_output.clone()
+                } else if let Some(fallback_value) = inline_fallback {
+                    // Use inline fallback if provided
+                    fallback_value
                 } else {
                     // No value found, leave the reference as is
                     continue;
                 }
+            } else if let Some(fallback_value) = inline_fallback {
+                // Use inline fallback if provided
+                fallback_value
             } else {
                 // No value or fallback found, leave the reference as is
                 continue;
@@ -295,14 +309,14 @@ impl MetaLanguageExecutor {
             // Check if the value itself contains variable references
             if value.contains("${") {
                 // Add this variable to the processing list to detect circular references
-                processing_vars.push(var_name.clone());
+                processing_vars.push(actual_var_name.clone());
                 
                 // Recursively process nested references
                 let processed_value = self.process_variable_references_internal(&value, processing_vars);
                 result = result.replace(&var_ref, &processed_value);
                 
                 // Remove from processing list
-                processing_vars.retain(|v| v != &var_name);
+                processing_vars.retain(|v| v != &actual_var_name);
             } else {
                 // Simple replacement
                 result = result.replace(&var_ref, &value);
@@ -525,8 +539,18 @@ impl MetaLanguageExecutor {
     // Apply trim modifier to results content
     pub fn apply_trim(&self, block: &Block, content: &str) -> String {
         if let Some(trim_value) = block.get_modifier("trim") {
-            if trim_value == "true" {
-                return content.trim().to_string();
+            match trim_value.as_str() {
+                "true" | "yes" | "1" => return content.trim().to_string(),
+                "start" | "left" => return content.trim_start().to_string(),
+                "end" | "right" => return content.trim_end().to_string(),
+                "lines" => {
+                    // Trim each line individually
+                    return content.lines()
+                        .map(|line| line.trim())
+                        .collect::<Vec<&str>>()
+                        .join("\n");
+                }
+                _ => {}
             }
         }
         
@@ -540,7 +564,16 @@ impl MetaLanguageExecutor {
                 if max_lines > 0 {
                     let lines: Vec<&str> = content.lines().collect();
                     if lines.len() > max_lines {
-                        return lines[..max_lines].join("\n");
+                        let mut result = lines[..max_lines].join("\n");
+                        
+                        // Add ellipsis indicator if truncated
+                        if let Some(ellipsis) = block.get_modifier("ellipsis") {
+                            result.push_str(&format!("\n{}", ellipsis));
+                        } else {
+                            result.push_str("\n...");
+                        }
+                        
+                        return result;
                     }
                 }
             }
@@ -555,6 +588,24 @@ impl MetaLanguageExecutor {
         let trimmed = self.apply_trim(block, content);
         let truncated = self.apply_max_lines(block, &trimmed);
         
+        // Apply additional formatting based on modifiers
+        if let Some(format_type) = block.get_modifier("format") {
+            match format_type.as_str() {
+                "json" => {
+                    // Try to pretty-print JSON if requested
+                    if block.has_modifier("pretty") {
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&truncated) {
+                            if let Ok(pretty) = serde_json::to_string_pretty(&parsed) {
+                                return pretty;
+                            }
+                        }
+                    }
+                }
+                // Add other format-specific processing as needed
+                _ => {}
+            }
+        }
+        
         truncated
     }
     
@@ -565,20 +616,45 @@ impl MetaLanguageExecutor {
                 // Get the original block
                 let block = self.blocks.get(name).unwrap().clone();
                 
-                // Create a results block
-                let results_block = self.generate_results_block(&block, &output, None);
+                // Determine format from block modifiers or content
+                let format = block.get_modifier("format")
+                    .map(|f| f.as_str())
+                    .or_else(|| Some(self.determine_format_from_content(&output)));
                 
-                // Process the results content
+                // Create a results block
+                let results_block = self.generate_results_block(&block, &output, format);
+                
+                // Process the results content with all modifiers
                 let processed_content = self.process_results_content(&results_block, &output);
                 
                 // Create the final results block with processed content
-                Ok(self.generate_results_block(&block, &processed_content, None))
+                let final_block = self.generate_results_block(&block, &processed_content, format);
+                
+                // Store the results in outputs if the block has a name
+                if let Some(block_name) = &block.name {
+                    let results_name = format!("{}_results", block_name);
+                    self.outputs.insert(results_name, processed_content);
+                }
+                
+                Ok(final_block)
             },
             Err(err) => {
                 // Get the original block
                 if let Some(block) = self.blocks.get(name) {
                     // Create an error results block
-                    let _error_block = self.generate_error_results_block(block, &err.to_string());
+                    let error_block = self.generate_error_results_block(block, &err.to_string());
+                    
+                    // Store the error in outputs if the block has a name
+                    if let Some(block_name) = &block.name {
+                        let error_name = format!("{}_error", block_name);
+                        self.outputs.insert(error_name, err.to_string());
+                    }
+                    
+                    // If there's a fallback, try to execute it
+                    if let Some(fallback_name) = self.fallbacks.get(name) {
+                        println!("Trying fallback block: {}", fallback_name);
+                        return self.execute_block_with_results(fallback_name);
+                    }
                 }
                 
                 // Return the error anyway so the caller knows execution failed
