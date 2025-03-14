@@ -651,9 +651,16 @@ impl MetaLanguageExecutor {
                     }
                     
                     // If there's a fallback, try to execute it
-                    if let Some(fallback_name) = self.fallbacks.get(name) {
+                    let fallback_to_execute = if let Some(fallback_name) = self.fallbacks.get(name) {
                         println!("Trying fallback block: {}", fallback_name);
-                        return self.execute_block_with_results(fallback_name);
+                        Some(fallback_name.clone())
+                    } else {
+                        None
+                    };
+                    
+                    // Execute the fallback if we found one
+                    if let Some(fallback_name) = fallback_to_execute {
+                        return self.execute_block_with_results(&fallback_name);
                     }
                 }
                 
