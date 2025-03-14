@@ -138,6 +138,22 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     }
                     content = content[consumed_len..].trim_start();
                 } else {
+                    // Failed to parse a block - likely missing closing tag
+                    // Extract the block type to provide a better error message
+                    if let Some(block_type_end) = block_start.find(']') {
+                        let block_type = &block_start[1..block_type_end];
+                        if block_type.contains(' ') {
+                            let block_type = block_type.split_whitespace().next().unwrap_or("");
+                            return Err(ParserError::InvalidBlockStructure(
+                                format!("Missing closing tag for block type: {}", block_type)
+                            ));
+                        } else {
+                            return Err(ParserError::InvalidBlockStructure(
+                                format!("Missing closing tag for block: {}", block_type)
+                            ));
+                        }
+                    }
+                    
                     // Skip to the next potential block start
                     content = &content[open_bracket + 1..];
                 }
@@ -168,8 +184,12 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
     
     // Otherwise, try to parse a regular block
     if let Ok(block) = block_parser::parse_single_block(content) {
-        let end_pos = find_block_end(content, &block.block_type)?;
-        return Some((block, end_pos));
+        if let Some(end_pos) = find_block_end(content, &block.block_type) {
+            return Some((block, end_pos));
+        } else {
+            // If we can't find the closing tag, this is an invalid block structure
+            return None;
+        }
     }
     
     None
