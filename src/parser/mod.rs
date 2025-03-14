@@ -286,41 +286,41 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     }
     
     // Create the block
-    let mut block = Block::new(&block_type, name.as_deref(), section_content);
+    let mut block = Block::new(&block_type, name.as_deref(), "");
     
     // Parse child blocks from the content
-    let mut child_content = section_content;
-    let mut offset = 0;
+    let mut remaining_content = section_content;
     
-    while !child_content.is_empty() {
-        // Find the start of the next block
-        if let Some(block_start) = child_content.find('[') {
-            let remaining = &child_content[block_start..];
+    while !remaining_content.is_empty() {
+        // Skip any whitespace or text before the next block
+        if let Some(block_start) = remaining_content.find('[') {
+            let block_content = &remaining_content[block_start..];
             
             // Try to parse a nested block
-            if let Some((child_block, consumed)) = try_parse_single_block(remaining) {
+            if let Some((child_block, consumed)) = try_parse_single_block(block_content) {
                 // Add the child block
                 block.add_child(child_block);
                 
                 // Move past this block
-                if block_start + consumed >= child_content.len() {
+                if block_start + consumed >= remaining_content.len() {
                     break;
                 }
-                child_content = &child_content[block_start + consumed..];
-                offset += block_start + consumed;
+                remaining_content = &remaining_content[block_start + consumed..];
             } else {
-                // If we couldn't parse a block, move ahead
-                if block_start + 1 >= child_content.len() {
+                // If we couldn't parse a block, move ahead one character and try again
+                if block_start + 1 >= remaining_content.len() {
                     break;
                 }
-                child_content = &child_content[block_start + 1..];
-                offset += block_start + 1;
+                remaining_content = &remaining_content[block_start + 1..];
             }
         } else {
             // No more block starts found
             break;
         }
     }
+    
+    // Store the original content as well (for reference)
+    block.content = section_content.to_string();
     
     Some((block, end_pos))
 }
