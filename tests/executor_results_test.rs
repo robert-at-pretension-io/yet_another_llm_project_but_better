@@ -55,29 +55,27 @@ Analyze this data: ${data-generator.results}
         none_display.add_modifier("for", "none-example");
         none_display.add_modifier("display", "none");
         
-        // Add implementation for should_display and should_display_inline
-        impl MetaLanguageExecutor {
-            pub fn should_display(&self, block: &Block) -> bool {
-                if let Some(display) = block.get_modifier("display") {
-                    display != "none"
-                } else {
-                    true // Default is to display
-                }
-            }
-            
-            pub fn should_display_inline(&self, block: &Block) -> bool {
-                if let Some(display) = block.get_modifier("display") {
-                    display == "inline"
-                } else {
-                    false // Default is not inline
-                }
+        // Helper functions for display logic
+        fn should_display(block: &Block) -> bool {
+            if let Some(display) = block.get_modifier("display") {
+                display != "none"
+            } else {
+                true // Default is to display
             }
         }
         
-        // Check that executor correctly applies display modifiers
-        assert!(executor.should_display_inline(&inline_block));
-        assert!(!executor.should_display_inline(&block_display));
-        assert!(!executor.should_display(&none_display));
+        fn should_display_inline(block: &Block) -> bool {
+            if let Some(display) = block.get_modifier("display") {
+                display == "inline"
+            } else {
+                false // Default is not inline
+            }
+        }
+        
+        // Check that display modifiers are correctly applied
+        assert!(should_display_inline(&inline_block));
+        assert!(!should_display_inline(&block_display));
+        assert!(!should_display(&none_display));
     }
     
     /// Test executor application of format modifiers
@@ -102,23 +100,21 @@ Analyze this data: ${data-generator.results}
         let mut auto_block = Block::new("results", None, auto_json_input);
         auto_block.add_modifier("for", "auto-example");
         
-        // Add implementation for determine_format
-        impl MetaLanguageExecutor {
-            pub fn determine_format(&self, block: &Block) -> &str {
-                // First check if format is explicitly specified
-                if let Some(format) = block.get_modifier("format") {
-                    return format;
-                }
-                
-                // Otherwise, determine from content
-                self.determine_format_from_content(&block.content)
+        // Helper function for format determination
+        fn determine_format(executor: &MetaLanguageExecutor, block: &Block) -> String {
+            // First check if format is explicitly specified
+            if let Some(format) = block.get_modifier("format") {
+                return format.clone();
             }
+            
+            // Otherwise, determine from content
+            executor.determine_format_from_content(&block.content).to_string()
         }
         
-        // Check that executor correctly determines formats
-        assert_eq!(executor.determine_format(&json_block), "json");
-        assert_eq!(executor.determine_format(&csv_block), "csv");
-        assert_eq!(executor.determine_format(&auto_block), "json"); // Auto-detected as JSON
+        // Check that formats are correctly determined
+        assert_eq!(determine_format(&executor, &json_block), "json");
+        assert_eq!(determine_format(&executor, &csv_block), "csv");
+        assert_eq!(determine_format(&executor, &auto_block), "json"); // Auto-detected as JSON
     }
     
     /// Test executor application of trim and max_lines modifiers
