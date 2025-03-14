@@ -211,7 +211,7 @@ fn extract_base_block_type(content: &str) -> Option<String> {
         let after_open = &content[open_start + 1..];
         
         // Handle special block types with modifiers directly after opening bracket
-        let known_block_types = ["results", "error_results", "api", "preview"];
+        let known_block_types = ["results", "error_results", "api", "preview", "template"];
         for block_type in known_block_types.iter() {
             if after_open.starts_with(block_type) && 
                (after_open.len() > block_type.len()) && 
@@ -241,7 +241,7 @@ fn extract_base_block_type(content: &str) -> Option<String> {
 fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
     // Handle special block types with modifiers directly after opening bracket
     // Examples: [results for:simple-calc format:plain], [error_results for:test]
-    let known_block_types = ["results", "error_results", "api", "preview"];
+    let known_block_types = ["results", "error_results", "api", "preview", "template"];
     for &known_type in known_block_types.iter() {
         if block_type == known_type || block_type.starts_with(&format!("{}:", known_type)) {
             let close_tag = format!("[/{}", known_type);
