@@ -5,7 +5,7 @@ mod executor_results_tests {
     
     /// Test executor's handling of results in context building
     #[test]
-    #[ignore]
+    
     fn test_executor_includes_results_in_context() {
         let mut executor = MetaLanguageExecutor::new();
         
@@ -159,7 +159,7 @@ Analyze this data: ${data-generator.results}
     
     /// Test integration of results blocks in workflow execution
     #[test]
-    #[ignore]
+    
     fn test_results_integration_in_workflow() {
         let mut executor = MetaLanguageExecutor::new();
         
@@ -221,7 +221,7 @@ Final result: ${step3.results}
     
     /// Test executor's handling of error_results
     #[test]
-    #[ignore]
+    
     fn test_executor_handles_error_results() {
         let mut executor = MetaLanguageExecutor::new();
         
