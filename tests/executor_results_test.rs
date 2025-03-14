@@ -40,7 +40,7 @@ Analyze this data: ${data-generator.results}
     /// Test executor application of display modifiers
     #[test]
     fn test_executor_applies_display_modifiers() {
-        let mut executor = MetaLanguageExecutor::new();
+        let executor = MetaLanguageExecutor::new();
         
         // Create results blocks with different display modifiers
         let mut inline_block = Block::new("results", None, "This is an inline result.");
@@ -64,7 +64,7 @@ Analyze this data: ${data-generator.results}
     /// Test executor application of format modifiers
     #[test]
     fn test_executor_applies_format_modifiers() {
-        let mut executor = MetaLanguageExecutor::new();
+        let executor = MetaLanguageExecutor::new();
         
         // JSON input with format specified
         let json_input = r#"{"name": "Test", "values": [1, 2, 3]}"#;
@@ -92,7 +92,7 @@ Analyze this data: ${data-generator.results}
     /// Test executor application of trim and max_lines modifiers
     #[test]
     fn test_executor_applies_content_modifiers() {
-        let mut executor = MetaLanguageExecutor::new();
+        let executor = MetaLanguageExecutor::new();
         
         // Content with whitespace for trim testing
         let whitespace_content = "\n   Content with leading/trailing whitespace   \n\n";
@@ -124,7 +124,7 @@ Analyze this data: ${data-generator.results}
     /// Test executor's processing chain for results blocks
     #[test]
     fn test_executor_results_processing_chain() {
-        let mut executor = MetaLanguageExecutor::new();
+        let executor = MetaLanguageExecutor::new();
         
         // Create a block with multiple modifiers
         let raw_content = r#"

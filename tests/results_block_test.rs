@@ -77,7 +77,7 @@ This is not displayed
 
     #[test]
     fn test_executor_processes_results() {
-        let mut executor = MetaLanguageExecutor::new();
+        let executor = MetaLanguageExecutor::new();
         
         // Create a mock code block and results
         let code_block = Block::new("code:python", Some("test-code"), "print('Hello, executor!')");
@@ -101,7 +101,7 @@ This is not displayed
 
     #[test]
     fn test_executor_handles_error_results() {
-        let mut executor = MetaLanguageExecutor::new();
+        let executor = MetaLanguageExecutor::new();
         
         // Create a mock code block that would fail
         let code_block = Block::new("code:python", Some("failing-code"), "print(undefined_variable)");
