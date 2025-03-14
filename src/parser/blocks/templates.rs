@@ -5,6 +5,7 @@ use crate::parser::blocks::Block;
 pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("template", None, "");
     let mut has_requires_modifier = false;
+    let mut template_type = String::from("template");
     
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
@@ -16,7 +17,15 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
                     if modifier.0 == "requires" {
                         has_requires_modifier = true;
                     }
+                    if modifier.0 == "_type" {
+                        template_type = format!("template:{}", modifier.1);
+                    }
                     block.add_modifier(&modifier.0, &modifier.1);
+                }
+                
+                // Update block type if _type modifier was found
+                if template_type != "template" {
+                    block.block_type = template_type;
                 }
             }
             Rule::block_content => {
@@ -38,6 +47,7 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
 // Process template invocation blocks
 pub fn process_template_invocation(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("template_invocation", None, "");
+    let mut invocation_type = String::from("template_invocation");
     
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
@@ -47,7 +57,15 @@ pub fn process_template_invocation(pair: pest::iterators::Pair<Rule>) -> Block {
                         block.name = Some(part.as_str().to_string());
                     } else if part.as_rule() == Rule::modifiers {
                         for modifier in extract_modifiers(part) {
+                            if modifier.0 == "_type" {
+                                invocation_type = format!("template_invocation:{}", modifier.1);
+                            }
                             block.add_modifier(&modifier.0, &modifier.1);
+                        }
+                        
+                        // Update block type if _type modifier was found
+                        if invocation_type != "template_invocation" {
+                            block.block_type = invocation_type;
                         }
                     }
                 }
