@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use yet_another_llm_project_but_better::{parser, executor};
-use yet_another_llm_project_but_better::parser::blocks::Block;
+use yet_another_llm_project_but_better::parser::Block;
 
 #[test]
 fn test_template_with_modifiers() {
