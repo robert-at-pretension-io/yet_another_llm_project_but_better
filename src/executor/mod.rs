@@ -449,23 +449,33 @@ impl MetaLanguageExecutor {
     
     // Helper function to preprocess Python code for JSON handling
     fn preprocess_python_code(&self, code: &str) -> String {
-        // Always import json at the beginning
-        let mut processed = String::from("import json\n");
+        // Always import json and ast at the beginning
+        let mut processed = String::from("import json\nimport ast\n");
         
         // Process each line to detect and convert JSON strings to Python objects
         for line in code.lines() {
             let mut processed_line = line.to_string();
+            
+            // Debug: Print the line being processed
+            println!("DEBUG: Processing line: '{}'", line);
             
             // Look for variable assignments with JSON-like content
             if let Some(pos) = line.find('=') {
                 let var_name = line[..pos].trim();
                 let value = line[pos+1..].trim();
                 
+                println!("DEBUG: Found assignment: var_name='{}', value='{}'", var_name, value);
+                
                 // Check if the value looks like a JSON array or object
                 if (value.starts_with('[') && value.ends_with(']')) || 
                    (value.starts_with('{') && value.ends_with('}')) {
-                    // Replace with json.loads to convert JSON string to Python object
-                    processed_line = format!("{} = json.loads('''{}''')", var_name, value);
+                    println!("DEBUG: Detected JSON-like structure in: '{}'", value);
+                    
+                    // Use ast.literal_eval for Python literals (safer than eval, handles arrays better than json.loads)
+                    processed_line = format!("try:\n    {} = ast.literal_eval('''{}''')\nexcept (SyntaxError, ValueError):\n    try:\n        {} = json.loads('''{}''')\n    except json.JSONDecodeError:\n        {} = '''{}'''", 
+                        var_name, value, var_name, value, var_name, value);
+                    
+                    println!("DEBUG: Transformed to: '{}'", processed_line);
                 }
             }
             
