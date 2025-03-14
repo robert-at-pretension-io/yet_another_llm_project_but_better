@@ -170,15 +170,10 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
     
     // Process nested sections - ensure children are properly attached to parents
     let mut top_level_blocks = Vec::new();
-    let mut section_blocks = Vec::new();
     
-    // First, identify all section blocks
+    // Add all blocks to top_level_blocks, including section blocks
     for block in blocks {
-        if block.block_type.starts_with("section:") {
-            section_blocks.push(block);
-        } else {
-            top_level_blocks.push(block);
-        }
+        top_level_blocks.push(block);
     }
     
     // Check for duplicate block names
