@@ -8,9 +8,9 @@ fn test_template_with_modifiers() {
 
     // Create a template block using the parser
     let template_text = r#"
-    @template:custom name:test-template requires:data-block cache:true
+    [template:custom name:test-template requires:data-block cache:true]
     This is a template with ${data-block}
-    @end
+    [/template:custom]
     "#;
     
     // Parse the template

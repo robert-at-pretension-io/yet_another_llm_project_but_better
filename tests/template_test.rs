@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use yet_another_llm_project_but_better::parser::blocks::Block;
+    use yet_another_llm_project_but_better::parser::Block;
 
     /// Test template definition and usage
     #[test]
     fn test_template_basics() {
         // Create blocks directly
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         // Create a template block
         let mut template = Block::new("template", Some("data-processor"), 
@@ -53,7 +53,7 @@ Analyze this data: ${data_content}
     #[test]
     fn test_multiple_template_invocations() {
         // Create blocks directly
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         // Create template block
         let mut template = Block::new("template", Some("message-template"), 
@@ -100,7 +100,7 @@ Analyze this data: ${data_content}
     #[test]
     fn test_simple_template_parsing() {
         // Create block directly
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         let template = Block::new("template", Some("simple-template"), 
             "This is a simple template with no parameters.");
@@ -123,7 +123,7 @@ Analyze this data: ${data_content}
     #[test]
     fn test_simple_template_invocation() {
         // Create blocks directly
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         // Create template block
         let mut template = Block::new("template", Some("greeting-template"), 
