@@ -35,13 +35,29 @@ fn has_matching_closing_tag(content: &str) -> bool {
     if let Some(open_start) = content.find('[') {
         let after_open = &content[open_start + 1..];
         
-        // Extract block type
+        // Extract full block type (including subtypes with colons)
         if let Some(type_end) = after_open.find(|c: char| c == ' ' || c == ']') {
-            let block_type = &after_open[..type_end];
+            let full_block_type = &after_open[..type_end];
             
-            // Check for matching closing tag
-            let close_tag = format!("[/{}", block_type);
-            return content.contains(&close_tag);
+            // Handle block types with subtypes (e.g., "code:python")
+            let base_type = if let Some(colon_pos) = full_block_type.find(':') {
+                &full_block_type[..colon_pos]
+            } else {
+                full_block_type
+            };
+            
+            // Check for matching closing tag - try both the full type and base type
+            let full_close_tag = format!("[/{}", full_block_type);
+            let base_close_tag = format!("[/{}", base_type);
+            
+            // First check if the full type closing tag exists
+            if content.contains(&full_close_tag) {
+                return true;
+            }
+            
+            // If not found, check if the base type closing tag exists
+            // This handles cases where a block might be closed with just the base type
+            return content.contains(&base_close_tag);
         }
     }
     
