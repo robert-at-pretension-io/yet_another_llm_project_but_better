@@ -175,7 +175,8 @@ Hello, ${param1}! Welcome to our service.
         
         // Find the template invocation block
         let invocation = blocks.iter().find(|b| b.block_type == "template_invocation").unwrap();
-        assert_eq!(invocation.name, Some("greeting-template".to_string()));
+        assert_eq!(invocation.name, Some("invoke-greeting-template".to_string()));
+        assert_eq!(invocation.get_modifier("template"), Some(&"greeting-template".to_string()));
         assert_eq!(invocation.get_modifier("param1"), Some(&"World".to_string()));
     }
 }
