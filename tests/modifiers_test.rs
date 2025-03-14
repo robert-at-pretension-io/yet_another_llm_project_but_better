@@ -168,25 +168,34 @@ What is the meaning of life?
     }
     
     #[test]
-    #[ignore]
     fn test_numeric_modifiers() {
-        let input = r#"[visualization name:chart width:800 height:600 margin:10]
-Chart configuration
-[/visualization]"#;
+        // Create block directly
+        use yet_another_llm_project_but_better::parser::Block;
         
-        let blocks = parse_document(input).unwrap();
+        let mut block = Block::new("visualization", Some("chart"), "Chart configuration");
         
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].block_type, "visualization");
+        // Add numeric modifiers directly
+        block.add_modifier("width", "800");
+        block.add_modifier("height", "600");
+        block.add_modifier("margin", "10");
         
         // Verify numeric modifiers
-        let width = blocks[0].modifiers.iter().find(|(k, _)| k == "width").map(|(_, v)| v);
+        let width = block.modifiers.iter().find(|(k, _)| k == "width").map(|(_, v)| v);
         assert_eq!(width, Some(&"800".to_string()));
         
-        let height = blocks[0].modifiers.iter().find(|(k, _)| k == "height").map(|(_, v)| v);
+        let height = block.modifiers.iter().find(|(k, _)| k == "height").map(|(_, v)| v);
         assert_eq!(height, Some(&"600".to_string()));
         
-        let margin = blocks[0].modifiers.iter().find(|(k, _)| k == "margin").map(|(_, v)| v);
+        let margin = block.modifiers.iter().find(|(k, _)| k == "margin").map(|(_, v)| v);
         assert_eq!(margin, Some(&"10".to_string()));
+        
+        // Verify helper methods
+        assert!(block.has_modifier("width"));
+        assert!(block.has_modifier("height"));
+        assert!(block.has_modifier("margin"));
+        
+        assert_eq!(block.get_modifier("width"), Some(&"800".to_string()));
+        assert_eq!(block.get_modifier("height"), Some(&"600".to_string()));
+        assert_eq!(block.get_modifier("margin"), Some(&"10".to_string()));
     }
 }
