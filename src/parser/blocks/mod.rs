@@ -39,6 +39,22 @@ impl Block {
             .map(|(_, v)| v)
     }
     
+    // Check if a modifier has a truthy value (true, yes, 1)
+    pub fn is_modifier_true(&self, key: &str) -> bool {
+        if let Some(value) = self.get_modifier(key) {
+            let value = value.to_lowercase();
+            value == "true" || value == "yes" || value == "1"
+        } else {
+            false
+        }
+    }
+    
+    // Get a modifier value as f64
+    pub fn get_modifier_as_f64(&self, key: &str) -> Option<f64> {
+        self.get_modifier(key)
+            .and_then(|v| v.parse::<f64>().ok())
+    }
+    
     // Add a child block
     pub fn add_child(&mut self, child: Block) {
         self.children.push(child);
