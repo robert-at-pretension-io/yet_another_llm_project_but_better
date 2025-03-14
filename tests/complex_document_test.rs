@@ -115,23 +115,62 @@ bar-chart
     
     #[test]
     fn test_nested_structure() {
-        use yet_another_llm_project_but_better::parser::Block;
+        let input = r#"[section:document name:analysis-report]
+# Data Analysis Report
+
+[data name:dataset format:csv]
+id,value,category
+1,42,A
+2,37,B
+3,19,A
+[/data]
+
+[code:python name:analyze-data depends:dataset]
+import pandas as pd
+data = pd.read_csv('${dataset}')
+result = data.groupby('category').mean()
+print(result)
+[/code:python]
+
+[section:results name:data-results]
+## Results
+The analysis of the data shows interesting patterns.
+[/section:results]
+
+[/section:document]"#;
         
-        // Create blocks directly instead of parsing to ensure test passes
-        let mut parent_block = Block::new("section:example", Some("parent-section"), "Section content");
+        let result = parse_document(input);
+        assert!(result.is_ok(), "Failed to parse nested structure: {:?}", result.err());
         
-        let child1 = Block::new("data", Some("child-data"), "Some data content");
-        let child2 = Block::new("code:python", Some("child-code"), "print('Hello world')");
-        let child3 = Block::new("shell", Some("child-shell"), "echo 'Test command'");
+        let blocks = result.unwrap();
+        assert_eq!(blocks.len(), 1, "Expected 1 top-level block, found {}", blocks.len());
         
-        parent_block.add_child(child1);
-        parent_block.add_child(child2);
-        parent_block.add_child(child3);
+        // Check the document section
+        let document = &blocks[0];
+        assert_eq!(document.block_type, "section:document");
+        assert_eq!(document.name, Some("analysis-report".to_string()));
+        assert!(document.content.contains("# Data Analysis Report"));
         
-        // Verify the structure
-        assert_eq!(parent_block.children.len(), 3, "Expected 3 child blocks");
-        assert_eq!(parent_block.children[0].block_type, "data");
-        assert_eq!(parent_block.children[1].block_type, "code:python");
-        assert_eq!(parent_block.children[2].block_type, "shell");
+        // Check that the document has 3 child blocks
+        assert_eq!(document.children.len(), 3, "Expected 3 child blocks, found {}", document.children.len());
+        
+        // Check the data block (first child)
+        let data_block = &document.children[0];
+        assert_eq!(data_block.block_type, "data");
+        assert_eq!(data_block.name, Some("dataset".to_string()));
+        assert_eq!(data_block.get_modifier("format"), Some(&"csv".to_string()));
+        
+        // Check the code block (second child)
+        let code_block = &document.children[1];
+        assert_eq!(code_block.block_type, "code:python");
+        assert_eq!(code_block.name, Some("analyze-data".to_string()));
+        assert_eq!(code_block.get_modifier("depends"), Some(&"dataset".to_string()));
+        
+        // Check the nested section (third child)
+        let results_section = &document.children[2];
+        assert_eq!(results_section.block_type, "section:results");
+        assert_eq!(results_section.name, Some("data-results".to_string()));
+        assert!(results_section.content.contains("## Results"));
+        assert!(results_section.content.contains("interesting patterns"));
     }
 }
