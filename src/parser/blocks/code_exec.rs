@@ -227,33 +227,60 @@ pub fn process_shell_block(pair: pest::iterators::Pair<Rule>) -> Block {
 pub fn process_api_block(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("api", None, "");
     
+    // Debug: Print the raw API block
+    println!("DEBUG: Processing API block: '{}'", pair.as_str());
+    
     for inner_pair in pair.into_inner() {
+        println!("DEBUG: API inner rule: {:?}", inner_pair.as_rule());
+        
         match inner_pair.as_rule() {
             Rule::name_attr => {
                 block.name = extract_name(inner_pair);
+                println!("DEBUG: API block name: {:?}", block.name);
             }
             Rule::modifiers => {
                 // Get full text for dependency extraction
                 let modifier_text = inner_pair.as_str();
+                println!("DEBUG: API modifiers text: '{}'", modifier_text);
                 
                 // Extract dependencies
                 let deps = extract_dependencies(modifier_text);
-                for (key, value) in deps {
-                    block.add_modifier(&key, &value);
+                for (key, value) in &deps {
+                    println!("DEBUG: Adding API dependency: '{}' = '{}'", key, value);
+                    block.add_modifier(key, value);
                 }
                 
                 // Extract other modifiers
-                for modifier in extract_modifiers(inner_pair) {
+                for modifier in extract_modifiers(inner_pair.clone()) {
                     if modifier.0 != "depends" && modifier.0 != "requires" {
+                        println!("DEBUG: Adding API modifier: '{}' = '{}'", modifier.0, modifier.1);
                         block.add_modifier(&modifier.0, &modifier.1);
+                    }
+                }
+                
+                // Ensure we're getting all modifiers by also using the text-based extraction
+                // This is especially important for quoted values
+                let text_modifiers = extract_modifiers_from_text(modifier_text);
+                for (key, value) in text_modifiers {
+                    if key != "name" && key != "depends" && key != "requires" && !block.has_modifier(&key) {
+                        println!("DEBUG: Adding API text modifier: '{}' = '{}'", key, value);
+                        block.add_modifier(&key, &value);
                     }
                 }
             }
             Rule::block_content => {
                 block.content = inner_pair.as_str().trim().to_string();
+                println!("DEBUG: API block content: '{}'", block.content);
             }
-            _ => {}
+            _ => {
+                println!("DEBUG: Unknown API rule: {:?}", inner_pair.as_rule());
+            }
         }
+    }
+    
+    // Debug: Print all modifiers in the final block
+    for (key, value) in &block.modifiers {
+        println!("DEBUG: Final API modifier: '{}' = '{}'", key, value);
     }
     
     block

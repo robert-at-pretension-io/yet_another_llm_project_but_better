@@ -17,6 +17,7 @@ pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, Stri
     // Debug: Print the raw modifier text
     println!("DEBUG: Raw modifiers text: '{}'", pair.as_str());
     
+    // First try to extract using the structured approach
     for modifier_pair in pair.into_inner() {
         if modifier_pair.as_rule() == Rule::modifier {
             let mut key = String::new();
@@ -32,7 +33,7 @@ pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, Stri
                         println!("DEBUG: Found modifier key: '{}'", key);
                     }
                     Rule::modifier_value => {
-                        value = extract_modifier_value(part);
+                        value = extract_modifier_value(part.clone());
                         println!("DEBUG: Found modifier value: '{}'", value);
                     }
                     _ => {
@@ -51,6 +52,19 @@ pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, Stri
         }
     }
     
+    // If we didn't extract any modifiers using the structured approach,
+    // or if we're dealing with a complex case, also try the regex approach
+    if modifiers.is_empty() || pair.as_str().contains("\"") {
+        let text_modifiers = extract_modifiers_from_text(pair.as_str());
+        for (key, value) in text_modifiers {
+            // Only add if we don't already have this key
+            if !modifiers.iter().any(|(k, _)| k == &key) {
+                println!("DEBUG: Adding text-extracted modifier: '{}' = '{}'", key, value);
+                modifiers.push((key, value));
+            }
+        }
+    }
+    
     println!("DEBUG: Extracted {} modifiers", modifiers.len());
     modifiers
 }
@@ -58,6 +72,19 @@ pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, Stri
 // Extract the value from a modifier_value pair
 fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
     println!("DEBUG: Extracting value from: '{}'", pair.as_str());
+    
+    // Check if the raw text contains quotes
+    let raw_text = pair.as_str();
+    if raw_text.contains('"') {
+        // Try to extract quoted content directly from the raw text
+        if let Some(start) = raw_text.find('"') {
+            if let Some(end) = raw_text[start+1..].find('"') {
+                let quoted_value = &raw_text[start+1..start+1+end];
+                println!("DEBUG: Extracted quoted value directly: '{}'", quoted_value);
+                return quoted_value.to_string();
+            }
+        }
+    }
     
     // Try to get inner part
     if let Some(inner) = pair.clone().into_inner().next() {
@@ -98,6 +125,13 @@ fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
         
         // Debug what we're trying to process
         println!("DEBUG: No inner rule found, using raw text: '{}'", pair_str);
+        
+        // Check if it's a quoted string in the raw text
+        if pair_str.starts_with('"') && pair_str.ends_with('"') && pair_str.len() >= 2 {
+            let unquoted = &pair_str[1..pair_str.len()-1];
+            println!("DEBUG: Unquoted value: '{}'", unquoted);
+            return unquoted.to_string();
+        }
         
         // Return the raw value as a fallback
         pair_str.to_string()
