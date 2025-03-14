@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use yet_another_llm_project_but_better::parser::{parse_document};
-    use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
 
     /// Test template definition and usage
     #[test]
