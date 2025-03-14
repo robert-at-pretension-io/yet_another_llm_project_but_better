@@ -3,7 +3,7 @@ mod tests {
     use yet_another_llm_project_but_better::parser::parse_document;
     
     #[test]
-    #[ignore] // Temporarily ignore test until we fix the block parsing
+     // Temporarily ignore test until we fix the block parsing
     fn test_question_block() {
         let input = r#"[question name:simple-question model:gpt-4]
 What are the three laws of robotics?
@@ -22,7 +22,7 @@ What are the three laws of robotics?
     }
     
     #[test]
-    #[ignore] // Temporarily ignore test until we fix the block parsing
+     // Temporarily ignore test until we fix the block parsing
     fn test_response_block() {
         let input = r#"[response timestamp:"2023-05-15T14:30:00Z" tokens:150]
 The three laws of robotics, as defined by Isaac Asimov, are:
@@ -43,7 +43,7 @@ The three laws of robotics, as defined by Isaac Asimov, are:
     }
     
     #[test]
-    #[ignore] // Temporarily ignore test until we fix the block parsing
+     // Temporarily ignore test until we fix the block parsing
     fn test_question_response_sequence() {
         let input = r#"[question]
 What are the three laws of robotics?
