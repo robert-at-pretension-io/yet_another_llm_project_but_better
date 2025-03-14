@@ -86,7 +86,7 @@ df -h
     
     #[test]
     fn test_api_block() {
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         // Create a Block directly instead of parsing
         let mut block = Block::new("api", Some("weather-api"), r#"{
@@ -148,7 +148,7 @@ result = {"status": "fallback", "data": None}
     
     #[test]
     fn debug_api_block() {
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         println!("DEBUG: Starting API block test with direct Block creation");
         
@@ -205,6 +205,6 @@ result = {"status": "fallback", "data": None}
         let headers = block.get_modifier("headers");
         println!("DEBUG: headers modifier = {:?}", headers);
         assert_eq!(headers, Some(&"Authorization: Bearer ${api-key}".to_string()),
-                  "headers modifier should be 'Authorization: Bearer ${api-key}'");
+                  "headers modifier should be 'Authorization: Bearer $${api-key}'");
     }
 }
