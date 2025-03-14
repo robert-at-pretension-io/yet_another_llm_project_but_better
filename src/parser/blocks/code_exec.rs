@@ -223,6 +223,77 @@ pub fn process_shell_block(pair: pest::iterators::Pair<Rule>) -> Block {
     block
 }
 
+// Helper function to extract modifiers directly from API block tag
+fn extract_api_modifiers_from_tag(tag_text: &str) -> Vec<(String, String)> {
+    let mut modifiers = Vec::new();
+    
+    // Skip the "[api" part
+    if let Some(after_api) = tag_text.strip_prefix("[api") {
+        let mut remaining = after_api.trim();
+        
+        // Process each modifier
+        while !remaining.is_empty() && !remaining.starts_with(']') {
+            // Skip leading spaces
+            remaining = remaining.trim_start();
+            
+            // Check for name: attribute first
+            if remaining.starts_with("name:") {
+                let name_start = 5; // "name:".len()
+                let name_end = remaining[name_start..]
+                    .find(|c: char| c.is_whitespace() || c == ']')
+                    .map_or(remaining.len(), |pos| name_start + pos);
+                
+                let name_value = &remaining[name_start..name_end];
+                modifiers.push(("name".to_string(), name_value.to_string()));
+                
+                remaining = &remaining[name_end..];
+                continue;
+            }
+            
+            // Look for key:value pattern
+            if let Some(colon_pos) = remaining.find(':') {
+                let key = remaining[..colon_pos].trim();
+                
+                // Skip the colon
+                remaining = &remaining[colon_pos + 1..];
+                
+                // Check if value is quoted
+                if remaining.starts_with('"') {
+                    // Find the closing quote
+                    if let Some(quote_end) = remaining[1..].find('"') {
+                        let value = &remaining[1..=quote_end];
+                        modifiers.push((key.to_string(), value.to_string()));
+                        
+                        // Move past the closing quote
+                        remaining = &remaining[quote_end + 2..];
+                    } else {
+                        // Malformed quoted value, just take until next space
+                        let value_end = remaining.find(|c: char| c.is_whitespace() || c == ']')
+                            .unwrap_or(remaining.len());
+                        let value = &remaining[..value_end];
+                        modifiers.push((key.to_string(), value.to_string()));
+                        
+                        remaining = &remaining[value_end..];
+                    }
+                } else {
+                    // Unquoted value - read until whitespace or closing bracket
+                    let value_end = remaining.find(|c: char| c.is_whitespace() || c == ']')
+                        .unwrap_or(remaining.len());
+                    let value = &remaining[..value_end];
+                    modifiers.push((key.to_string(), value.to_string()));
+                    
+                    remaining = &remaining[value_end..];
+                }
+            } else {
+                // No more colons, break out
+                break;
+            }
+        }
+    }
+    
+    modifiers
+}
+
 // Process API blocks
 pub fn process_api_block(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("api", None, "");
@@ -230,12 +301,33 @@ pub fn process_api_block(pair: pest::iterators::Pair<Rule>) -> Block {
     // Debug: Print the raw API block
     println!("DEBUG: Processing API block: '{}'", pair.as_str());
     
+    // Direct extraction from the raw tag
+    let raw_text = pair.as_str();
+    if let Some(tag_end) = raw_text.find(']') {
+        let opening_tag = &raw_text[..=tag_end];
+        println!("DEBUG: API opening tag: '{}'", opening_tag);
+        
+        // Extract modifiers directly from the tag
+        let direct_modifiers = extract_api_modifiers_from_tag(opening_tag);
+        for (key, value) in &direct_modifiers {
+            println!("DEBUG: Direct API modifier: '{}' = '{}'", key, value);
+            if key == "name" {
+                block.name = Some(value.clone());
+            } else {
+                block.add_modifier(key, value);
+            }
+        }
+    }
+    
+    // Also process using the standard approach
     for inner_pair in pair.into_inner() {
         println!("DEBUG: API inner rule: {:?}", inner_pair.as_rule());
         
         match inner_pair.as_rule() {
             Rule::name_attr => {
-                block.name = extract_name(inner_pair);
+                if block.name.is_none() {
+                    block.name = extract_name(inner_pair);
+                }
                 println!("DEBUG: API block name: {:?}", block.name);
             }
             Rule::modifiers => {
@@ -252,7 +344,7 @@ pub fn process_api_block(pair: pest::iterators::Pair<Rule>) -> Block {
                 
                 // Extract other modifiers
                 for modifier in extract_modifiers(inner_pair.clone()) {
-                    if modifier.0 != "depends" && modifier.0 != "requires" {
+                    if modifier.0 != "depends" && modifier.0 != "requires" && !block.has_modifier(&modifier.0) {
                         println!("DEBUG: Adding API modifier: '{}' = '{}'", modifier.0, modifier.1);
                         block.add_modifier(&modifier.0, &modifier.1);
                     }
