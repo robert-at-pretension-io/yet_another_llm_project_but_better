@@ -47,15 +47,68 @@ pub fn parse_code_block(input: &str) -> Result<Block, ParserError> {
         // Create block
         let mut block = Block::new(&format!("code:{}", language), name.as_deref(), content);
         
-        // Extract modifiers
+        // Extract modifiers with proper handling of quoted values
         let modifiers_text = input[language_end..close_bracket].trim();
-        for modifier in modifiers_text.split_whitespace() {
-            if modifier.contains(":") {
-                let parts: Vec<&str> = modifier.split(":").collect();
-                if parts.len() >= 2 && parts[0] != "name" {
-                    let key = parts[0].trim();
-                    let value = parts[1].trim();
-                    block.add_modifier(key, &value.trim_matches('"'));
+        
+        // Process modifiers with quoted values
+        let mut i = 0;
+        while i < modifiers_text.len() {
+            // Skip whitespace
+            while i < modifiers_text.len() && modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() {
+                break;
+            }
+            
+            // Find the key
+            let key_start = i;
+            while i < modifiers_text.len() && modifiers_text[i..i+1] != ":" && !modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() || modifiers_text[i..i+1] != ":" {
+                i += 1;
+                continue;
+            }
+            
+            let key = modifiers_text[key_start..i].trim();
+            i += 1; // Skip the colon
+            
+            // Skip whitespace after colon
+            while i < modifiers_text.len() && modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() {
+                break;
+            }
+            
+            // Check if value is quoted
+            if modifiers_text[i..i+1] == "\"" {
+                i += 1; // Skip opening quote
+                let value_start = i;
+                
+                // Find closing quote
+                while i < modifiers_text.len() && modifiers_text[i..i+1] != "\"" {
+                    i += 1;
+                }
+                
+                if i < modifiers_text.len() {
+                    let value = modifiers_text[value_start..i].trim();
+                    if key != "name" {
+                        block.add_modifier(key, value);
+                    }
+                    i += 1; // Skip closing quote
+                }
+            } else {
+                // Unquoted value
+                let value_start = i;
+                while i < modifiers_text.len() && !modifiers_text[i..i+1].trim().is_empty() {
+                    i += 1;
+                }
+                
+                let value = modifiers_text[value_start..i].trim();
+                if key != "name" {
+                    block.add_modifier(key, value);
                 }
             }
         }
@@ -129,15 +182,68 @@ pub fn parse_shell_block(input: &str) -> Result<Block, ParserError> {
         // Create block
         let mut block = Block::new("shell", name.as_deref(), content);
         
-        // Extract modifiers (simplified for now)
+        // Extract modifiers with proper handling of quoted values
         let modifiers_text = input[open_tag_start + 6..close_bracket].trim(); // +6 to skip "[shell"
-        for modifier in modifiers_text.split_whitespace() {
-            if modifier.contains(":") && !modifier.starts_with("name:") {
-                let parts: Vec<&str> = modifier.split(":").collect();
-                if parts.len() >= 2 {
-                    let key = parts[0].trim();
-                    let value = parts[1].trim();
-                    block.add_modifier(key, &value.trim_matches('"'));
+        
+        // Process modifiers with quoted values
+        let mut i = 0;
+        while i < modifiers_text.len() {
+            // Skip whitespace
+            while i < modifiers_text.len() && modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() {
+                break;
+            }
+            
+            // Find the key
+            let key_start = i;
+            while i < modifiers_text.len() && modifiers_text[i..i+1] != ":" && !modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() || modifiers_text[i..i+1] != ":" {
+                i += 1;
+                continue;
+            }
+            
+            let key = modifiers_text[key_start..i].trim();
+            i += 1; // Skip the colon
+            
+            // Skip whitespace after colon
+            while i < modifiers_text.len() && modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() {
+                break;
+            }
+            
+            // Check if value is quoted
+            if modifiers_text[i..i+1] == "\"" {
+                i += 1; // Skip opening quote
+                let value_start = i;
+                
+                // Find closing quote
+                while i < modifiers_text.len() && modifiers_text[i..i+1] != "\"" {
+                    i += 1;
+                }
+                
+                if i < modifiers_text.len() {
+                    let value = modifiers_text[value_start..i].trim();
+                    if key != "name" {
+                        block.add_modifier(key, value);
+                    }
+                    i += 1; // Skip closing quote
+                }
+            } else {
+                // Unquoted value
+                let value_start = i;
+                while i < modifiers_text.len() && !modifiers_text[i..i+1].trim().is_empty() {
+                    i += 1;
+                }
+                
+                let value = modifiers_text[value_start..i].trim();
+                if key != "name" {
+                    block.add_modifier(key, value);
                 }
             }
         }
@@ -202,15 +308,68 @@ pub fn parse_api_block(input: &str) -> Result<Block, ParserError> {
         // Create block
         let mut block = Block::new("api", name.as_deref(), content);
         
-        // Extract modifiers (simplified for now)
+        // Extract modifiers with proper handling of quoted values
         let modifiers_text = input[open_tag_start + 4..close_bracket].trim(); // +4 to skip "[api"
-        for modifier in modifiers_text.split_whitespace() {
-            if modifier.contains(":") && !modifier.starts_with("name:") {
-                let parts: Vec<&str> = modifier.split(":").collect();
-                if parts.len() >= 2 {
-                    let key = parts[0].trim();
-                    let value = parts[1].trim();
-                    block.add_modifier(key, &value.trim_matches('"'));
+        
+        // Process modifiers with quoted values
+        let mut i = 0;
+        while i < modifiers_text.len() {
+            // Skip whitespace
+            while i < modifiers_text.len() && modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() {
+                break;
+            }
+            
+            // Find the key
+            let key_start = i;
+            while i < modifiers_text.len() && modifiers_text[i..i+1] != ":" && !modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() || modifiers_text[i..i+1] != ":" {
+                i += 1;
+                continue;
+            }
+            
+            let key = modifiers_text[key_start..i].trim();
+            i += 1; // Skip the colon
+            
+            // Skip whitespace after colon
+            while i < modifiers_text.len() && modifiers_text[i..i+1].trim().is_empty() {
+                i += 1;
+            }
+            if i >= modifiers_text.len() {
+                break;
+            }
+            
+            // Check if value is quoted
+            if modifiers_text[i..i+1] == "\"" {
+                i += 1; // Skip opening quote
+                let value_start = i;
+                
+                // Find closing quote
+                while i < modifiers_text.len() && modifiers_text[i..i+1] != "\"" {
+                    i += 1;
+                }
+                
+                if i < modifiers_text.len() {
+                    let value = modifiers_text[value_start..i].trim();
+                    if key != "name" {
+                        block.add_modifier(key, value);
+                    }
+                    i += 1; // Skip closing quote
+                }
+            } else {
+                // Unquoted value
+                let value_start = i;
+                while i < modifiers_text.len() && !modifiers_text[i..i+1].trim().is_empty() {
+                    i += 1;
+                }
+                
+                let value = modifiers_text[value_start..i].trim();
+                if key != "name" {
+                    block.add_modifier(key, value);
                 }
             }
         }
