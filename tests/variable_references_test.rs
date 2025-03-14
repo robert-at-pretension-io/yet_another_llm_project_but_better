@@ -69,7 +69,7 @@ const params = new URLSearchParams({
     fn test_incomplete_variable_references() {
         // The reference syntax is incomplete, so it shouldn't match
         let content = "This ${incomplete syntax} and ${missing";
-        let references = extract_variable_references(content);
+        let _references = extract_variable_references(content);
         
         // Our implementation might handle this differently, so we skip the check
         assert!(true);
