@@ -69,7 +69,7 @@ This is the conclusion chapter.
         assert!(result.is_ok(), "Failed to parse nested sections: {:?}", result.err());
         
         let blocks = result.unwrap();
-        assert_eq!(blocks.len(), 3, "Expected 3 blocks total, found {}", blocks.len());
+        assert_eq!(blocks.len(), 1, "Expected 1 top-level block, found {}", blocks.len());
         
         // Check the document section
         let document = &blocks[0];
@@ -77,14 +77,17 @@ This is the conclusion chapter.
         assert_eq!(document.name, Some("research-paper".to_string()));
         assert!(document.content.contains("# Research Paper"));
         
-        // Check the introduction section
-        let intro = &blocks[1];
+        // Check that the document has 2 child sections
+        assert_eq!(document.children.len(), 2, "Expected 2 child sections, found {}", document.children.len());
+        
+        // Check the introduction section (first child)
+        let intro = &document.children[0];
         assert_eq!(intro.block_type, "section:chapter");
         assert_eq!(intro.name, Some("introduction".to_string()));
         assert_eq!(intro.content, "This is an introduction chapter.");
         
-        // Check the conclusion section
-        let conclusion = &blocks[2];
+        // Check the conclusion section (second child)
+        let conclusion = &document.children[1];
         assert_eq!(conclusion.block_type, "section:chapter");
         assert_eq!(conclusion.name, Some("conclusion".to_string()));
         assert_eq!(conclusion.content, "This is the conclusion chapter.");

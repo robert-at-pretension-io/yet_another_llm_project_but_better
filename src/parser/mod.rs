@@ -168,10 +168,23 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
         }
     }
     
-    // Check for duplicate block names
-    check_duplicate_names(&blocks)?;
+    // Process nested sections - ensure children are properly attached to parents
+    let mut top_level_blocks = Vec::new();
+    let mut section_blocks = Vec::new();
     
-    Ok(blocks)
+    // First, identify all section blocks
+    for block in blocks {
+        if block.block_type.starts_with("section:") {
+            section_blocks.push(block);
+        } else {
+            top_level_blocks.push(block);
+        }
+    }
+    
+    // Check for duplicate block names
+    check_duplicate_names(&top_level_blocks)?;
+    
+    Ok(top_level_blocks)
 }
 
 // Try to parse a single block from the start of the content
@@ -328,10 +341,28 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     // Create the block
     let mut block = Block::new(&block_type, name.as_deref(), section_content);
     
-    // Parse child blocks from the content
-    if let Ok(child_blocks) = parse_document(section_content) {
-        for child in child_blocks {
-            block.add_child(child);
+    // Parse nested blocks within this section
+    let mut current_pos = 0;
+    while current_pos < section_content.len() {
+        // Find the next block start
+        if let Some(block_start) = section_content[current_pos..].find('[') {
+            let block_start_pos = current_pos + block_start;
+            let remaining = &section_content[block_start_pos..];
+            
+            // Try to parse a nested block
+            if let Some((child_block, consumed)) = try_parse_single_block(remaining) {
+                // Add the child block to the parent
+                block.add_child(child_block);
+                
+                // Move past this block
+                current_pos = block_start_pos + consumed;
+            } else {
+                // If we can't parse a block, move forward to avoid infinite loop
+                current_pos = block_start_pos + 1;
+            }
+        } else {
+            // No more blocks found
+            break;
         }
     }
     
