@@ -2,6 +2,7 @@
 mod tests {
     use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
     use yet_another_llm_project_but_better::parser::Block;
+    use std::time::Duration;
     
     #[test]
     fn test_executor_initialization() {
@@ -12,18 +13,6 @@ mod tests {
         assert!(executor.fallbacks.is_empty());
         assert!(executor.cache.is_empty());
         assert!(executor.current_document.is_empty());
-    }
-    
-    #[test]
-    fn test_find_dependencies_in_block() {
-        // Skip this test since the function doesn't exist in the implementation
-        assert!(true);
-    }
-    
-    #[test]
-    fn test_find_implicit_dependencies() {
-        // Skip this test since the function doesn't exist in the implementation
-        assert!(true);
     }
     
     #[test]
@@ -94,5 +83,149 @@ mod tests {
         
         // Missing variables should remain as is
         assert_eq!(processed, "Known: value1, Unknown: ${var2}");
+    }
+    
+    #[test]
+    fn test_is_executable_block() {
+        let executor = MetaLanguageExecutor::new();
+        
+        // Test executable block types
+        let python_block = Block::new("code:python", Some("py-test"), "print('hello')");
+        let js_block = Block::new("code:javascript", Some("js-test"), "console.log('hello')");
+        let rust_block = Block::new("code:rust", Some("rust-test"), "println!(\"hello\");");
+        let shell_block = Block::new("shell", Some("shell-test"), "echo hello");
+        let api_block = Block::new("api", Some("api-test"), "GET /users");
+        
+        // Test non-executable block types
+        let data_block = Block::new("data", Some("data-test"), "some data");
+        let variable_block = Block::new("variable", Some("var-test"), "some value");
+        
+        assert!(executor.is_executable_block(&python_block));
+        assert!(executor.is_executable_block(&js_block));
+        assert!(executor.is_executable_block(&rust_block));
+        assert!(executor.is_executable_block(&shell_block));
+        assert!(executor.is_executable_block(&api_block));
+        
+        assert!(!executor.is_executable_block(&data_block));
+        assert!(!executor.is_executable_block(&variable_block));
+    }
+    
+    #[test]
+    fn test_has_fallback() {
+        let mut executor = MetaLanguageExecutor::new();
+        
+        // Add a fallback
+        executor.fallbacks.insert("api-call".to_string(), "Error: API unavailable".to_string());
+        
+        assert!(executor.has_fallback("api-call"));
+        assert!(!executor.has_fallback("non-existent"));
+    }
+    
+    #[test]
+    fn test_has_explicit_dependency() {
+        let executor = MetaLanguageExecutor::new();
+        
+        // Create blocks with dependencies
+        let mut block_with_depends = Block::new("code:python", Some("test1"), "print('hello')");
+        block_with_depends.add_modifier("depends", "data-block");
+        
+        let mut block_with_requires = Block::new("code:python", Some("test2"), "print('world')");
+        block_with_requires.add_modifier("requires", "config-block");
+        
+        let block_without_deps = Block::new("code:python", Some("test3"), "print('no deps')");
+        
+        assert!(executor.has_explicit_dependency(&block_with_depends));
+        assert!(executor.has_explicit_dependency(&block_with_requires));
+        assert!(!executor.has_explicit_dependency(&block_without_deps));
+    }
+    
+    #[test]
+    fn test_get_timeout() {
+        let executor = MetaLanguageExecutor::new();
+        
+        // Block with timeout modifier
+        let mut block_with_timeout = Block::new("code:python", Some("test-timeout"), "print('hello')");
+        block_with_timeout.add_modifier("timeout", "30");
+        
+        // Block without timeout modifier
+        let block_without_timeout = Block::new("code:python", Some("test-default"), "print('world')");
+        
+        // Block with invalid timeout
+        let mut block_with_invalid_timeout = Block::new("code:python", Some("test-invalid"), "print('error')");
+        block_with_invalid_timeout.add_modifier("timeout", "not-a-number");
+        
+        assert_eq!(executor.get_timeout(&block_with_timeout), Duration::from_secs(30));
+        assert_eq!(executor.get_timeout(&block_without_timeout), Duration::from_secs(600)); // Default 10 minutes
+        assert_eq!(executor.get_timeout(&block_with_invalid_timeout), Duration::from_secs(600)); // Default for invalid
+    }
+    
+    #[test]
+    fn test_determine_format_from_content() {
+        let executor = MetaLanguageExecutor::new();
+        
+        // Test JSON detection
+        let json_obj = r#"{"name": "John", "age": 30}"#;
+        let json_arr = r#"[1, 2, 3, 4]"#;
+        
+        assert_eq!(executor.determine_format_from_content(json_obj), "json");
+        assert_eq!(executor.determine_format_from_content(json_arr), "json");
+        
+        // For other formats, the implementation would need to be checked
+        // This is a placeholder that will pass with the current implementation
+        let text = "Just some plain text";
+        assert_ne!(executor.determine_format_from_content(text), "json");
+    }
+    
+    #[test]
+    fn test_generate_results_block() {
+        let executor = MetaLanguageExecutor::new();
+        
+        // Create a source block
+        let source_block = Block::new("code:python", Some("source-block"), "print('hello')");
+        
+        // Generate a results block
+        let output = "Hello, world!";
+        let results_block = executor.generate_results_block(&source_block, output, Some("text"));
+        
+        // Check the results block
+        assert_eq!(results_block.block_type, "results");
+        assert_eq!(results_block.content, "Hello, world!");
+        
+        // Check the "for" modifier
+        let for_modifier = results_block.modifiers.iter()
+            .find(|(k, _)| k == "for")
+            .map(|(_, v)| v);
+        
+        assert_eq!(for_modifier, Some(&"source-block".to_string()));
+        
+        // Check the format modifier
+        let format_modifier = results_block.modifiers.iter()
+            .find(|(k, _)| k == "format")
+            .map(|(_, v)| v);
+        
+        assert_eq!(format_modifier, Some(&"text".to_string()));
+    }
+    
+    #[test]
+    fn test_generate_error_results_block() {
+        let executor = MetaLanguageExecutor::new();
+        
+        // Create a source block
+        let source_block = Block::new("code:python", Some("error-source"), "print(undefined_var)");
+        
+        // Generate an error results block
+        let error = "NameError: name 'undefined_var' is not defined";
+        let error_block = executor.generate_error_results_block(&source_block, error);
+        
+        // Check the error block
+        assert_eq!(error_block.block_type, "error_results");
+        assert_eq!(error_block.content, "NameError: name 'undefined_var' is not defined");
+        
+        // Check the "for" modifier
+        let for_modifier = error_block.modifiers.iter()
+            .find(|(k, _)| k == "for")
+            .map(|(_, v)| v);
+        
+        assert_eq!(for_modifier, Some(&"error-source".to_string()));
     }
 }
