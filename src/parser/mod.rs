@@ -32,6 +32,29 @@ pub enum ParserError {
     
     #[error("Duplicate block name: {0}")]
     DuplicateBlockName(String),
+    
+    #[error("Invalid block type: {0}")]
+    InvalidBlockType(String),
+}
+
+// List of valid block types
+fn is_valid_block_type(block_type: &str) -> bool {
+    // Check base types
+    let base_types = [
+        "code", "data", "shell", "visualization", "template", "variable", 
+        "secret", "filename", "memory", "api", "question", "response", 
+        "results", "error_results", "error", "preview", "conditional", 
+        "section", "template_invocation"
+    ];
+    
+    // For block types with subtypes (like code:python or section:intro)
+    if let Some(colon_pos) = block_type.find(':') {
+        let base_type = &block_type[0..colon_pos];
+        return base_types.contains(&base_type);
+    }
+    
+    // For simple block types
+    base_types.contains(&block_type)
 }
 
 // Parse a document string into blocks
@@ -166,6 +189,13 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
         if blocks.is_empty() {
             return Err(ParserError::ParseError(format!("Failed to parse block: {}", input)));
         }
+        
+        // Check for invalid block types
+        for block in &blocks {
+            if !is_valid_block_type(&block.block_type) {
+                return Err(ParserError::InvalidBlockType(block.block_type.clone()));
+            }
+        }
     }
     
     // Process nested sections - ensure children are properly attached to parents
@@ -247,6 +277,11 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         extract_base_block_type(content)?
     };
     
+    // Check if this is a valid block type
+    if !is_valid_block_type(&block_type) {
+        return None;
+    }
+    
     // Try to parse the block
     if let Ok(mut block) = block_parser::parse_single_block(content) {
         // If the block type wasn't properly set, set it now
@@ -277,6 +312,11 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
     
     // Extract the opening tag
     let opening_tag = &trimmed_content[open_bracket..=close_bracket];
+    
+    // Check if this is a valid block type
+    if !is_valid_block_type(&block_type) {
+        return None;
+    }
     
     // Extract name if present
     let mut name = None;
