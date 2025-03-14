@@ -8,7 +8,7 @@ fn test_template_with_modifiers() {
 
     // Create a template block using the parser
     let template_text = r#"
-    [template name:test-template _type:custom requires:data-block cache:true]
+    [template name:test-template type:custom requires:data-block cache:true]
     This is a template with ${data-block}
     [/template]
     "#;
@@ -36,8 +36,8 @@ fn test_template_with_modifiers() {
     assert!(template_block.has_modifier("requires"), "Missing 'requires' modifier");
     assert_eq!(template_block.get_modifier("requires"), Some(&"data-block".to_string()), "Incorrect 'requires' value");
     
-    assert!(template_block.has_modifier("_type"), "Missing '_type' modifier");
-    assert_eq!(template_block.get_modifier("_type"), Some(&"custom".to_string()), "Incorrect '_type' value");
+    assert!(template_block.has_modifier("type"), "Missing 'type' modifier");
+    assert_eq!(template_block.get_modifier("type"), Some(&"custom".to_string()), "Incorrect 'type' value");
     
     assert!(template_block.has_modifier("cache"), "Missing 'cache' modifier");
     assert_eq!(template_block.get_modifier("cache"), Some(&"true".to_string()), "Incorrect 'cache' value");
