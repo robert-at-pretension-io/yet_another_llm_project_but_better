@@ -112,7 +112,6 @@ impl DocumentTestHarness {
 }
 
 // Make the DocumentTestHarness accessible to other modules
-pub use DocumentTestHarness;
 
 // Command line test runner
 fn main() -> Result<(), Box<dyn std::error::Error>> {

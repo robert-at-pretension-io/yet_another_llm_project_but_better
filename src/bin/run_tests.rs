@@ -1,5 +1,8 @@
 use std::path::Path;
-use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
+
+// Import our test harness directly
+mod test_harness;
+use test_harness::DocumentTestHarness;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create the tests directory if it doesn't exist
@@ -9,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // Create a test harness
-    let mut harness = yet_another_llm_project_but_better::bin::test_harness::DocumentTestHarness::new();
+    let mut harness = DocumentTestHarness::new();
     
     // Run tests in the tests directory
     println!("Running tests from directory: {}", test_dir);

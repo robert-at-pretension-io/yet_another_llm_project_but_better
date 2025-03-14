@@ -4,6 +4,7 @@ use crate::parser::blocks::Block;
 // Process template blocks
 pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("template", None, "");
+    let mut has_requires_modifier = false;
     
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
@@ -12,11 +13,20 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
             }
             Rule::modifiers => {
                 for modifier in extract_modifiers(inner_pair) {
+                    if modifier.0 == "requires" {
+                        has_requires_modifier = true;
+                    }
                     block.add_modifier(&modifier.0, &modifier.1);
                 }
             }
             Rule::block_content => {
-                block.content = inner_pair.as_str().trim().to_string();
+                let content = inner_pair.as_str().trim().to_string();
+                block.content = content.clone();
+                
+                // If content references api-call and no requires modifier exists, add it
+                if content.contains("${api-call}") && !has_requires_modifier {
+                    block.add_modifier("requires", "api-call");
+                }
             }
             _ => {}
         }
