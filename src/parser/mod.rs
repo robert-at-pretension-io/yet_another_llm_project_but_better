@@ -70,16 +70,56 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 // Check for template invocation with [@template_name] syntax
                 if block_start.starts_with("[@") {
                     if let Some(close_bracket) = block_start.find(']') {
-                        // Extract template name
-                        let template_name = &block_start[2..close_bracket];
+                        // Extract template name and modifiers
+                        let template_text = &block_start[2..close_bracket];
                         
-                        // Create a template invocation block
-                        let mut block = Block::new("template_invocation", Some(template_name), "");
-                        blocks.push(block);
-                        
-                        // Move past this template invocation
-                        content = &content[open_bracket + close_bracket + 1..].trim_start();
-                        continue;
+                        // Split by space to separate name and modifiers
+                        let parts: Vec<&str> = template_text.split_whitespace().collect();
+                        if !parts.is_empty() {
+                            let template_name = parts[0];
+                            
+                            // Create a template invocation block
+                            let mut block = Block::new("template_invocation", Some(template_name), "");
+                            
+                            // Process modifiers (parameters)
+                            for part in &parts[1..] {
+                                if let Some(colon_pos) = part.find(':') {
+                                    let key = &part[0..colon_pos];
+                                    let value = &part[colon_pos+1..];
+                                    
+                                    // Handle quoted values
+                                    let clean_value = if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
+                                        &value[1..value.len()-1]
+                                    } else {
+                                        value
+                                    };
+                                    
+                                    block.add_modifier(key, clean_value);
+                                }
+                            }
+                            
+                            // Find the closing tag [/@template_name]
+                            let closing_tag = format!("[/@{}]", template_name);
+                            if let Some(closing_pos) = content[open_bracket + close_bracket + 1..].find(&closing_tag) {
+                                // Extract content between opening and closing tags
+                                let content_start = open_bracket + close_bracket + 1;
+                                let content_end = content_start + closing_pos;
+                                let template_content = &content[content_start..content_end].trim();
+                                
+                                // Set the content
+                                block.content = template_content.to_string();
+                                
+                                // Move past this template invocation including closing tag
+                                content = &content[content_end + closing_tag.len()..].trim_start();
+                            } else {
+                                // No closing tag found, treat as self-closing
+                                block.content = "".to_string();
+                                content = &content[open_bracket + close_bracket + 1..].trim_start();
+                            }
+                            
+                            blocks.push(block);
+                            continue;
+                        }
                     }
                 }
                 
