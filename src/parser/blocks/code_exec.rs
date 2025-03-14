@@ -270,7 +270,7 @@ fn extract_api_modifiers_from_tag(tag_text: &str) -> Vec<(String, String)> {
                     println!("DEBUG: Found quoted value");
                     // Find the closing quote
                     if let Some(quote_end) = remaining[1..].find('"') {
-                        let value = &remaining[1..=quote_end];
+                        let value = &remaining[1..quote_end+1];
                         println!("DEBUG: Extracted quoted value: '{}'", value);
                         modifiers.push((key.to_string(), value.to_string()));
                         
@@ -332,6 +332,7 @@ pub fn process_api_block(pair: pest::iterators::Pair<Rule>) -> Block {
         
         // Extract modifiers directly from the tag
         let direct_modifiers = extract_api_modifiers_from_tag(opening_tag);
+        println!("DEBUG: Found {} direct modifiers from tag", direct_modifiers.len());
         for (key, value) in &direct_modifiers {
             println!("DEBUG: Direct API modifier: '{}' = '{}'", key, value);
             if key == "name" {
@@ -343,7 +344,7 @@ pub fn process_api_block(pair: pest::iterators::Pair<Rule>) -> Block {
     }
     
     // Also process using the standard approach
-    for inner_pair in pair.into_inner() {
+    for inner_pair in pair.clone().into_inner() {
         println!("DEBUG: API inner rule: {:?}", inner_pair.as_rule());
         
         match inner_pair.as_rule() {
@@ -393,7 +394,82 @@ pub fn process_api_block(pair: pest::iterators::Pair<Rule>) -> Block {
         }
     }
     
+    // If we still don't have modifiers, try a more direct approach
+    if block.modifiers.is_empty() {
+        println!("DEBUG: No modifiers found, trying direct extraction from raw text");
+        let raw_text = pair.as_str();
+        
+        // Extract URL if present
+        if let Some(url_start) = raw_text.find("url:") {
+            let url_start = url_start + 4; // Skip "url:"
+            let url_value = if raw_text[url_start..].starts_with('"') {
+                // Quoted URL
+                if let Some(end_quote) = raw_text[url_start+1..].find('"') {
+                    let url = &raw_text[url_start+1..url_start+1+end_quote];
+                    println!("DEBUG: Found quoted URL: '{}'", url);
+                    url
+                } else {
+                    // No end quote found
+                    let url_end = raw_text[url_start..].find(|c: char| c.is_whitespace() || c == ']')
+                        .map_or(raw_text.len() - url_start, |pos| pos);
+                    let url = &raw_text[url_start..url_start+url_end];
+                    println!("DEBUG: Found unquoted URL: '{}'", url);
+                    url
+                }
+            } else {
+                // Unquoted URL
+                let url_end = raw_text[url_start..].find(|c: char| c.is_whitespace() || c == ']')
+                    .map_or(raw_text.len() - url_start, |pos| pos);
+                let url = &raw_text[url_start..url_start+url_end];
+                println!("DEBUG: Found unquoted URL: '{}'", url);
+                url
+            };
+            
+            block.add_modifier("url", url_value);
+        }
+        
+        // Extract method if present
+        if let Some(method_start) = raw_text.find("method:") {
+            let method_start = method_start + 7; // Skip "method:"
+            let method_end = raw_text[method_start..].find(|c: char| c.is_whitespace() || c == ']')
+                .map_or(raw_text.len() - method_start, |pos| pos);
+            let method = &raw_text[method_start..method_start+method_end];
+            println!("DEBUG: Found method: '{}'", method);
+            block.add_modifier("method", method);
+        }
+        
+        // Extract headers if present
+        if let Some(headers_start) = raw_text.find("headers:") {
+            let headers_start = headers_start + 8; // Skip "headers:"
+            let headers_value = if raw_text[headers_start..].starts_with('"') {
+                // Quoted headers
+                if let Some(end_quote) = raw_text[headers_start+1..].find('"') {
+                    let headers = &raw_text[headers_start+1..headers_start+1+end_quote];
+                    println!("DEBUG: Found quoted headers: '{}'", headers);
+                    headers
+                } else {
+                    // No end quote found
+                    let headers_end = raw_text[headers_start..].find(|c: char| c.is_whitespace() || c == ']')
+                        .map_or(raw_text.len() - headers_start, |pos| pos);
+                    let headers = &raw_text[headers_start..headers_start+headers_end];
+                    println!("DEBUG: Found unquoted headers: '{}'", headers);
+                    headers
+                }
+            } else {
+                // Unquoted headers
+                let headers_end = raw_text[headers_start..].find(|c: char| c.is_whitespace() || c == ']')
+                    .map_or(raw_text.len() - headers_start, |pos| pos);
+                let headers = &raw_text[headers_start..headers_start+headers_end];
+                println!("DEBUG: Found unquoted headers: '{}'", headers);
+                headers
+            };
+            
+            block.add_modifier("headers", headers_value);
+        }
+    }
+    
     // Debug: Print all modifiers in the final block
+    println!("DEBUG: Final block has {} modifiers", block.modifiers.len());
     for (key, value) in &block.modifiers {
         println!("DEBUG: Final API modifier: '{}' = '{}'", key, value);
     }
