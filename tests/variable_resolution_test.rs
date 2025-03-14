@@ -2,7 +2,7 @@ use std::path::Path;
 use std::fs;
 use yet_another_llm_project_but_better::{
     executor::MetaLanguageExecutor,
-    parser::blocks::Block
+    parser::Block
 };
 
 #[cfg(test)]
