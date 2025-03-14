@@ -6,6 +6,7 @@ use yet_another_llm_project_but_better::parser::parse_document;
 use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
 
 /// Test harness for testing meta-language documents
+#[derive(Default)]
 pub struct DocumentTestHarness {
     executor: MetaLanguageExecutor,
 }
@@ -109,6 +110,9 @@ impl DocumentTestHarness {
         }
     }
 }
+
+// Make the DocumentTestHarness accessible to other modules
+pub use DocumentTestHarness;
 
 // Command line test runner
 fn main() -> Result<(), Box<dyn std::error::Error>> {
