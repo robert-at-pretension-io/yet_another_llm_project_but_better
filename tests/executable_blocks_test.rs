@@ -87,7 +87,7 @@ df -h
     #[test]
     fn test_api_block() {
         // Create the API block directly instead of parsing it
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         let mut block = Block::new("api", Some("weather-api"), r#"{
   "location": "New York",

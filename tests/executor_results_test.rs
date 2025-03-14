@@ -26,7 +26,7 @@ mod executor_results_tests {
         executor.outputs.insert("data-generator.results".to_string(), "[10, 20, 30, 40, 50]".to_string());
         
         // Process variable references in the question
-        let processed = executor.process_variable_references_internal(&question_block.content, &mut Vec::new());
+        let processed = executor.process_variable_references(&question_block.content);
         
         // Verify that the results reference is replaced
         assert_eq!(processed, "Analyze this data: [10, 20, 30, 40, 50]");
@@ -258,7 +258,7 @@ mod executor_results_tests {
         executor.outputs.insert("step3.results".to_string(), "Total: 30".to_string());
         
         // Process variable references
-        let processed = executor.process_variable_references_internal(&question_block.content, &mut Vec::new());
+        let processed = executor.process_variable_references(&question_block.content);
         
         // Verify all references are resolved
         assert!(processed.contains("Initial data: Initial data: [1, 2, 3, 4, 5]"));
@@ -301,7 +301,7 @@ mod executor_results_tests {
         executor.outputs.insert("will-fail.error_results".to_string(), error_msg.to_string());
         
         // Process variable references
-        let processed = executor.process_variable_references_internal(&question_block.content, &mut Vec::new());
+        let processed = executor.process_variable_references(&question_block.content);
         
         // Verify error results are included
         assert!(processed.contains("What went wrong with the code? Here's the error:"));

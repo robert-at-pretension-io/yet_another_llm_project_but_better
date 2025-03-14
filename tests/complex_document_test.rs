@@ -67,7 +67,7 @@ API call result: ${api-call}
     
     #[test]
     fn test_block_structure() {
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         // Create a simple document with multiple blocks
         let input = r#"[data name:dataset format:csv]
