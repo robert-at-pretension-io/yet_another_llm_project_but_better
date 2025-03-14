@@ -258,6 +258,8 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         "memory".to_string()
     } else if trimmed_content.starts_with("[api") {
         "api".to_string()
+    } else if trimmed_content.starts_with("[api") {
+        "api".to_string()
     } else if trimmed_content.starts_with("[question") {
         "question".to_string()
     } else if trimmed_content.starts_with("[response") {
@@ -465,6 +467,12 @@ fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
                 return Some(close_pos + close_tag.len());
             }
         },
+        "api" => {
+            let close_tag = "[/api]";
+            if let Some(close_pos) = content.find(close_tag) {
+                return Some(close_pos + close_tag.len());
+            }
+        },
         _ => {}
     }
     
@@ -561,6 +569,8 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
                                       potential_block.starts_with("[filename]") ||
                                       potential_block.starts_with("[memory ") ||
                                       potential_block.starts_with("[memory]") ||
+                                      potential_block.starts_with("[api ") ||
+                                      potential_block.starts_with("[api]") ||
                                       potential_block.starts_with("[api ") ||
                                       potential_block.starts_with("[api]") ||
                                       potential_block.starts_with("[question ") ||
