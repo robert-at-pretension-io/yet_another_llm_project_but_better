@@ -4,7 +4,6 @@ mod tests {
 
     /// Test template definition and usage
     #[test]
-    #[ignore]
     fn test_template_basics() {
         let input = r#"[template name:data-processor model:gpt-4 temperature:0.7]
 [question model:${model} temperature:${temperature}]
@@ -52,7 +51,6 @@ Analyze this data: ${data_content}
     
     /// Test multiple template invocations with different parameters
     #[test]
-    #[ignore]
     fn test_multiple_template_invocations() {
         let input = r#"[template name:message-template greeting:Hello name:User]
 ${greeting}, ${name}! How are you today?
