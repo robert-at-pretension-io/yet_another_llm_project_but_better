@@ -421,20 +421,73 @@ impl MetaLanguageExecutor {
         // Debug: Print original code
         println!("DEBUG: Original Python code:\n{}", code);
         
+        // First check if Python is available on the system
+        let python_check = Command::new("which")
+            .arg("python")
+            .output();
+            
+        if python_check.is_err() || !python_check.unwrap().status.success() {
+            // Try python3 if python is not found
+            let python3_check = Command::new("which")
+                .arg("python3")
+                .output();
+                
+            if python3_check.is_err() || !python3_check.unwrap().status.success() {
+                return Err(ExecutorError::ExecutionFailed(
+                    "Python executable not found on the system. Please install Python and ensure it's in your PATH.".to_string()
+                ));
+            }
+        }
+        
         // Preprocess the code to handle JSON data
         let processed_code = self.preprocess_python_code(code);
         
         // Debug: Print processed code
         println!("DEBUG: Processed Python code:\n{}", processed_code);
         
-        let child = Command::new("python")
+        // Try with 'python' first, then fall back to 'python3' if needed
+        let result = Command::new("python")
             .arg("-c")
             .arg(&processed_code)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()?;
+            .spawn();
             
-        let output = child.wait_with_output()?;
+        let child = match result {
+            Ok(child) => child,
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    // Try with python3 instead
+                    println!("DEBUG: 'python' command not found, trying 'python3'");
+                    match Command::new("python3")
+                        .arg("-c")
+                        .arg(&processed_code)
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .spawn() {
+                            Ok(child) => child,
+                            Err(e) => {
+                                return Err(ExecutorError::ExecutionFailed(
+                                    format!("Failed to execute Python code. Error: {}. Make sure Python is installed and in your PATH.", e)
+                                ));
+                            }
+                        }
+                } else {
+                    return Err(ExecutorError::ExecutionFailed(
+                        format!("Failed to execute Python code. Error: {}. Check your Python installation.", e)
+                    ));
+                }
+            }
+        };
+            
+        let output = match child.wait_with_output() {
+            Ok(output) => output,
+            Err(e) => {
+                return Err(ExecutorError::ExecutionFailed(
+                    format!("Failed to get output from Python process: {}", e)
+                ));
+            }
+        };
         
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
