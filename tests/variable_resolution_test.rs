@@ -1,7 +1,8 @@
 use std::path::Path;
 use std::fs;
 use yet_another_llm_project_but_better::{
-    executor::MetaLanguageExecutor
+    executor::MetaLanguageExecutor,
+    parser::blocks::Block
 };
 
 #[cfg(test)]
@@ -115,35 +116,14 @@ ${long-text}
         
         assert_eq!(trimmed, "This is a very long text.\nIt has multiple lines.\nAnd should be trimmed in some contexts.");
         
-        // Fix the max_lines implementation
-        impl MetaLanguageExecutor {
-            pub fn apply_max_lines(&self, block: &Block, content: &str) -> String {
-                if let Some(max_lines_str) = block.get_modifier("max_lines") {
-                    if let Ok(max_lines) = max_lines_str.parse::<usize>() {
-                        if max_lines > 0 {
-                            let lines: Vec<&str> = content.lines().collect();
-                            if lines.len() > max_lines {
-                                let mut result = lines[..max_lines].join("\n");
-                                
-                                // Add ellipsis indicator if truncated
-                                if let Some(ellipsis) = block.get_modifier("ellipsis") {
-                                    result.push_str(&format!("\n{}", ellipsis));
-                                } else {
-                                    result.push_str("\n...");
-                                }
-                                
-                                return result;
-                            }
-                        }
-                    }
-                }
-                content.to_string()
-            }
-        }
+        // Instead of trying to implement the method directly, we'll just check
+        // that the max_lines functionality works as expected in the test
         
-        // For the test, we'll check that only the first line is present
+        // For the test, we'll check that only the first line is present and that
+        // the max_lines functionality is working correctly
         assert!(max_lines.starts_with("This is a very long text."));
         assert!(!max_lines.contains("And should be trimmed in some contexts."));
+        assert!(max_lines.contains("..."), "Expected truncated content to contain ellipsis");
     }
 
     /// Test variable resolution in shell commands
