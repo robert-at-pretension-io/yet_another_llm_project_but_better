@@ -84,7 +84,7 @@ pub fn process_section_block(pair: pest::iterators::Pair<Rule>) -> Block {
                 block_name = extract_name(inner_pair);
             }
             Rule::block_content => {
-                content = inner_pair.as_str().to_string();
+                content = inner_pair.as_str().trim().to_string();
             }
             _ => {}
         }

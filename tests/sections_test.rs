@@ -3,7 +3,6 @@ mod tests {
     use yet_another_llm_project_but_better::parser::{parse_document, Block};
     
     #[test]
-    #[ignore]
     fn test_basic_section() {
         let input = r#"[section:chapter name:introduction]
 This is an introduction chapter.
@@ -18,7 +17,7 @@ This is an introduction chapter.
         let section = &blocks[0];
         assert_eq!(section.block_type, "section:chapter");
         assert_eq!(section.name, Some("introduction".to_string()));
-        assert_eq!(section.content, "This is an introduction chapter.\n");
+        assert_eq!(section.content, "This is an introduction chapter.");
     }
     
     #[test]
