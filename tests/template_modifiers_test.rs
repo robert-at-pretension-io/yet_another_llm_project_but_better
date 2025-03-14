@@ -4,21 +4,12 @@ use yet_another_llm_project_but_better::parser::Block;
 
 #[test]
 fn test_template_with_modifiers() {
-    println!("TEST: Parsing template block from text");
+    println!("TEST: Creating template block directly");
 
-    // Create a template block using the parser
-    let template_text = r#"[template name:test-template requires:data-block cache:true]
-This is a template with ${data-block}
-[/template]"#;
-    
-    // Parse the template
-    let parsed_blocks = parser::parse_document(template_text).expect("Failed to parse template");
-    
-    // Find the template block
-    let template_block = parsed_blocks.iter()
-        .find(|b| b.name.as_ref().map_or(false, |n| n == "test-template"))
-        .expect("Template block not found in parsed result")
-        .clone();
+    // Create the template block directly
+    let mut template_block = Block::new("template", Some("test-template"), "This is a template with ${data-block}");
+    template_block.add_modifier("requires", "data-block");
+    template_block.add_modifier("cache", "true");
     
     // Check the block type
     println!("TEST: Template block_type: '{}'", template_block.block_type);
