@@ -20,6 +20,8 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
                     if modifier.0 == "_type" {
                         template_type = format!("template:{}", modifier.1);
                     }
+                    
+                    // Ensure we're properly adding all modifiers to the block
                     block.add_modifier(&modifier.0, &modifier.1);
                 }
                 
@@ -66,6 +68,8 @@ pub fn process_template_invocation(pair: pest::iterators::Pair<Rule>) -> Block {
                             if modifier.0 == "_type" {
                                 invocation_type = format!("template_invocation:{}", modifier.1);
                             }
+                            
+                            // Ensure we're properly adding all modifiers to the block
                             block.add_modifier(&modifier.0, &modifier.1);
                         }
                         
