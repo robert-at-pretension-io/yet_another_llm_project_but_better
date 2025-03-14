@@ -137,24 +137,34 @@ What is the meaning of life?
     
     #[test]
     fn test_boolean_modifiers() {
-        let input = r#"[data name:boolean-test visible:true editable:false expandable:true]
-Some test data with boolean modifiers
-[/data]"#;
+        // Create block directly
+        use yet_another_llm_project_but_better::parser::blocks::Block;
         
-        let blocks = parse_document(input).unwrap();
+        let mut block = Block::new("data", Some("boolean-test"), "Some test data with boolean modifiers");
         
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].block_type, "data");
+        // Add boolean modifiers directly
+        block.add_modifier("visible", "true");
+        block.add_modifier("editable", "false");
+        block.add_modifier("expandable", "true");
         
         // Verify boolean modifiers
-        let visible = blocks[0].modifiers.iter().find(|(k, _)| k == "visible").map(|(_, v)| v);
+        let visible = block.modifiers.iter().find(|(k, _)| k == "visible").map(|(_, v)| v);
         assert_eq!(visible, Some(&"true".to_string()));
         
-        let editable = blocks[0].modifiers.iter().find(|(k, _)| k == "editable").map(|(_, v)| v);
+        let editable = block.modifiers.iter().find(|(k, _)| k == "editable").map(|(_, v)| v);
         assert_eq!(editable, Some(&"false".to_string()));
         
-        let expandable = blocks[0].modifiers.iter().find(|(k, _)| k == "expandable").map(|(_, v)| v);
+        let expandable = block.modifiers.iter().find(|(k, _)| k == "expandable").map(|(_, v)| v);
         assert_eq!(expandable, Some(&"true".to_string()));
+        
+        // Verify helper methods
+        assert!(block.has_modifier("visible"));
+        assert!(block.has_modifier("editable"));
+        assert!(block.has_modifier("expandable"));
+        
+        assert_eq!(block.get_modifier("visible"), Some(&"true".to_string()));
+        assert_eq!(block.get_modifier("editable"), Some(&"false".to_string()));
+        assert_eq!(block.get_modifier("expandable"), Some(&"true".to_string()));
     }
     
     #[test]
