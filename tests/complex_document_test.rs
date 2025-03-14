@@ -30,7 +30,7 @@ python script.py
     }
     
     #[test]
-    #[ignore] // Temporarily ignore this test until we fix dependency handling
+     // Temporarily ignore this test until we fix dependency handling
     fn test_document_with_dependencies() {
         let input = r#"[data name:config format:json]
 {"api_url": "https://api.example.com", "timeout": 30}
@@ -66,7 +66,7 @@ API call result: ${api-call}
     }
     
     #[test]
-    #[ignore] // Temporarily ignore this test until we fix the nested structure parsing
+     // Temporarily ignore this test until we fix the nested structure parsing
     fn test_nested_structure() {
         let input = r#"[section:document name:analysis-report]
 # Data Analysis Report
