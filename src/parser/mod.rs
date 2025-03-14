@@ -341,27 +341,27 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     // Create the block
     let mut block = Block::new(&block_type, name.as_deref(), section_content);
     
-    // Parse nested blocks within this section
-    let mut current_pos = 0;
-    while current_pos < section_content.len() {
-        // Find the next block start
-        if let Some(block_start) = section_content[current_pos..].find('[') {
-            let block_start_pos = current_pos + block_start;
+    // Parse child blocks from the content
+    let mut child_pos = 0;
+    while child_pos < section_content.len() {
+        // Skip whitespace and non-block content
+        if let Some(block_start) = section_content[child_pos..].find('[') {
+            let block_start_pos = child_pos + block_start;
             let remaining = &section_content[block_start_pos..];
             
             // Try to parse a nested block
             if let Some((child_block, consumed)) = try_parse_single_block(remaining) {
-                // Add the child block to the parent
+                // Add the child block
                 block.add_child(child_block);
                 
                 // Move past this block
-                current_pos = block_start_pos + consumed;
+                child_pos = block_start_pos + consumed;
             } else {
-                // If we can't parse a block, move forward to avoid infinite loop
-                current_pos = block_start_pos + 1;
+                // If we couldn't parse a block, move ahead
+                child_pos = block_start_pos + 1;
             }
         } else {
-            // No more blocks found
+            // No more block starts found
             break;
         }
     }
