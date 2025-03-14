@@ -192,6 +192,15 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         }
     }
     
+    // Special handling for results blocks with for: modifier
+    if content.starts_with("[results for:") {
+        if let Ok(block) = block_parser::parse_single_block(content) {
+            if let Some(end_pos) = find_block_end(content, "results") {
+                return Some((block, end_pos));
+            }
+        }
+    }
+    
     // Otherwise, try to parse a regular block
     if let Ok(block) = block_parser::parse_single_block(content) {
         if let Some(end_pos) = find_block_end(content, &block.block_type) {
@@ -217,6 +226,12 @@ fn extract_base_block_type(content: &str) -> Option<String> {
                (after_open.len() > block_type.len()) && 
                (after_open.as_bytes()[block_type.len()] == b' ') {
                 // Found a known block type with space after it (indicating modifiers)
+                return Some(block_type.to_string());
+            }
+            
+            // Also check for special case like [results for:simple-calc]
+            let for_modifier = format!("{} for:", block_type);
+            if after_open.starts_with(&for_modifier) {
                 return Some(block_type.to_string());
             }
         }

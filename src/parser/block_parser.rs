@@ -46,6 +46,13 @@ fn has_matching_closing_tag(content: &str) -> bool {
                 let close_tag = format!("[/{}", block_type);
                 return content.contains(&close_tag);
             }
+            
+            // Also check for special case like [results for:simple-calc]
+            let for_modifier = format!("{} for:", block_type);
+            if after_open.starts_with(&for_modifier) {
+                let close_tag = format!("[/{}", block_type);
+                return content.contains(&close_tag);
+            }
         }
         
         // Standard block type extraction (including subtypes with colons)
