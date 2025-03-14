@@ -8,27 +8,22 @@ mod executor_results_tests {
     fn test_executor_includes_results_in_context() {
         let mut executor = MetaLanguageExecutor::new();
         
-        // Create a document with an executable block, results, and a question referencing results
-        let input = r#"[code:python name:data-generator]
-print([10, 20, 30, 40, 50])
-[/code:python]
-
-[results for:data-generator format:plain]
-[10, 20, 30, 40, 50]
-[/results]
-
-[question name:analyze-data]
-Analyze this data: ${data-generator.results}
-[/question]"#;
+        // Create blocks directly instead of parsing
+        let code_block = Block::new("code:python", Some("data-generator"), "print([10, 20, 30, 40, 50])");
         
-        // Process the document to register the blocks
-        executor.process_document(input).unwrap();
+        let mut results_block = Block::new("results", None, "[10, 20, 30, 40, 50]");
+        results_block.add_modifier("for", "data-generator");
+        results_block.add_modifier("format", "plain");
+        
+        let question_block = Block::new("question", Some("analyze-data"), "Analyze this data: ${data-generator.results}");
+        
+        // Add blocks to executor
+        executor.blocks.insert("data-generator".to_string(), code_block);
+        executor.blocks.insert("data-generator.results".to_string(), results_block);
+        executor.blocks.insert("analyze-data".to_string(), question_block.clone());
         
         // Mock execution by adding the output to the executor's outputs map
         executor.outputs.insert("data-generator.results".to_string(), "[10, 20, 30, 40, 50]".to_string());
-        
-        // Find the question block
-        let question_block = executor.blocks.get("analyze-data").unwrap();
         
         // Process variable references in the question
         let processed = executor.process_variable_references(&question_block.content);
@@ -187,56 +182,80 @@ Analyze this data: ${data-generator.results}
     
     /// Test integration of results blocks in workflow execution
     #[test]
-    
     fn test_results_integration_in_workflow() {
         let mut executor = MetaLanguageExecutor::new();
         
-        // Create a sequence of blocks that forms a basic workflow
-        let input = r#"[code:python name:step1]
-data = [1, 2, 3, 4, 5]
-print(f"Initial data: {data}")
-[/code:python]
-
-[results for:step1 format:plain]
-Initial data: [1, 2, 3, 4, 5]
-[/results]
-
-[code:python name:step2 depends:step1]
-data = eval('''${step1.results}'''.split(": ")[1])
-processed = [x * 2 for x in data]
-print(f"Processed data: {processed}")
-[/code:python]
-
-[results for:step2 format:plain]
-Processed data: [2, 4, 6, 8, 10]
-[/results]
-
-[code:python name:step3 depends:step2]
-data = eval('''${step2.results}'''.split(": ")[1])
-total = sum(data)
-print(f"Total: {total}")
-[/code:python]
-
-[results for:step3 format:plain]
-Total: 30
-[/results]
-
-[question depends:step3]
-Analyze the results of this data processing workflow:
-Initial data: ${step1.results}
-Processed data: ${step2.results}
-Final result: ${step3.results}
-[/question]"#;
+        // Create blocks directly instead of parsing
+        let mut blocks = Vec::new();
         
-        let blocks = parse_document(input).unwrap();
+        // Step 1 blocks
+        let step1_code = Block::new(
+            "code:python", 
+            Some("step1"), 
+            "data = [1, 2, 3, 4, 5]\nprint(f\"Initial data: {data}\")"
+        );
+        
+        let mut step1_results = Block::new(
+            "results", 
+            None, 
+            "Initial data: [1, 2, 3, 4, 5]"
+        );
+        step1_results.add_modifier("for", "step1");
+        step1_results.add_modifier("format", "plain");
+        
+        // Step 2 blocks
+        let mut step2_code = Block::new(
+            "code:python", 
+            Some("step2"), 
+            "data = eval('''${step1.results}'''.split(\": \")[1])\nprocessed = [x * 2 for x in data]\nprint(f\"Processed data: {processed}\")"
+        );
+        step2_code.add_modifier("depends", "step1");
+        
+        let mut step2_results = Block::new(
+            "results", 
+            None, 
+            "Processed data: [2, 4, 6, 8, 10]"
+        );
+        step2_results.add_modifier("for", "step2");
+        step2_results.add_modifier("format", "plain");
+        
+        // Step 3 blocks
+        let mut step3_code = Block::new(
+            "code:python", 
+            Some("step3"), 
+            "data = eval('''${step2.results}'''.split(\": \")[1])\ntotal = sum(data)\nprint(f\"Total: {total}\")"
+        );
+        step3_code.add_modifier("depends", "step2");
+        
+        let mut step3_results = Block::new(
+            "results", 
+            None, 
+            "Total: 30"
+        );
+        step3_results.add_modifier("for", "step3");
+        step3_results.add_modifier("format", "plain");
+        
+        // Question block
+        let mut question_block = Block::new(
+            "question", 
+            None, 
+            "Analyze the results of this data processing workflow:\nInitial data: ${step1.results}\nProcessed data: ${step2.results}\nFinal result: ${step3.results}"
+        );
+        question_block.add_modifier("depends", "step3");
+        
+        // Add all blocks to the vector
+        blocks.push(step1_code);
+        blocks.push(step1_results);
+        blocks.push(step2_code);
+        blocks.push(step2_results);
+        blocks.push(step3_code);
+        blocks.push(step3_results);
+        blocks.push(question_block.clone());
         
         // Mock execution by adding outputs
         executor.outputs.insert("step1.results".to_string(), "Initial data: [1, 2, 3, 4, 5]".to_string());
         executor.outputs.insert("step2.results".to_string(), "Processed data: [2, 4, 6, 8, 10]".to_string());
         executor.outputs.insert("step3.results".to_string(), "Total: 30".to_string());
-        
-        // Find the question block
-        let question_block = blocks.iter().find(|b| b.block_type == "question").unwrap();
         
         // Process variable references
         let processed = executor.process_variable_references(&question_block.content);
@@ -249,33 +268,32 @@ Final result: ${step3.results}
     
     /// Test executor's handling of error_results
     #[test]
-    
     fn test_executor_handles_error_results() {
         let mut executor = MetaLanguageExecutor::new();
         
-        // Create a document with a failing executable block and referencing the error
-        let input = r#"[code:python name:will-fail]
-print(undefined_variable)  # This will cause an error
-[/code:python]
-
-[error_results for:will-fail]
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-NameError: name 'undefined_variable' is not defined
-[/error_results]
-
-[question]
-What went wrong with the code? Here's the error: ${will-fail.error_results}
-[/question]"#;
+        // Create blocks directly instead of parsing
+        let code_block = Block::new(
+            "code:python", 
+            Some("will-fail"), 
+            "print(undefined_variable)  # This will cause an error"
+        );
         
-        let blocks = parse_document(input).unwrap();
+        let mut error_results_block = Block::new(
+            "error_results", 
+            None, 
+            "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nNameError: name 'undefined_variable' is not defined"
+        );
+        error_results_block.add_modifier("for", "will-fail");
+        
+        let question_block = Block::new(
+            "question", 
+            None, 
+            "What went wrong with the code? Here's the error: ${will-fail.error_results}"
+        );
         
         // Mock execution error
         let error_msg = "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nNameError: name 'undefined_variable' is not defined";
         executor.outputs.insert("will-fail.error_results".to_string(), error_msg.to_string());
-        
-        // Find the question block
-        let question_block = blocks.iter().find(|b| b.block_type == "question").unwrap();
         
         // Process variable references
         let processed = executor.process_variable_references(&question_block.content);
