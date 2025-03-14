@@ -35,7 +35,20 @@ fn has_matching_closing_tag(content: &str) -> bool {
     if let Some(open_start) = content.find('[') {
         let after_open = &content[open_start + 1..];
         
-        // Extract full block type (including subtypes with colons)
+        // Handle special block types with modifiers directly after opening bracket
+        // Examples: [results for:simple-calc format:plain], [error_results for:test]
+        let known_block_types = ["results", "error_results", "api", "preview"];
+        for block_type in known_block_types.iter() {
+            if after_open.starts_with(block_type) && 
+               (after_open.len() > block_type.len()) && 
+               (after_open.as_bytes()[block_type.len()] == b' ') {
+                // Found a known block type with space after it (indicating modifiers)
+                let close_tag = format!("[/{}", block_type);
+                return content.contains(&close_tag);
+            }
+        }
+        
+        // Standard block type extraction (including subtypes with colons)
         if let Some(type_end) = after_open.find(|c: char| c == ' ' || c == ']') {
             let full_block_type = &after_open[..type_end];
             
