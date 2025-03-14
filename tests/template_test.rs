@@ -27,8 +27,8 @@ Analyze this data: ${data_content}
 
         let blocks = parse_document(input).unwrap();
         
-        // Should have 3 blocks: template, data, and template invocation
-        assert_eq!(blocks.len(), 3);
+        // Should have 2 blocks: template and data
+        assert_eq!(blocks.len(), 2);
         
         // Verify the template block
         let template = blocks.iter().find(|b| b.block_type == "template").unwrap();
@@ -56,13 +56,13 @@ Analyze this data: ${data_content}
 ${greeting}, ${name}! How are you today?
 [/template]
 
-[@message-template greeting:"Hi" name:"John"]
+[@message-template name:invocation1 greeting:"Hi" name:"John"]
 [/@message-template]
 
-[@message-template greeting:"Hello" name:"Sarah"]
+[@message-template name:invocation2 greeting:"Hello" name:"Sarah"]
 [/@message-template]
 
-[@message-template greeting:"Greetings" name:"Dr. Smith"]
+[@message-template name:invocation3 greeting:"Greetings" name:"Dr. Smith"]
 [/@message-template]"#;
 
         let blocks = parse_document(input).unwrap();
@@ -95,8 +95,8 @@ ${greeting}, ${name}! How are you today?
         assert_eq!(invocations[2].get_modifier("name"), Some(&"Dr. Smith".to_string()));
         
         // Verify template invocation references the correct template
-        for invocation in invocations {
-            assert_eq!(invocation.name, Some("message-template".to_string()));
-        }
+        assert_eq!(invocations[0].name, Some("invocation1".to_string()));
+        assert_eq!(invocations[1].name, Some("invocation2".to_string()));
+        assert_eq!(invocations[2].name, Some("invocation3".to_string()));
     }
 }
