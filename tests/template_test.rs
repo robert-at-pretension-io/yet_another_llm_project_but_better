@@ -99,4 +99,41 @@ ${greeting}, ${name}! How are you today?
         assert_eq!(invocations[1].name, Some("invocation2".to_string()));
         assert_eq!(invocations[2].name, Some("invocation3".to_string()));
     }
+    
+    /// Test simple template parsing with debug output
+    #[test]
+    fn test_simple_template_parsing() {
+        let input = r#"[template name:simple-template]
+This is a simple template with no parameters.
+[/template]"#;
+
+        let blocks = parse_document(input).unwrap();
+        
+        // Print out the parsed blocks for debugging
+        println!("Number of blocks parsed: {}", blocks.len());
+        for (i, block) in blocks.iter().enumerate() {
+            println!("Block {}: type={}, name={:?}", 
+                i, 
+                block.block_type, 
+                block.name
+            );
+            println!("  Content: {}", block.content);
+            println!("  Modifiers:");
+            for (key, value) in &block.modifiers {
+                println!("    {} = {}", key, value);
+            }
+        }
+        
+        // Basic assertions
+        assert!(!blocks.is_empty(), "Should parse at least one block");
+        
+        // Find a template block
+        let template = blocks.iter().find(|b| b.block_type == "template");
+        assert!(template.is_some(), "Should find a template block");
+        
+        if let Some(template) = template {
+            assert_eq!(template.name, Some("simple-template".to_string()));
+            assert!(template.content.contains("This is a simple template"));
+        }
+    }
 }
