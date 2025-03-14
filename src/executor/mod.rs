@@ -337,7 +337,7 @@ impl MetaLanguageExecutor {
                 println!("  '{}' => '{}'", k, v);
             }
             
-            // Try to get the value from outputs directly
+            // Try to get the value using our lookup function
             if let Some(value) = self.lookup_variable(&actual_var_name) {
                 println!("Found value for {}: {}", actual_var_name, value);
                 
