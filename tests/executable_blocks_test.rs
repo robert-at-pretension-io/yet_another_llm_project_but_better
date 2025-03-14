@@ -85,7 +85,7 @@ df -h
     }
     
     #[test]
-    #[ignore]
+    
     fn test_api_block() {
         // For the API block, we'll simplify the test
         let input = r#"[api name:weather-api url:"https://api.weather.com/forecast" method:"GET" headers:"Authorization: Bearer ${api-key}"]
