@@ -140,4 +140,51 @@ result = {"status": "fallback", "data": None}
         assert!(blocks[0].content.contains("dangerous_operation"));
         assert!(blocks[1].content.contains("Fallback operation executed"));
     }
+    
+    #[test]
+    fn debug_api_block() {
+        let input = r#"[api name:weather-api url:"https://api.weather.com/forecast" method:GET headers:"Authorization: Bearer ${api-key}"]
+{
+  "location": "New York",
+  "units": "metric",
+  "days": 5
+}
+[/api]"#;
+        
+        println!("DEBUG: Starting API block test");
+        
+        let blocks = parse_document(input).unwrap();
+        
+        println!("DEBUG: Parsed API block");
+        println!("DEBUG: Found {} blocks", blocks.len());
+        
+        for (i, block) in blocks.iter().enumerate() {
+            println!("DEBUG: Block {}: type = {}, name = {:?}", i, block.block_type, block.name);
+            
+            // Print all modifiers
+            println!("DEBUG: Block {} modifiers:", i);
+            for (key, value) in &block.modifiers {
+                println!("DEBUG:   '{}' = '{}'", key, value);
+            }
+        }
+        
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].block_type, "api");
+        assert_eq!(blocks[0].name, Some("weather-api".to_string()));
+        
+        // Test the content
+        let content = blocks[0].content.as_str();
+        println!("DEBUG: Content: '{}'", content);
+        assert!(content.contains("New York"));
+        assert!(content.contains("metric"));
+        
+        // Test the modifiers
+        let url = blocks[0].get_modifier("url");
+        println!("DEBUG: url modifier = {:?}", url);
+        assert_eq!(url, Some(&"https://api.weather.com/forecast".to_string()));
+        
+        let method = blocks[0].get_modifier("method");
+        println!("DEBUG: method modifier = {:?}", method);
+        assert_eq!(method, Some(&"GET".to_string()));
+    }
 }
