@@ -51,7 +51,6 @@ This is the conclusion chapter.
     }
     
     #[test]
-    #[ignore]
     fn test_nested_sections() {
         let input = r#"[section:document name:research-paper]
 # Research Paper
