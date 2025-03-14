@@ -87,6 +87,33 @@ impl MetaLanguageExecutor {
             }
         }
         
+        // Process variable references in data blocks
+        // We need to do this in a separate pass after all blocks are registered
+        let mut data_blocks_to_update = Vec::new();
+        
+        for (name, block) in &self.blocks {
+            if self.is_data_block(block) {
+                // Process variable references in the content
+                let processed_content = self.process_variable_references(&block.content);
+                
+                // Only update if the content actually changed
+                if processed_content != block.content {
+                    data_blocks_to_update.push((name.clone(), processed_content));
+                }
+            }
+        }
+        
+        // Update the blocks and outputs with processed content
+        for (name, processed_content) in data_blocks_to_update {
+            // Update the block in the blocks map
+            if let Some(block) = self.blocks.get_mut(&name) {
+                block.content = processed_content.clone();
+            }
+            
+            // Update the output in the outputs map
+            self.outputs.insert(name, processed_content);
+        }
+        
         // Register fallbacks for executable blocks that don't have them
         for block in &blocks {
             if let Some(name) = &block.name {
@@ -118,7 +145,7 @@ impl MetaLanguageExecutor {
     
     // Check if a block is a data block
     pub fn is_data_block(&self, block: &Block) -> bool {
-        block.block_type == "data"
+        block.block_type == "data" || block.block_type.starts_with("data:")
     }
     
     // Check if a block has a fallback defined
