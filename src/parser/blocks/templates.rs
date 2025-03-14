@@ -19,24 +19,37 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
             }
             Rule::modifiers => {
                 println!("DEBUG: Processing template modifiers: '{}'", inner_pair.as_str());
+                
+                // Extract modifiers and handle special cases
+                let raw_modifiers_text = inner_pair.as_str().trim();
+                println!("DEBUG: Raw modifiers text: '{}'", raw_modifiers_text);
+                
+                // Use the extractor to parse modifiers
                 let modifiers = extract_modifiers(inner_pair);
                 println!("DEBUG: Extracted {} modifiers for template", modifiers.len());
                 
-                for modifier in modifiers {
-                    println!("DEBUG: Template modifier: '{}' = '{}'", modifier.0, modifier.1);
+                // Process modifiers one by one
+                for (key, value) in modifiers {
+                    println!("DEBUG: Processing template modifier: '{}' = '{}'", key, value);
                     
-                    if modifier.0 == "requires" {
-                        has_requires_modifier = true;
+                    // Special handling for certain modifiers
+                    match key.as_str() {
+                        "requires" => {
+                            has_requires_modifier = true;
+                            block.add_modifier(&key, &value);
+                        },
+                        "_type" => {
+                            // Type modifier changes the block type
+                            template_type = format!("template:{}", value);
+                            block.block_type = template_type.clone();
+                            println!("DEBUG: Updated template type to: {}", template_type);
+                            block.add_modifier(&key, &value);
+                        },
+                        _ => {
+                            // Regular modifier handling
+                            block.add_modifier(&key, &value);
+                        }
                     }
-                    if modifier.0 == "_type" {
-                        template_type = format!("template:{}", modifier.1);
-                        // Update block type immediately when _type modifier is found
-                        block.block_type = template_type.clone();
-                        println!("DEBUG: Updated template type to: {}", template_type);
-                    }
-                    
-                    // Ensure we're properly adding all modifiers to the block
-                    block.add_modifier(&modifier.0, &modifier.1);
                 }
                 
                 // Debug: Print all modifiers in the block
@@ -47,16 +60,23 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
             }
             Rule::block_content => {
                 let content = inner_pair.as_str().trim().to_string();
+                println!("DEBUG: Template content: '{}'", content);
                 block.content = content.clone();
                 
                 // If content references api-call and no requires modifier exists, add it
                 if content.contains("${api-call}") && !has_requires_modifier {
+                    println!("DEBUG: Adding implicit api-call dependency");
                     block.add_modifier("requires", "api-call");
                 }
             }
-            _ => {}
+            _ => {
+                println!("DEBUG: Ignoring unknown template part: {:?}", inner_pair.as_rule());
+            }
         }
     }
+    
+    println!("DEBUG: Created template block: type={}, name={:?}, modifiers={}",
+             block.block_type, block.name, block.modifiers.len());
     
     block
 }
