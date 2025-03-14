@@ -190,8 +190,12 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
 // Try to parse a single block from the start of the content
 // Returns the block and how many characters were consumed
 fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
+    // Trim leading whitespace for more reliable detection
+    let trimmed_content = content.trim_start();
+    
     // Check if this is a section block which can contain nested blocks
-    if content.starts_with("[section:") {
+    // Make sure we're checking the trimmed content for the section prefix
+    if trimmed_content.starts_with("[section:") {
         return try_parse_section_block(content);
     }
     
@@ -220,6 +224,19 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
 
 // Helper function to extract the base block type from content
 fn extract_base_block_type(content: &str) -> Option<String> {
+    // First check if it's a section block
+    let trimmed_content = content.trim_start();
+    if trimmed_content.starts_with("[section:") {
+        // Extract the section type
+        let section_start = trimmed_content.find("[section:")? + 9;
+        let section_end = trimmed_content[section_start..].find(']')
+            .or_else(|| trimmed_content[section_start..].find(' '))?;
+        
+        let section_type = trimmed_content[section_start..section_start + section_end].trim();
+        return Some(format!("section:{}", section_type));
+    }
+    
+    // Otherwise use the standard extraction
     if let Some((base_type, _)) = block_parser::extract_block_type(content) {
         return Some(base_type);
     }
@@ -258,31 +275,37 @@ fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
 
 // Parse a section block which can contain nested blocks
 fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
-    // Extract section type
-    let start = content.find("[section:")?;
-    let type_start = start + 9;
-    let type_end = content[type_start..].find(' ').map(|pos| type_start + pos)
-        .or_else(|| content[type_start..].find(']').map(|pos| type_start + pos))?;
+    // Trim leading whitespace for more reliable detection
+    let trimmed_content = content.trim_start();
     
-    let section_type = content[type_start..type_end].trim();
+    // Extract section type
+    let start = trimmed_content.find("[section:")?;
+    let type_start = start + 9;
+    let type_end = trimmed_content[type_start..].find(' ').map(|pos| type_start + pos)
+        .or_else(|| trimmed_content[type_start..].find(']').map(|pos| type_start + pos))?;
+    
+    let section_type = trimmed_content[type_start..type_end].trim();
     let block_type = format!("section:{}", section_type);
+    
+    // Adjust for the original content's whitespace
+    let whitespace_offset = content.len() - trimmed_content.len();
     
     // Find where this section ends
     let close_tag = format!("[/section:{}", section_type);
-    let close_pos = content.find(&close_tag)?;
-    let end_pos = content[close_pos..].find(']').map(|pos| close_pos + pos + 1)?;
+    let close_pos = trimmed_content.find(&close_tag)?;
+    let end_pos = trimmed_content[close_pos..].find(']').map(|pos| close_pos + pos + 1)?;
     
     // Extract name and content
-    let open_end = content[start..].find(']')? + start + 1;
-    let section_content = content[open_end..close_pos].trim();
+    let open_end = trimmed_content[start..].find(']')? + start + 1;
+    let section_content = trimmed_content[open_end..close_pos].trim();
     
     // Extract name
     let mut name = None;
-    if let Some(name_pos) = content[start..open_end].find("name:") {
+    if let Some(name_pos) = trimmed_content[start..open_end].find("name:") {
         let name_start = start + name_pos + 5;
-        let name_end = content[name_start..open_end].find(' ').map(|pos| name_start + pos)
-            .or_else(|| content[name_start..open_end].find(']').map(|pos| name_start + pos))?;
-        name = Some(content[name_start..name_end].trim().to_string());
+        let name_end = trimmed_content[name_start..open_end].find(' ').map(|pos| name_start + pos)
+            .or_else(|| trimmed_content[name_start..open_end].find(']').map(|pos| name_start + pos))?;
+        name = Some(trimmed_content[name_start..name_end].trim().to_string());
     }
     
     // Create the block
@@ -322,5 +345,6 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     // Store the original content as well (for reference)
     block.content = section_content.to_string();
     
-    Some((block, end_pos))
+    // Return with adjusted end position to account for leading whitespace
+    Some((block, end_pos + whitespace_offset))
 }
