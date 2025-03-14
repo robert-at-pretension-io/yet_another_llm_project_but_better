@@ -1,4 +1,4 @@
-use crate::parser::{Rule, extract_name, extract_modifiers};
+use crate::parser::Rule;
 
 // Basic block representation
 #[derive(Debug, Clone)]
