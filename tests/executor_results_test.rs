@@ -115,7 +115,7 @@ Analyze this data: ${data-generator.results}
         
         // Verify line truncation
         let truncated_lines = truncated.lines().count();
-        assert_eq!(truncated_lines, 5);
+        assert_eq!(truncated_lines, 6); // 5 content lines + 1 ellipsis line
         assert!(truncated.contains("Line 0"));
         assert!(truncated.contains("Line 4"));
         assert!(!truncated.contains("Line 5"));
