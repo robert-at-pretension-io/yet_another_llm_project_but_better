@@ -218,6 +218,11 @@ impl MetaLanguageExecutor {
     
     // Process variable references like ${block_name}
     pub fn process_variable_references(&self, content: &str) -> String {
+        self.process_variable_references_internal(content, &mut Vec::new())
+    }
+    
+    // Internal implementation that tracks processing variables to detect circular references
+    fn process_variable_references_internal(&self, content: &str, processing_vars: &mut Vec<String>) -> String {
         let mut result = content.to_string();
         
         // Find all variable references
@@ -225,9 +230,45 @@ impl MetaLanguageExecutor {
         
         // Replace each reference with its value
         for var_name in references {
-            if let Some(value) = self.outputs.get(&var_name) {
-                let var_ref = format!("${{{}}}", var_name);
-                result = result.replace(&var_ref, value);
+            // Check for circular references
+            if processing_vars.contains(&var_name) {
+                println!("Warning: Circular reference detected for variable: {}", var_name);
+                continue;
+            }
+            
+            // Try to get the value from outputs
+            let value = if let Some(output) = self.outputs.get(&var_name) {
+                output.clone()
+            } else if let Some(fallback_name) = self.fallbacks.get(&var_name) {
+                // Try fallback if available
+                if let Some(fallback_output) = self.outputs.get(fallback_name) {
+                    fallback_output.clone()
+                } else {
+                    // No value found, leave the reference as is
+                    continue;
+                }
+            } else {
+                // No value or fallback found, leave the reference as is
+                continue;
+            };
+            
+            // Replace the reference with its value
+            let var_ref = format!("${{{}}}", var_name);
+            
+            // Check if the value itself contains variable references
+            if value.contains("${") {
+                // Add this variable to the processing list to detect circular references
+                processing_vars.push(var_name.clone());
+                
+                // Recursively process nested references
+                let processed_value = self.process_variable_references_internal(&value, processing_vars);
+                result = result.replace(&var_ref, &processed_value);
+                
+                // Remove from processing list
+                processing_vars.retain(|v| v != &var_name);
+            } else {
+                // Simple replacement
+                result = result.replace(&var_ref, &value);
             }
         }
         
