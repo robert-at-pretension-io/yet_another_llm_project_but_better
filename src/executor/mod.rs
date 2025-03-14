@@ -87,31 +87,33 @@ impl MetaLanguageExecutor {
             }
         }
         
-        // Process variable references in data blocks
+        // Process variable references in all blocks
         // We need to do this in a separate pass after all blocks are registered
-        let mut data_blocks_to_update = Vec::new();
+        let mut blocks_to_update = Vec::new();
         
         for (name, block) in &self.blocks {
-            if self.is_data_block(block) {
-                // Process variable references in the content
-                let processed_content = self.process_variable_references(&block.content);
-                
-                // Only update if the content actually changed
-                if processed_content != block.content {
-                    data_blocks_to_update.push((name.clone(), processed_content));
-                }
+            // Process variable references in the content
+            let processed_content = self.process_variable_references(&block.content);
+            
+            // Only update if the content actually changed
+            if processed_content != block.content {
+                blocks_to_update.push((name.clone(), processed_content));
             }
         }
         
         // Update the blocks and outputs with processed content
-        for (name, processed_content) in data_blocks_to_update {
+        for (name, processed_content) in blocks_to_update {
             // Update the block in the blocks map
             if let Some(block) = self.blocks.get_mut(&name) {
                 block.content = processed_content.clone();
             }
             
-            // Update the output in the outputs map
-            self.outputs.insert(name, processed_content);
+            // Update the output in the outputs map if it's a data block
+            if let Some(block) = self.blocks.get(&name) {
+                if self.is_data_block(block) {
+                    self.outputs.insert(name, processed_content);
+                }
+            }
         }
         
         // Register fallbacks for executable blocks that don't have them
@@ -195,7 +197,14 @@ impl MetaLanguageExecutor {
         }
         
         // Process variable references in content
-        let processed_content = self.process_variable_references(&block.content);
+        // We need to get the latest content from the blocks map, as it might have been updated
+        let block_content = if let Some(updated_block) = self.blocks.get(name) {
+            updated_block.content.clone()
+        } else {
+            block.content.clone()
+        };
+        
+        let processed_content = self.process_variable_references(&block_content);
         
         // Execute based on block type
         let result = match block.block_type.as_str() {
