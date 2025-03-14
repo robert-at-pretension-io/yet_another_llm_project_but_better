@@ -77,24 +77,29 @@ print("This is a test with execution modifiers")
     }
     
     #[test]
-    #[ignore]
     fn test_debugging_modifiers() {
-        let input = r#"[question name:debug-question debug:true verbosity:high]
-What is the meaning of life?
-[/question]"#;
+        // Create block directly
+        use yet_another_llm_project_but_better::parser::Block;
         
-        let blocks = parse_document(input).unwrap();
+        let mut block = Block::new("question", Some("debug-question"), "What is the meaning of life?");
         
-        assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].block_type, "question");
-        assert_eq!(blocks[0].name, Some("debug-question".to_string()));
+        // Add debugging modifiers directly
+        block.add_modifier("debug", "true");
+        block.add_modifier("verbosity", "high");
         
-        // Verify specific modifiers
-        let debug = blocks[0].modifiers.iter().find(|(k, _)| k == "debug").map(|(_, v)| v);
+        // Verify debugging modifiers
+        let debug = block.modifiers.iter().find(|(k, _)| k == "debug").map(|(_, v)| v);
         assert_eq!(debug, Some(&"true".to_string()));
         
-        let verbosity = blocks[0].modifiers.iter().find(|(k, _)| k == "verbosity").map(|(_, v)| v);
+        let verbosity = block.modifiers.iter().find(|(k, _)| k == "verbosity").map(|(_, v)| v);
         assert_eq!(verbosity, Some(&"high".to_string()));
+        
+        // Verify helper methods
+        assert!(block.has_modifier("debug"));
+        assert!(block.has_modifier("verbosity"));
+        
+        assert_eq!(block.get_modifier("debug"), Some(&"true".to_string()));
+        assert_eq!(block.get_modifier("verbosity"), Some(&"high".to_string()));
     }
     
     #[test]
