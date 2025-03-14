@@ -205,6 +205,6 @@ result = {"status": "fallback", "data": None}
         let headers = block.get_modifier("headers");
         println!("DEBUG: headers modifier = {:?}", headers);
         assert_eq!(headers, Some(&"Authorization: Bearer ${api-key}".to_string()),
-                  "headers modifier should be 'Authorization: Bearer ${{{api-key}}}'");
+                  "The headers modifier should match Bearer token for API key");
     }
 }
