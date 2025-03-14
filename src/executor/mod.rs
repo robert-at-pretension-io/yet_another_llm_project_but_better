@@ -418,9 +418,12 @@ impl MetaLanguageExecutor {
     // Execute different types of blocks
     
     pub fn execute_python(&self, code: &str) -> Result<String, ExecutorError> {
+        // Preprocess the code to handle JSON data
+        let processed_code = self.preprocess_python_code(code);
+        
         let child = Command::new("python")
             .arg("-c")
-            .arg(code)
+            .arg(&processed_code)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
@@ -434,6 +437,35 @@ impl MetaLanguageExecutor {
                 String::from_utf8_lossy(&output.stderr).to_string()
             ))
         }
+    }
+    
+    // Helper function to preprocess Python code for JSON handling
+    fn preprocess_python_code(&self, code: &str) -> String {
+        // Always import json at the beginning
+        let mut processed = String::from("import json\n");
+        
+        // Process each line to detect and convert JSON strings to Python objects
+        for line in code.lines() {
+            let mut processed_line = line.to_string();
+            
+            // Look for variable assignments with JSON-like content
+            if let Some(pos) = line.find('=') {
+                let var_name = line[..pos].trim();
+                let value = line[pos+1..].trim();
+                
+                // Check if the value looks like a JSON array or object
+                if (value.starts_with('[') && value.ends_with(']')) || 
+                   (value.starts_with('{') && value.ends_with('}')) {
+                    // Replace with json.loads to convert JSON string to Python object
+                    processed_line = format!("{} = json.loads('''{}''')", var_name, value);
+                }
+            }
+            
+            processed.push_str(&processed_line);
+            processed.push('\n');
+        }
+        
+        processed
     }
     
     pub fn execute_javascript(&self, code: &str) -> Result<String, ExecutorError> {
