@@ -7,11 +7,9 @@ fn test_template_with_modifiers() {
     println!("TEST: Parsing template block from text");
 
     // Create a template block using the parser
-    let template_text = r#"
-    [template name:test-template requires:data-block cache:true]
-    This is a template with ${data-block}
-    [/template]
-    "#;
+    let template_text = r#"[template name:test-template requires:data-block cache:true]
+This is a template with ${data-block}
+[/template]"#;
     
     // Parse the template
     let parsed_blocks = parser::parse_document(template_text).expect("Failed to parse template");
