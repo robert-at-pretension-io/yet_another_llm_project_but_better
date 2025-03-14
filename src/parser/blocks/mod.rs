@@ -69,6 +69,8 @@ pub fn process_block(pair: pest::iterators::Pair<Rule>) -> Option<Block> {
             Rule::memory_block => return Some(process_memory_block(block_pair)),
             Rule::section_block => return Some(process_section_block(block_pair)),
             Rule::conditional_block => return Some(process_conditional_block(block_pair)),
+            Rule::results_block => return Some(process_results_block(block_pair)),
+            Rule::error_results_block => return Some(process_error_results_block(block_pair)),
             _ => {
                 eprintln!("Unhandled block type: {:?}", block_pair.as_rule());
                 return None;
@@ -85,6 +87,7 @@ mod code_exec;
 mod data_management;
 mod templates;
 mod utility;
+mod results;
 
 // Re-export the processing functions
 pub use question_response::{process_question_block, process_response_block};
@@ -92,3 +95,4 @@ pub use code_exec::{process_code_block, process_shell_block, process_api_block};
 pub use data_management::{process_data_block, process_variable_block, process_secret_block, process_filename_block, process_memory_block};
 pub use templates::{process_template_block, process_template_invocation};
 pub use utility::{process_error_block, process_visualization_block, process_preview_block, process_section_block, process_conditional_block};
+pub use results::{process_results_block, process_error_results_block};

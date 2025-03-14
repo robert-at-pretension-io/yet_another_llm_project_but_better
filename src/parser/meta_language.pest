@@ -25,7 +25,9 @@ block = {
     filename_block |
     memory_block |
     section_block |
-    conditional_block
+    conditional_block |
+    results_block |
+    error_results_block
 }
 
 // Common components
@@ -67,7 +69,9 @@ block_type = @{
     "filename" |
     "memory" |
     "section:" ~ section_type |
-    "conditional"
+    "conditional" |
+    "results" |
+    "error_results"
 }
 
 language = @{ ASCII_ALPHA+ }
@@ -102,6 +106,8 @@ filename_block = { "[filename" ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modif
 memory_block = { "[memory" ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/memory]" }
 section_block = { "[section:" ~ section_type ~ WHITESPACE* ~ name_attr? ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/section:" ~ section_type ~ "]" }
 conditional_block = { "[conditional" ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/conditional]" }
+results_block = { "[results" ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/results]" }
+error_results_block = { "[error_results" ~ (WHITESPACE* ~ modifiers)? ~ "]" ~ block_content ~ "[/error_results]" }
 
 // Variable references
 variable_reference = ${ "${" ~ block_name ~ "}" }
