@@ -138,7 +138,7 @@ What is the meaning of life?
     #[test]
     fn test_boolean_modifiers() {
         // Create block directly
-        use yet_another_llm_project_but_better::parser::blocks::Block;
+        use yet_another_llm_project_but_better::parser::Block;
         
         let mut block = Block::new("data", Some("boolean-test"), "Some test data with boolean modifiers");
         
