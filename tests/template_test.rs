@@ -4,7 +4,6 @@ mod tests {
 
     /// Test template definition and usage
     #[test]
-    #[ignore = "Template parsing not yet implemented correctly"]
     fn test_template_basics() {
         let input = r#"[template name:data-processor model:gpt-4 temperature:0.7]
 [question model:${model} temperature:${temperature}]
@@ -28,19 +27,30 @@ Analyze this data: ${data_content}
 
         let blocks = parse_document(input).unwrap();
         
-        // Currently only one block is parsed successfully
-        assert_eq!(blocks.len(), 1);
+        // Should have 3 blocks: template, data, and template invocation
+        assert_eq!(blocks.len(), 3);
         
-        // Verify the block is a data block (parser currently interprets template as data)
-        let first_block = &blocks[0];
-        assert_eq!(first_block.block_type, "data");
+        // Verify the template block
+        let template = blocks.iter().find(|b| b.block_type == "template").unwrap();
+        assert_eq!(template.name, Some("data-processor".to_string()));
+        assert_eq!(template.get_modifier("model"), Some(&"gpt-4".to_string()));
+        assert_eq!(template.get_modifier("temperature"), Some(&"0.7".to_string()));
         
-        // Note: Data block and template invocation parsing not yet implemented
+        // Verify the data block
+        let data_block = blocks.iter().find(|b| b.block_type == "data").unwrap();
+        assert_eq!(data_block.name, Some("sample-data".to_string()));
+        assert_eq!(data_block.get_modifier("format"), Some(&"json".to_string()));
+        assert!(data_block.content.contains("\"values\": [10, 20, 30, 40, 50]"));
+        
+        // Verify the template invocation
+        let invocation = blocks.iter().find(|b| b.block_type == "template_invocation").unwrap();
+        assert_eq!(invocation.name, Some("data-processor".to_string()));
+        assert_eq!(invocation.get_modifier("temperature"), Some(&"0.3".to_string()));
+        assert!(invocation.get_modifier("data_content").is_some());
     }
     
     /// Test multiple template invocations with different parameters
     #[test]
-    #[ignore = "Template invocation parsing not yet implemented"]
     fn test_multiple_template_invocations() {
         let input = r#"[template name:message-template greeting:Hello name:User]
 ${greeting}, ${name}! How are you today?
@@ -63,6 +73,9 @@ ${greeting}, ${name}! How are you today?
         // Verify template definition
         let template = blocks.iter().find(|b| b.block_type == "template").unwrap();
         assert_eq!(template.name, Some("message-template".to_string()));
+        assert_eq!(template.get_modifier("greeting"), Some(&"Hello".to_string()));
+        assert_eq!(template.get_modifier("name"), Some(&"User".to_string()));
+        assert!(template.content.contains("How are you today?"));
         
         // Check each invocation
         let invocations = blocks.iter()
@@ -80,5 +93,10 @@ ${greeting}, ${name}! How are you today?
         
         assert_eq!(invocations[2].get_modifier("greeting"), Some(&"Greetings".to_string()));
         assert_eq!(invocations[2].get_modifier("name"), Some(&"Dr. Smith".to_string()));
+        
+        // Verify template invocation references the correct template
+        for invocation in invocations {
+            assert_eq!(invocation.name, Some("message-template".to_string()));
+        }
     }
 }
