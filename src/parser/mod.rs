@@ -273,7 +273,7 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     let end_pos = content[close_pos..].find(']').map(|pos| close_pos + pos + 1)?;
     
     // Extract name and content
-    let open_end = content.find(']')? + 1;
+    let open_end = content[start..].find(']')? + start + 1;
     let section_content = content[open_end..close_pos].trim();
     
     // Extract name
@@ -289,12 +289,13 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     let mut block = Block::new(&block_type, name.as_deref(), section_content);
     
     // Parse child blocks from the content
-    let mut child_pos = 0;
-    while child_pos < section_content.len() {
-        // Skip whitespace and non-block content
-        if let Some(block_start) = section_content[child_pos..].find('[') {
-            let block_start_pos = child_pos + block_start;
-            let remaining = &section_content[block_start_pos..];
+    let mut child_content = section_content;
+    let mut offset = 0;
+    
+    while !child_content.is_empty() {
+        // Find the start of the next block
+        if let Some(block_start) = child_content.find('[') {
+            let remaining = &child_content[block_start..];
             
             // Try to parse a nested block
             if let Some((child_block, consumed)) = try_parse_single_block(remaining) {
@@ -302,10 +303,18 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
                 block.add_child(child_block);
                 
                 // Move past this block
-                child_pos = block_start_pos + consumed;
+                if block_start + consumed >= child_content.len() {
+                    break;
+                }
+                child_content = &child_content[block_start + consumed..];
+                offset += block_start + consumed;
             } else {
                 // If we couldn't parse a block, move ahead
-                child_pos = block_start_pos + 1;
+                if block_start + 1 >= child_content.len() {
+                    break;
+                }
+                child_content = &child_content[block_start + 1..];
+                offset += block_start + 1;
             }
         } else {
             // No more block starts found

@@ -30,7 +30,7 @@ python script.py
     }
     
     #[test]
-     // Temporarily ignore this test until we fix dependency handling
+    // Test for dependency handling
     fn test_document_with_dependencies() {
         let input = r#"[data name:config format:json]
 {"api_url": "https://api.example.com", "timeout": 30}
