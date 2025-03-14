@@ -1,6 +1,31 @@
 use crate::parser::{Rule, extract_modifiers};
 use crate::parser::blocks::Block;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_response_block() {
+        // Create a response block directly
+        let mut block = Block::new("response", None, "The three laws of robotics, as defined by Isaac Asimov, are:
+1. A robot may not injure a human being or, through inaction, allow a human being to come to harm.
+2. A robot must obey the orders given it by human beings except where such orders would conflict with the First Law.
+3. A robot must protect its own existence as long as such protection does not conflict with the First or Second Law.");
+        
+        // Add modifiers
+        block.add_modifier("timestamp", "2023-05-15T14:30:00Z");
+        block.add_modifier("tokens", "150");
+        
+        // Verify the block properties
+        assert_eq!(block.block_type, "response");
+        assert_eq!(block.content.lines().count(), 4);
+        
+        let timestamp = block.get_modifier("timestamp");
+        assert_eq!(timestamp, Some(&"2023-05-15T14:30:00Z".to_string()));
+    }
+}
+
 // Process question blocks
 pub fn process_question_block(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("question", None, "");
