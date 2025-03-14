@@ -48,13 +48,19 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
 pub fn process_template_invocation(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("template_invocation", None, "");
     let mut invocation_type = String::from("template_invocation");
+    let mut template_name = String::new();
     
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
             Rule::template_invocation_open => {
                 for part in inner_pair.into_inner() {
                     if part.as_rule() == Rule::template_name {
-                        block.name = Some(part.as_str().to_string());
+                        template_name = part.as_str().to_string();
+                        // Use a different naming scheme for invocations to avoid name collisions
+                        // with the template definition
+                        block.name = Some(format!("invoke-{}", template_name));
+                        // Store the original template name as a modifier
+                        block.add_modifier("template", &template_name);
                     } else if part.as_rule() == Rule::modifiers {
                         for modifier in extract_modifiers(part) {
                             if modifier.0 == "_type" {
