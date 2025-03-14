@@ -81,6 +81,9 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             // Create a template invocation block with "invoke-" prefix for the name
                             let mut block = Block::new("template_invocation", Some(&format!("invoke-{}", template_name)), "");
                             
+                            // Add the original template name as a modifier
+                            block.add_modifier("template", template_name);
+                            
                             // Process modifiers (parameters)
                             for part in &parts[1..] {
                                 if let Some(colon_pos) = part.find(':') {
