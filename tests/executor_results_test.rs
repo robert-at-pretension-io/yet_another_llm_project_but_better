@@ -8,7 +8,7 @@ mod executor_results_tests {
     fn test_executor_includes_results_in_context() {
         let mut executor = MetaLanguageExecutor::new();
         
-        // Create blocks directly instead of parsing
+        // Create blocks directly
         let code_block = Block::new("code:python", Some("data-generator"), "print([10, 20, 30, 40, 50])");
         
         let mut results_block = Block::new("results", None, "[10, 20, 30, 40, 50]");
@@ -185,9 +185,6 @@ mod executor_results_tests {
     fn test_results_integration_in_workflow() {
         let mut executor = MetaLanguageExecutor::new();
         
-        // Create blocks directly instead of parsing
-        let mut blocks = Vec::new();
-        
         // Step 1 blocks
         let step1_code = Block::new(
             "code:python", 
@@ -271,7 +268,7 @@ mod executor_results_tests {
     fn test_executor_handles_error_results() {
         let mut executor = MetaLanguageExecutor::new();
         
-        // Create blocks directly instead of parsing
+        // Create blocks directly
         let code_block = Block::new(
             "code:python", 
             Some("will-fail"), 
