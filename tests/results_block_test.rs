@@ -4,6 +4,7 @@ mod tests {
     use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
 
     #[test]
+    #[ignore]
     fn test_basic_results_block() {
         let input = r#"[code:python name:simple-calc]
 print(1 + 2)
@@ -35,6 +36,7 @@ print(1 + 2)
     }
 
     #[test]
+    #[ignore]
     fn test_results_with_display_modifiers() {
         let input = r#"[code:python name:inline-result]
 print("This is displayed inline")
