@@ -19,7 +19,7 @@ pub fn extract_modifiers(pair: pest::iterators::Pair<Rule>) -> Vec<(String, Stri
     println!("DEBUG: Raw modifiers text: '{}'", pair.as_str());
     
     // First try to extract using the structured approach
-    for modifier_pair in pair.into_inner() {
+    for modifier_pair in pair.clone().into_inner() {
         if modifier_pair.as_rule() == Rule::modifier {
             let mut key = String::new();
             let mut value = String::new();
