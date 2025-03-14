@@ -418,8 +418,14 @@ impl MetaLanguageExecutor {
     // Execute different types of blocks
     
     pub fn execute_python(&self, code: &str) -> Result<String, ExecutorError> {
+        // Debug: Print original code
+        println!("DEBUG: Original Python code:\n{}", code);
+        
         // Preprocess the code to handle JSON data
         let processed_code = self.preprocess_python_code(code);
+        
+        // Debug: Print processed code
+        println!("DEBUG: Processed Python code:\n{}", processed_code);
         
         let child = Command::new("python")
             .arg("-c")
@@ -431,11 +437,13 @@ impl MetaLanguageExecutor {
         let output = child.wait_with_output()?;
         
         if output.status.success() {
-            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            println!("DEBUG: Python execution succeeded with output:\n{}", stdout);
+            Ok(stdout)
         } else {
-            Err(ExecutorError::ExecutionFailed(
-                String::from_utf8_lossy(&output.stderr).to_string()
-            ))
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            println!("DEBUG: Python execution failed with error:\n{}", stderr);
+            Err(ExecutorError::ExecutionFailed(stderr))
         }
     }
     
