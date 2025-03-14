@@ -111,7 +111,9 @@ impl MetaLanguageExecutor {
             // Update the output in the outputs map if it's a data block
             if let Some(block) = self.blocks.get(&name) {
                 if self.is_data_block(block) {
-                    self.outputs.insert(name, processed_content);
+                    // Apply any modifiers to the data block content before storing
+                    let modified_content = self.apply_modifiers_to_variable(&name, &processed_content);
+                    self.outputs.insert(name.clone(), modified_content);
                 }
             }
         }
@@ -282,6 +284,9 @@ impl MetaLanguageExecutor {
                 continue;
             }
             
+            // The original variable reference to be replaced if a value is found
+            let var_ref = format!("${{{}}}", var_name);
+            
             // Check if the variable name contains a fallback value (format: var_name:fallback)
             let (actual_var_name, inline_fallback) = if var_name.contains(':') {
                 let parts: Vec<&str> = var_name.splitn(2, ':').collect();
@@ -291,45 +296,51 @@ impl MetaLanguageExecutor {
             };
             
             // Try to get the value from outputs
-            let value = if let Some(output) = self.outputs.get(&actual_var_name) {
-                output.clone()
+            if let Some(output) = self.outputs.get(&actual_var_name) {
+                let value = output.clone();
+                
+                // Apply any modifiers to the value
+                let modified_value = self.apply_modifiers_to_variable(&actual_var_name, &value);
+                
+                // Check if the value itself contains variable references
+                if modified_value.contains("${") {
+                    // Add this variable to the processing list to detect circular references
+                    processing_vars.push(actual_var_name.clone());
+                    
+                    // Recursively process nested references
+                    let processed_value = self.process_variable_references_internal(&modified_value, processing_vars);
+                    result = result.replace(&var_ref, &processed_value);
+                    
+                    // Remove from processing list
+                    processing_vars.retain(|v| v != &actual_var_name);
+                } else {
+                    // Simple replacement
+                    result = result.replace(&var_ref, &modified_value);
+                }
             } else if let Some(fallback_name) = self.fallbacks.get(&actual_var_name) {
                 // Try registered fallback if available
                 if let Some(fallback_output) = self.outputs.get(fallback_name) {
-                    fallback_output.clone()
+                    let value = fallback_output.clone();
+                    
+                    // Process nested references in fallback value
+                    if value.contains("${") {
+                        processing_vars.push(actual_var_name.clone());
+                        let processed_value = self.process_variable_references_internal(&value, processing_vars);
+                        result = result.replace(&var_ref, &processed_value);
+                        processing_vars.retain(|v| v != &actual_var_name);
+                    } else {
+                        result = result.replace(&var_ref, &value);
+                    }
                 } else if let Some(fallback_value) = inline_fallback {
                     // Use inline fallback if provided
-                    fallback_value
-                } else {
-                    // No value found, leave the reference as is
-                    continue;
+                    result = result.replace(&var_ref, &fallback_value);
                 }
+                // If no fallback value is available, leave the reference as is
             } else if let Some(fallback_value) = inline_fallback {
                 // Use inline fallback if provided
-                fallback_value
-            } else {
-                // No value or fallback found, leave the reference as is
-                continue;
-            };
-            
-            // Replace the reference with its value
-            let var_ref = format!("${{{}}}", var_name);
-            
-            // Check if the value itself contains variable references
-            if value.contains("${") {
-                // Add this variable to the processing list to detect circular references
-                processing_vars.push(actual_var_name.clone());
-                
-                // Recursively process nested references
-                let processed_value = self.process_variable_references_internal(&value, processing_vars);
-                result = result.replace(&var_ref, &processed_value);
-                
-                // Remove from processing list
-                processing_vars.retain(|v| v != &actual_var_name);
-            } else {
-                // Simple replacement
-                result = result.replace(&var_ref, &value);
+                result = result.replace(&var_ref, &fallback_value);
             }
+            // If no value or fallback found, leave the reference as is (do nothing)
         }
         
         result
@@ -589,6 +600,25 @@ impl MetaLanguageExecutor {
         }
         
         content.to_string()
+    }
+    
+    // Apply modifiers to a variable value before substitution
+    pub fn apply_modifiers_to_variable(&self, var_name: &str, value: &str) -> String {
+        // Check if we have a block with this name to get modifiers from
+        if let Some(block) = self.blocks.get(var_name) {
+            let mut processed = value.to_string();
+            
+            // Apply trim if specified
+            processed = self.apply_trim(block, &processed);
+            
+            // Apply max_lines if specified
+            processed = self.apply_max_lines(block, &processed);
+            
+            return processed;
+        }
+        
+        // If no block found or no modifiers applied, return the original value
+        value.to_string()
     }
     
     // Process results content with all applicable modifiers
