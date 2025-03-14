@@ -1,7 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use yet_another_llm_project_but_better::parser::{parse_document};
+    use std::collections::HashMap;
+    use std::time::Instant;
+
     use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
+    use yet_another_llm_project_but_better::parser::parse_document;
+    // Block should be imported from the public API
+    use yet_another_llm_project_but_better::parser::blocks::Block;
 
     /// Test a complete end-to-end workflow with multiple dependent blocks
     #[test]
@@ -84,18 +89,11 @@ Based on the security analysis, what are the key vulnerabilities that need addre
         let question_block = blocks.iter().find(|b| b.name == Some("security-review".to_string())).unwrap();
         assert_eq!(question_block.get_modifier("depends"), Some(&"security-analysis".to_string()));
     }
-}
-use std::collections::HashMap;
-use std::time::Instant;
 
-use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
-use yet_another_llm_project_but_better::parser::Block;
-use yet_another_llm_project_but_better::parser::parse_document;
-
-#[test]
-fn test_complex_workflow() {
-    // Create a test document with multiple nested sections and blocks
-    let test_document = r#"
+    #[test]
+    fn test_complex_workflow() {
+        // Create a test document with multiple nested sections and blocks
+        let test_document = r#"
 [section:workflow name:data-processing-workflow]
 # Complex Data Processing Workflow
 
@@ -310,22 +308,23 @@ print(f"Average of filtered data: {average}")
     let filtered_result = executor.execute_block("process-filtered");
     println!("Filtered result: {:?}", filtered_result);
     
-    // Verify that the cache works for generate-data
-    let cached_time = executor.cache.get("generate-data")
-        .map(|(_, time)| *time);
-    assert!(cached_time.is_some(), "generate-data was not cached");
-}
-
-// Helper function to recursively register blocks and their children
-fn register_block_and_children(executor: &mut MetaLanguageExecutor, block: &Block) {
-    // Register this block
-    if let Some(name) = &block.name {
-        executor.blocks.insert(name.clone(), block.clone());
-        println!("Registered block: {}", name);
+        // Verify that the cache works for generate-data
+        let cached_time = executor.cache.get("generate-data")
+            .map(|(_, time)| *time);
+        assert!(cached_time.is_some(), "generate-data was not cached");
     }
-    
-    // Register all children recursively
-    for child in &block.children {
-        register_block_and_children(executor, child);
+
+    // Helper function to recursively register blocks and their children
+    fn register_block_and_children(executor: &mut MetaLanguageExecutor, block: &Block) {
+        // Register this block
+        if let Some(name) = &block.name {
+            executor.blocks.insert(name.clone(), block.clone());
+            println!("Registered block: {}", name);
+        }
+        
+        // Register all children recursively
+        for child in &block.children {
+            register_block_and_children(executor, child);
+        }
     }
 }
