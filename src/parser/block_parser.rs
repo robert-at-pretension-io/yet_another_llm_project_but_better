@@ -1,7 +1,7 @@
 // A separate module for parsing individual blocks
 use crate::parser::{ParserError, Block};
 use crate::parser::blocks::process_block;
-use crate::parser::{Rule, MetaLanguageParser, extract_name, extract_modifiers};
+use crate::parser::{Rule, MetaLanguageParser};
 use pest::Parser;
 
 // Parse a string that contains a single block
