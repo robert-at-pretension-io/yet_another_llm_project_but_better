@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::fs;
 use yet_another_llm_project_but_better::{
-    parser::{parse_document, Block},
     executor::MetaLanguageExecutor
 };
 
