@@ -37,7 +37,7 @@ fn has_matching_closing_tag(content: &str) -> bool {
         
         // Handle special block types with modifiers directly after opening bracket
         // Examples: [results for:simple-calc format:plain], [error_results for:test]
-        let known_block_types = ["results", "error_results", "api", "preview"];
+        let known_block_types = ["results", "error_results", "api", "preview", "template"];
         for block_type in known_block_types.iter() {
             if after_open.starts_with(block_type) && 
                (after_open.len() > block_type.len()) && 
