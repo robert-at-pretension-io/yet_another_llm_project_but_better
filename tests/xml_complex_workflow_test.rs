@@ -248,15 +248,17 @@ Based on the security analysis, what are the key vulnerabilities that need addre
             "PORT   STATE  SERVICE\n22/tcp open   ssh\n80/tcp open   http".to_string());
         
         // Try executing the security analysis block if it exists
-        if let Some(name) = &analysis_block.name {
-            println!("\nExecuting {} block...", name);
-            match executor.execute_block(name) {
-                Ok(output) => {
-                    println!("Execution successful!");
-                    println!("Output: {}", output);
-                },
-                Err(err) => {
-                    println!("Execution failed: {:?}", err);
+        if let Some(analysis_block) = analysis_block {
+            if let Some(name) = &analysis_block.name {
+                println!("\nExecuting {} block...", name);
+                match executor.execute_block(name) {
+                    Ok(output) => {
+                        println!("Execution successful!");
+                        println!("Output: {}", output);
+                    },
+                    Err(err) => {
+                        println!("Execution failed: {:?}", err);
+                    }
                 }
             }
         }
