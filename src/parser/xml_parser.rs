@@ -43,7 +43,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 
                 // Handle meta: prefixed elements as blocks
                 if name.starts_with("meta:") {
-                    let mut block_type = name.trim_start_matches("meta:").to_string();
+                    let block_type = name.trim_start_matches("meta:").to_string();
                     
                     // Extract attributes
                     let mut block_name = None;
@@ -61,12 +61,10 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             if key == "name" {
                                 block_name = Some(value);
                             } else if key == "type" && block_type == "section" {
-                                // Store both as modifier and in block_type
-                                block_type = format!("section:{}", value);
+                                // Store only as modifier, not in block_type
                                 modifiers.push((key.clone(), value.clone()));
                             } else if key == "language" && block_type == "code" {
-                                // Store both as modifier and in block_type
-                                block_type = format!("code:{}", value);
+                                // Store only as modifier, not in block_type
                                 modifiers.push((key.clone(), value.clone()));
                             } else {
                                 modifiers.push((key, value));

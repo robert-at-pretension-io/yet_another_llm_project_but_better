@@ -43,7 +43,7 @@ fn convert_to_xml(input: &str) -> String {
                 let parts: Vec<&str> = block_type.split(':').collect();
                 let base_type = parts[0];
                 let subtype = parts[1];
-                
+                    
                 if base_type == "code" {
                     (base_type, format!(" language=\"{}\"", subtype))
                 } else if base_type == "section" {
@@ -1479,13 +1479,13 @@ fn test_different_languages() {
     
     // Verify each language block
     let languages = [
-        ("python-code", "code:python", "python"),
-        ("javascript-code", "code:javascript", "javascript"),
-        ("rust-code", "code:rust", "rust"),
-        ("sql-code", "code:sql", "sql"),
-        ("html-code", "code:html", "html"),
-        ("css-code", "code:css", "css"),
-        ("c-code", "code:c", "c")
+        ("python-code", "code", "python"),
+        ("javascript-code", "code", "javascript"),
+        ("rust-code", "code", "rust"),
+        ("sql-code", "code", "sql"),
+        ("html-code", "code", "html"),
+        ("css-code", "code", "css"),
+        ("c-code", "code", "c")
     ];
     
     // Print all block names for debugging
@@ -1506,10 +1506,10 @@ fn test_different_languages() {
         println!("DEBUG: Block {}: type={}, modifiers={:?}", 
                  name, block.block_type, block.modifiers);
                  
-        // Check block type (should be "code:language")
-        assert!(block.block_type.starts_with(expected_type.split(':').next().unwrap()), 
-                  "Block {} has incorrect type. Expected to start with: '{}', Found: '{}' ", 
-                  name, expected_type.split(':').next().unwrap(), block.block_type);
+        // Check block type (should be "code")
+        assert_eq!(block.block_type, expected_type,
+                  "Block {} has incorrect type. Expected: '{}', Found: '{}' ", 
+                  name, expected_type, block.block_type);
         
         // Check language modifier
         assert_eq!(block.get_modifier("language").map(|s| s.as_str()), Some(expected_language),
