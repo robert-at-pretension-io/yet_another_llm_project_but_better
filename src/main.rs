@@ -253,14 +253,26 @@ fn handle_file_event(event: FileEvent) {
     log_debug(&format!("Received file event: {:?} for path: {}", event.event_type, event.path));
     let config = CONFIG.lock().unwrap();
     
-    // Only process file modifications
-    if event.event_type != FileEventType::Modified {
-        log_debug(&format!("Ignoring non-modification event: {:?}", event.event_type));
+    // Process file creations and modifications
+    if event.event_type != FileEventType::Modified && event.event_type != FileEventType::Created {
+        log_debug(&format!("Ignoring event type: {:?}", event.event_type));
+        return;
+    }
+    
+    // Check if the file exists (it might have been deleted right after being modified)
+    let path = Path::new(&event.path);
+    if !path.exists() {
+        log_debug(&format!("File no longer exists: {}", event.path));
+        return;
+    }
+    
+    // Check if it's a file (not a directory)
+    if !path.is_file() {
+        log_debug(&format!("Path is not a file: {}", event.path));
         return;
     }
     
     // Check if the file extension is one we care about
-    let path = Path::new(&event.path);
     if let Some(ext) = path.extension() {
         let ext_str = format!(".{}", ext.to_string_lossy());
         log_debug(&format!("File extension: {}", ext_str));
@@ -276,9 +288,10 @@ fn handle_file_event(event: FileEvent) {
     
     // Process the modified file
     log_debug(&format!("Processing modified file: {}", event.path));
-    if config.verbose {
-        println!("[{}] File changed: {}", Local::now().format("%H:%M:%S"), event.path);
-    }
+    println!("[{}] File changed: {}", Local::now().format("%H:%M:%S"), event.path);
+    
+    // Small delay to ensure the file is fully written
+    std::thread::sleep(std::time::Duration::from_millis(100));
     
     if let Err(e) = process_file(&event.path) {
         eprintln!("Error processing file {}: {}", event.path, e);
@@ -299,21 +312,34 @@ fn start_file_watcher() -> Result<()> {
     let config = CONFIG.lock().unwrap();
     log_debug(&format!("Setting up {} watch paths", config.watch_paths.len()));
     
+    // Track if we successfully set up at least one watch path
+    let mut any_watch_success = false;
+    
     for path in &config.watch_paths {
         log_debug(&format!("Attempting to watch path: {}", path));
         if let Err(e) = watcher.watch(path.clone()) {
             eprintln!("Error watching path {}: {}", path, e);
             log_debug(&format!("Error watching path {}: {}", path, e));
         } else {
+            any_watch_success = true;
             log_debug(&format!("Successfully watching path: {}", path));
-            if config.verbose {
-                println!("Watching path: {}", path);
-            }
+            println!("[{}] Watching path: {}", Local::now().format("%H:%M:%S"), path);
+            
+            // Print which extensions we're monitoring
+            println!("[{}] Monitoring files with extensions: {}", 
+                     Local::now().format("%H:%M:%S"),
+                     config.watch_extensions.join(", "));
         }
     }
     
+    // If we couldn't set up any watch paths, return an error
+    if !any_watch_success {
+        return Err(anyhow!("Failed to set up any watch paths"));
+    }
+    
     // Handle events in a loop
-    println!("Watching for file changes. Press Ctrl+C to exit.");
+    println!("[{}] Watching for file changes. Press Ctrl+C to exit.", 
+             Local::now().format("%H:%M:%S"));
     log_debug("Starting file watch event loop");
     drop(config); // Release the mutex lock
     
@@ -337,12 +363,13 @@ fn start_file_watcher() -> Result<()> {
 }
 
 // Parse command-line arguments and configure the application
-fn parse_args() -> Result<()> {
+fn parse_args() -> Result<Vec<String>> {
     log_debug("Entering parse_args");
     let args: Vec<String> = env::args().collect();
     log_debug(&format!("Processing {} command line arguments", args.len() - 1));
     
     let mut config = CONFIG.lock().unwrap();
+    let mut files_to_process = Vec::new();
     
     let mut i = 1;
     while i < args.len() {
@@ -353,7 +380,7 @@ fn parse_args() -> Result<()> {
                 log_debug("Watch mode enabled");
             },
             "--path" | "-p" => {
-                if i + 1 < args.len() {
+                if i + 1 < args.len() && !args[i + 1].starts_with('-') {
                     config.watch_paths = vec![args[i + 1].clone()];
                     log_debug(&format!("Watch path set to: {}", args[i + 1]));
                     i += 1;
@@ -362,7 +389,7 @@ fn parse_args() -> Result<()> {
                 }
             },
             "--extensions" | "-e" => {
-                if i + 1 < args.len() {
+                if i + 1 < args.len() && !args[i + 1].starts_with('-') {
                     config.watch_extensions = args[i + 1]
                         .split(',')
                         .map(|s| {
@@ -409,15 +436,14 @@ fn parse_args() -> Result<()> {
             // Individual file to process
             _ => {
                 log_debug(&format!("Found file argument: {}", args[i]));
-                // Store the file path for later processing
-                return Ok(());
+                files_to_process.push(args[i].clone());
             }
         }
         i += 1;
     }
     
     log_debug("Completed parse_args successfully");
-    Ok(())
+    Ok(files_to_process)
 }
 
 // Print usage information
@@ -461,27 +487,27 @@ fn main() -> Result<()> {
     
     // Parse command-line arguments
     log_debug("Starting argument parsing");
-    if let Err(e) = parse_args() {
-        eprintln!("Error parsing arguments: {}", e);
-        log_debug(&format!("Error parsing arguments: {}", e));
-        print_usage();
-        process::exit(1);
-    }
-    
-    // Check for files to process
-    log_debug("Collecting file arguments");
-    let files: Vec<String> = env::args()
-        .skip(1)
-        .filter(|arg| !arg.starts_with('-') && arg != "--path" && arg != "--extensions")
-        .collect();
+    let files = match parse_args() {
+        Ok(files) => files,
+        Err(e) => {
+            eprintln!("Error parsing arguments: {}", e);
+            log_debug(&format!("Error parsing arguments: {}", e));
+            print_usage();
+            process::exit(1);
+        }
+    };
     
     log_debug(&format!("Found {} files to process", files.len()));
     
     // Process specified files
     if !files.is_empty() {
         log_debug("Processing specified files");
-        process_files(&files)?;
-        log_debug("Completed processing all specified files");
+        if let Err(e) = process_files(&files) {
+            eprintln!("Error processing files: {}", e);
+            log_debug(&format!("Error processing files: {}", e));
+        } else {
+            log_debug("Completed processing all specified files");
+        }
     }
     
     // Start file watcher if in watch mode
@@ -489,7 +515,13 @@ fn main() -> Result<()> {
     if config.watch_mode {
         log_debug("Watch mode enabled, starting file watcher");
         drop(config); // Release the lock
-        start_file_watcher()?;
+        
+        // If we're in watch mode, this will block until interrupted
+        if let Err(e) = start_file_watcher() {
+            eprintln!("Error in file watcher: {}", e);
+            log_debug(&format!("Error in file watcher: {}", e));
+            process::exit(1);
+        }
     } else if files.is_empty() {
         // No files specified and not in watch mode, print usage
         log_debug("No files specified and not in watch mode, showing usage");

@@ -116,12 +116,23 @@ impl FileWatcher {
             return Err(format!("Path does not exist: {}", path));
         }
         
+        // Determine if this is a file or directory
+        let is_dir = path_buf.is_dir();
+        let mode = if is_dir {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+        
         // Add to our internal set of watched files
         self.watched_files.insert(path_buf.clone());
         
         // Start watching the file with notify
-        match self.watcher.watch(&path_buf, RecursiveMode::NonRecursive) {
-            Ok(_) => Ok(()),
+        match self.watcher.watch(&path_buf, mode) {
+            Ok(_) => {
+                eprintln!("Now watching: {} ({})", path, if is_dir { "directory" } else { "file" });
+                Ok(())
+            },
             Err(e) => Err(format!("Failed to watch path: {}", e)),
         }
     }
@@ -150,33 +161,28 @@ impl FileWatcher {
     
     // Convert notify::DebouncedEvent to our FileEvent
     fn convert_event(event: DebouncedEvent) -> Option<FileEvent> {
-        let event_type = match event {
-            DebouncedEvent::Create(_) => FileEventType::Created,
-            DebouncedEvent::Write(_) => FileEventType::Modified,
-            DebouncedEvent::Chmod(_) => FileEventType::Modified, // Treat chmod as modification
-            DebouncedEvent::Remove(_) => FileEventType::Deleted,
+        let (event_type, path) = match event {
+            DebouncedEvent::Create(path) => (FileEventType::Created, path),
+            DebouncedEvent::Write(path) => (FileEventType::Modified, path),
+            DebouncedEvent::Chmod(path) => (FileEventType::Modified, path), // Treat chmod as modification
+            DebouncedEvent::Remove(path) => (FileEventType::Deleted, path),
+            DebouncedEvent::Rename(_, path) => (FileEventType::Modified, path), // Treat rename as modification of the new path
             _ => return None, // Ignore other event types
         };
         
-        // Get the path from the event
-        match event {
-            DebouncedEvent::Create(path) | 
-            DebouncedEvent::Write(path) | 
-            DebouncedEvent::Chmod(path) | 
-            DebouncedEvent::Remove(path) => {
-                path.to_str().map(|p| FileEvent {
-                    path: p.to_string(),
-                    event_type,
-                })
-            },
-            _ => None,
-        }
+        // Convert path to string and create FileEvent
+        path.to_str().map(|p| FileEvent {
+            path: p.to_string(),
+            event_type,
+        })
     }
 }
 
 // Implement Drop to ensure resources are cleaned up
 impl Drop for FileWatcher {
     fn drop(&mut self) {
+        eprintln!("Shutting down file watcher...");
+        
         // Signal the background thread to stop
         if let Ok(mut running) = self.running.lock() {
             *running = false;
@@ -186,11 +192,14 @@ impl Drop for FileWatcher {
         for path in self.watched_files.clone() {
             if let Err(e) = self.watcher.unwatch(&path) {
                 eprintln!("Error unwatching path during shutdown: {}", e);
+            } else if let Some(path_str) = path.to_str() {
+                eprintln!("Stopped watching: {}", path_str);
             }
         }
         
         // Allow some time for the thread to clean up
         std::thread::sleep(Duration::from_millis(100));
+        eprintln!("File watcher shutdown complete");
     }
 }
 
