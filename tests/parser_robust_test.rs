@@ -646,7 +646,8 @@ fn test_empty_blocks() {
     assert_eq!(empty_var.content.trim(), "");
     
     let whitespace_only = &blocks[1];
-    assert_eq!(whitespace_only.block_type, "code:python");
+    assert_eq!(whitespace_only.block_type, "code");
+    assert_eq!(whitespace_only.get_modifier("language"), Some(&"python".to_string()));
     assert_eq!(whitespace_only.name, Some("whitespace-only".to_string()));
     assert_eq!(whitespace_only.content.trim(), "");
 }
