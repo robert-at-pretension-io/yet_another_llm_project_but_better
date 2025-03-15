@@ -70,14 +70,41 @@ print("- Recommend manual review")
 Based on the security analysis, what are the key vulnerabilities that need addressing?
 [/question]"#;
 
-        let blocks = parse_document(input).unwrap();
+        println!("\n==== RAW INPUT DOCUMENT ====");
+        println!("{}", input);
+        println!("==== END RAW INPUT ====\n");
         
-        // Debug: Print the number of blocks found and their details
-        println!("Number of blocks found: {}", blocks.len());
-        for (i, block) in blocks.iter().enumerate() {
-            println!("Block {}: type={}, name={:?}", 
-                i, block.block_type, block.name);
+        // Try to parse the document and capture the result
+        let parse_result = parse_document(input);
+        
+        // Check if parsing succeeded or failed
+        match &parse_result {
+            Ok(blocks) => {
+                println!("✅ Document parsing succeeded!");
+                println!("Number of blocks found: {}", blocks.len());
+                
+                // Print detailed information about each block
+                for (i, block) in blocks.iter().enumerate() {
+                    println!("\n🔍 Block {}: type={}, name={:?}", 
+                        i, block.block_type, block.name);
+                    println!("  Modifiers: {:?}", block.modifiers);
+                    println!("  Content length: {} chars", block.content.len());
+                    println!("  Content preview: {}", 
+                        if block.content.len() > 50 { 
+                            format!("{}...", &block.content[..50]) 
+                        } else { 
+                            block.content.clone() 
+                        });
+                    println!("  Children count: {}", block.children.len());
+                }
+            },
+            Err(err) => {
+                println!("❌ Document parsing failed: {:?}", err);
+            }
         }
+        
+        // Unwrap the result to continue with the test
+        let blocks = parse_result.unwrap();
         
         // Verify the number of blocks (top-level blocks)
         assert_eq!(blocks.len(), 8);
@@ -98,6 +125,88 @@ Based on the security analysis, what are the key vulnerabilities that need addre
     }
 
     #[test]
+    fn test_individual_block_parsing() {
+        // Test each block type individually to see which ones parse correctly
+        
+        println!("\n==== TESTING INDIVIDUAL BLOCK PARSING ====");
+        
+        // Test data block
+        let data_block = r#"[data name:target-app format:json always_include:true]
+{
+  "url": "https://example-app.com",
+  "tech_stack": ["Python", "Django", "PostgreSQL"],
+  "authentication": true
+}
+[/data]"#;
+        
+        test_parse_block("DATA BLOCK", data_block);
+        
+        // Test API block
+        let api_block = r#"[api name:security-headers method:GET cache_result:true retry:2 timeout:10 fallback:security-headers-fallback]
+https://securityheaders.com/?url=https://example-app.com&format=json
+[/api]"#;
+        
+        test_parse_block("API BLOCK", api_block);
+        
+        // Test shell block
+        let shell_block = r#"[shell name:nmap-scan cache_result:true timeout:20 fallback:nmap-scan-fallback]
+nmap -Pn -p 1-1000 example-app.com
+[/shell]"#;
+        
+        test_parse_block("SHELL BLOCK", shell_block);
+        
+        // Test code block
+        let code_block = r#"[code:python name:security-analysis depends:security-headers fallback:analysis-fallback]
+import json
+
+headers = json.loads('''{"grade": "B"}''')
+scan_results = '''PORT   STATE  SERVICE
+22/tcp open   ssh
+80/tcp open   http'''
+
+vulnerabilities = []
+if headers.get("grade") != "A+":
+    vulnerabilities.append("Insufficient security headers")
+
+if "443/tcp" not in scan_results:
+    vulnerabilities.append("HTTPS not detected")
+
+print(f"Found {len(vulnerabilities)} potential issues")
+for vuln in vulnerabilities:
+    print(f"- {vuln}")
+[/code:python]"#;
+        
+        test_parse_block("CODE BLOCK", code_block);
+        
+        // Test question block
+        let question_block = r#"[question name:security-review depends:security-analysis]
+Based on the security analysis, what are the key vulnerabilities that need addressing?
+[/question]"#;
+        
+        test_parse_block("QUESTION BLOCK", question_block);
+    }
+    
+    // Helper function to test parsing a single block
+    fn test_parse_block(block_type: &str, block_content: &str) {
+        println!("\n--- Testing {} ---", block_type);
+        println!("Content:\n{}", block_content);
+        
+        match parse_document(block_content) {
+            Ok(blocks) => {
+                println!("✅ Parsing succeeded! Found {} blocks", blocks.len());
+                for (i, block) in blocks.iter().enumerate() {
+                    println!("  Block {}: type={}, name={:?}", 
+                        i, block.block_type, block.name);
+                    println!("  Modifiers: {:?}", block.modifiers);
+                }
+            },
+            Err(err) => {
+                println!("❌ Parsing failed: {:?}", err);
+            }
+        }
+    }
+    
+    #[test]
     fn test_simple_workflow() {
         // Create a test document with just a few blocks for testing
         let test_document = r#"
@@ -117,10 +226,18 @@ print(result)
         let blocks = parse_document(test_document).expect("Failed to parse document");
         
         // Debug: Print the number of blocks found in simple workflow
-        println!("Simple workflow - Number of blocks found: {}", blocks.len());
+        println!("\n==== SIMPLE WORKFLOW PARSING ====");
+        println!("Number of blocks found: {}", blocks.len());
         for (i, block) in blocks.iter().enumerate() {
-            println!("Simple workflow - Block {}: type={}, name={:?}", 
+            println!("Block {}: type={}, name={:?}", 
                 i, block.block_type, block.name);
+            println!("  Modifiers: {:?}", block.modifiers);
+            println!("  Content preview: {}", 
+                if block.content.len() > 30 { 
+                    format!("{}...", &block.content[..30]) 
+                } else { 
+                    block.content.clone() 
+                });
         }
         
         // Create an executor
