@@ -182,24 +182,24 @@ fn test_all_block_types() {
     println!("DEBUG: Block names: {:?}", block_names);
     
     // Check each block type
-    assert!(blocks.iter().any(|b| b.block_type == "question"), "Missing question block");
-    assert!(blocks.iter().any(|b| b.block_type == "response"), "Missing response block");
-    assert!(blocks.iter().any(|b| b.block_type.starts_with("code:")), "Missing code block");
-    assert!(blocks.iter().any(|b| b.block_type == "shell"), "Missing shell block");
-    assert!(blocks.iter().any(|b| b.block_type == "api"), "Missing api block");
-    assert!(blocks.iter().any(|b| b.block_type == "data"), "Missing data block");
-    assert!(blocks.iter().any(|b| b.block_type == "variable"), "Missing variable block");
-    assert!(blocks.iter().any(|b| b.block_type == "secret"), "Missing secret block");
-    assert!(blocks.iter().any(|b| b.block_type == "template"), "Missing template block");
-    assert!(blocks.iter().any(|b| b.block_type == "error"), "Missing error block");
-    assert!(blocks.iter().any(|b| b.block_type == "visualization"), "Missing visualization block");
-    assert!(blocks.iter().any(|b| b.block_type == "preview"), "Missing preview block");
-    assert!(blocks.iter().any(|b| b.block_type == "filename"), "Missing filename block");
-    assert!(blocks.iter().any(|b| b.block_type == "memory"), "Missing memory block");
-    assert!(blocks.iter().any(|b| b.block_type.starts_with("section:")), "Missing section block");
-    assert!(blocks.iter().any(|b| b.block_type == "conditional"), "Missing conditional block");
-    assert!(blocks.iter().any(|b| b.block_type == "results"), "Missing results block");
-    assert!(blocks.iter().any(|b| b.block_type == "error_results"), "Missing error_results block");
+    assert!(blocks.iter().any(|b| b.block_type == "question"), "Missing question block ");
+    assert!(blocks.iter().any(|b| b.block_type == "response"), "Missing response block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("code:")), "Missing code block ");
+    assert!(blocks.iter().any(|b| b.block_type == "shell"), "Missing shell block ");
+    assert!(blocks.iter().any(|b| b.block_type == "api"), "Missing api block ");
+    assert!(blocks.iter().any(|b| b.block_type == "data"), "Missing data block ");
+    assert!(blocks.iter().any(|b| b.block_type == "variable"), "Missing variable block ");
+    assert!(blocks.iter().any(|b| b.block_type == "secret"), "Missing secret block ");
+    assert!(blocks.iter().any(|b| b.block_type == "template"), "Missing template block ");
+    assert!(blocks.iter().any(|b| b.block_type == "error"), "Missing error block ");
+    assert!(blocks.iter().any(|b| b.block_type == "visualization"), "Missing visualization block ");
+    assert!(blocks.iter().any(|b| b.block_type == "preview"), "Missing preview block ");
+    assert!(blocks.iter().any(|b| b.block_type == "filename"), "Missing filename block ");
+    assert!(blocks.iter().any(|b| b.block_type == "memory"), "Missing memory block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("section:")), "Missing section block ");
+    assert!(blocks.iter().any(|b| b.block_type == "conditional"), "Missing conditional block ");
+    assert!(blocks.iter().any(|b| b.block_type == "results"), "Missing results block ");
+    assert!(blocks.iter().any(|b| b.block_type == "error_results"), "Missing error_results block ");
 }
 
 /// Test nested blocks inside sections
@@ -243,9 +243,9 @@ fn test_nested_blocks() {
     
     // Verify we have the expected outer section children
     assert!(outer_section.children.iter().any(|b| b.name.as_deref() == Some("outer-code")), 
-           "Outer section missing outer-code child");
+           "Outer section missing outer-code child ");
     assert!(outer_section.children.iter().any(|b| b.name.as_deref() == Some("outer-variable")), 
-           "Outer section missing outer-variable child");
+           "Outer section missing outer-variable child ");
     
     // Find the inner section
     let inner_section = outer_section.children.iter().find(|b| b.name.as_deref() == Some("inner-section"));
@@ -256,9 +256,9 @@ fn test_nested_blocks() {
     // Check inner section children
     assert!(!inner_section.children.is_empty(), "Inner section has no children");
     assert!(inner_section.children.iter().any(|b| b.name.as_deref() == Some("inner-code")), 
-           "Inner section missing inner-code child");
+           "Inner section missing inner-code child ");
     assert!(inner_section.children.iter().any(|b| b.name.as_deref() == Some("inner-data")), 
-           "Inner section missing inner-data child");
+           "Inner section missing inner-data child ");
     
     // Print debug info
     println!("DEBUG: Outer section children: {}", outer_section.children.len());
@@ -311,11 +311,11 @@ fn test_complex_modifiers() {
     let var_block = blocks.iter().find(|b| b.name.as_deref() == Some("test-mixed-modifiers"));
     
     // Verify each block was found
-    assert!(code_block.is_some(), "Could not find code block with modifiers");
-    assert!(data_block.is_some(), "Could not find data block with string modifiers");
-    assert!(shell_block.is_some(), "Could not find shell block with number modifiers");
-    assert!(api_block.is_some(), "Could not find API block with boolean modifiers");
-    assert!(var_block.is_some(), "Could not find variable block with mixed modifiers");
+    assert!(code_block.is_some(), "Could not find code block with modifiers ");
+    assert!(data_block.is_some(), "Could not find data block with string modifiers ");
+    assert!(shell_block.is_some(), "Could not find shell block with number modifiers ");
+    assert!(api_block.is_some(), "Could not find API block with boolean modifiers ");
+    assert!(var_block.is_some(), "Could not find variable block with mixed modifiers ");
     
     // Check boolean modifiers
     let code_block = code_block.unwrap();
@@ -405,9 +405,9 @@ fn test_variable_references() {
     let shell_block = blocks.iter().find(|b| b.name.as_deref() == Some("shell-with-references"));
     let data_block = blocks.iter().find(|b| b.name.as_deref() == Some("nested-references"));
     
-    assert!(code_block.is_some(), "Could not find code block with references");
-    assert!(shell_block.is_some(), "Could not find shell block with references");
-    assert!(data_block.is_some(), "Could not find data block with references");
+    assert!(code_block.is_some(), "Could not find code block with references ");
+    assert!(shell_block.is_some(), "Could not find shell block with references ");
+    assert!(data_block.is_some(), "Could not find data block with references ");
     
     // Check variable references in code block
     let code_block = code_block.unwrap();
@@ -478,9 +478,9 @@ fn test_template_invocations() {
     let code_template = blocks.iter().find(|b| b.name.as_deref() == Some("code-template"));
     let nested_template = blocks.iter().find(|b| b.name.as_deref() == Some("nested-template"));
     
-    assert!(simple_template.is_some(), "Could not find simple template declaration");
-    assert!(code_template.is_some(), "Could not find code template declaration");
-    assert!(nested_template.is_some(), "Could not find nested template declaration");
+    assert!(simple_template.is_some(), "Could not find simple template declaration ");
+    assert!(code_template.is_some(), "Could not find code template declaration ");
+    assert!(nested_template.is_some(), "Could not find nested template declaration ");
     
     // Find template invocations
     let invocations = blocks.iter().filter(|b| b.block_type == "template_invocation").collect::<Vec<_>>();
@@ -495,31 +495,31 @@ fn test_template_invocations() {
         
         // Check if it has a template modifier
         let template_name = invocation.get_modifier("template");
-        assert!(template_name.is_some(), "Invocation missing template modifier");
+        assert!(template_name.is_some(), "Invocation missing template modifier ");
         
         if let Some(name) = template_name {
             match name.as_str() {
                 "simple-template" => {
                     assert_eq!(invocation.get_modifier("placeholder1").map(|s| s.as_str()), Some("value1"), 
-                               "simple-template invocation missing placeholder1 parameter");
+                               "simple-template invocation missing placeholder1 parameter ");
                     assert_eq!(invocation.get_modifier("placeholder2").map(|s| s.as_str()), Some("value2"), 
-                               "simple-template invocation missing placeholder2 parameter");
+                               "simple-template invocation missing placeholder2 parameter ");
                 },
                 "code-template" => {
                     assert_eq!(invocation.get_modifier("language").map(|s| s.as_str()), Some("python"), 
-                               "code-template invocation missing language parameter");
+                               "code-template invocation missing language parameter ");
                     assert_eq!(invocation.get_modifier("name").map(|s| s.as_str()), Some("generated-code"), 
-                               "code-template invocation missing name parameter");
+                               "code-template invocation missing name parameter ");
                     assert!(invocation.get_modifier("code_content").is_some(), 
-                            "code-template invocation missing code_content parameter");
+                            "code-template invocation missing code_content parameter ");
                 },
                 "nested-template" => {
                     assert_eq!(invocation.get_modifier("section_type").map(|s| s.as_str()), Some("analysis"), 
-                               "nested-template invocation missing section_type parameter");
+                               "nested-template invocation missing section_type parameter ");
                     assert_eq!(invocation.get_modifier("section_name").map(|s| s.as_str()), Some("data-analysis"), 
-                               "nested-template invocation missing section_name parameter");
+                               "nested-template invocation missing section_name parameter ");
                     assert!(invocation.get_modifier("section_content").is_some(), 
-                            "nested-template invocation missing section_content parameter");
+                            "nested-template invocation missing section_content parameter ");
                 },
                 _ => panic!("Unexpected template name: {}", name),
             }
@@ -555,13 +555,13 @@ fn test_special_character_names() {
     
     // Verify blocks with special characters in names
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-with-hyphens")), 
-           "Missing block with hyphens in name");
+           "Missing block with hyphens in name ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test_with_underscores")), 
-           "Missing block with underscores in name");
+           "Missing block with underscores in name ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-123-456")), 
-           "Missing block with numbers in name");
+           "Missing block with numbers in name ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-special-chars-_123")), 
-           "Missing block with mixed special characters and numbers");
+           "Missing block with mixed special characters and numbers ");
     
     // Print all block names for debugging
     println!("DEBUG: Blocks with special character names:");
@@ -610,26 +610,26 @@ fn test_unusual_whitespace() {
     
     // Verify blocks with unusual whitespace
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("extra-spaces-in-opening-tag")), 
-           "Missing block with extra spaces in opening tag");
+           "Missing block with extra spaces in opening tag ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("no-spaces-at-all")), 
-           "Missing block with no spaces at all");
+           "Missing block with no spaces at all ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("extra-newlines")), 
-           "Missing block with extra newlines");
+           "Missing block with extra newlines ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("mixed-indentation")), 
-           "Missing block with mixed indentation");
+           "Missing block with mixed indentation ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("code-with-tabs")), 
-           "Missing block with tabs");
+           "Missing block with tabs ");
     
     // Check content preservation
     let mixed_indent_block = blocks.iter().find(|b| b.name.as_deref() == Some("mixed-indentation")).unwrap();
     println!("DEBUG: Mixed indentation block content: '{}'", mixed_indent_block.content);
     assert!(mixed_indent_block.content.contains("Indented with spaces"), 
-           "Mixed indentation block lost content");
+           "Mixed indentation block lost content ");
     
     let tabs_block = blocks.iter().find(|b| b.name.as_deref() == Some("code-with-tabs")).unwrap();
     println!("DEBUG: Tab indentation block content: '{}'", tabs_block.content);
     assert!(tabs_block.content.contains("tab indentation"), 
-           "Tab indentation block lost content");
+           "Tab indentation block lost content ");
 }
 
 /// Test blocks with multiple modifiers in various formats
@@ -665,33 +665,33 @@ fn test_multiple_modifiers() {
     
     // Verify blocks with various modifier formats
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("many-modifiers")), 
-           "Missing block with many modifiers");
+           "Missing block with many modifiers ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("spaced-modifiers")), 
-           "Missing block with spaced modifiers");
+           "Missing block with spaced modifiers ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("no-spaces-modifiers")), 
-           "Missing block with no spaces between modifiers");
+           "Missing block with no spaces between modifiers ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("quoted-modifiers")), 
-           "Missing block with quoted modifiers");
+           "Missing block with quoted modifiers ");
     assert!(blocks.iter().any(|b| b.name.as_deref() == Some("comma-separated-modifiers")), 
-           "Missing block with comma-separated modifiers");
+           "Missing block with comma-separated modifiers ");
     
     // Verify modifier values for the block with many modifiers
     let many_mods_block = blocks.iter().find(|b| b.name.as_deref() == Some("many-modifiers")).unwrap();
-    assert!(many_mods_block.is_modifier_true("cache_result"), "cache_result not set to true");
-    assert!(many_mods_block.is_modifier_true("debug"), "debug not set to true");
+    assert!(many_mods_block.is_modifier_true("cache_result"), "cache_result not set to true ");
+    assert!(many_mods_block.is_modifier_true("debug"), "debug not set to true ");
     assert_eq!(many_mods_block.get_modifier("verbosity").map(|s| s.as_str()), Some("high"),
-              "verbosity not set to high");
+              "verbosity not set to high ");
     assert_eq!(many_mods_block.get_modifier_as_f64("priority"), Some(10.0),
-              "priority not set to 10");
+              "priority not set to 10 ");
     
     // Verify modifier values for block with quoted modifiers
     let quoted_mods_block = blocks.iter().find(|b| b.name.as_deref() == Some("quoted-modifiers")).unwrap();
     assert_eq!(quoted_mods_block.get_modifier("format").map(|s| s.as_str()), Some("json"),
-              "format not set to json");
+              "format not set to json ");
     assert_eq!(quoted_mods_block.get_modifier("display").map(|s| s.as_str()), Some("inline"),
-              "display not set to inline");
+              "display not set to inline ");
     assert_eq!(quoted_mods_block.get_modifier("headers").map(|s| s.as_str()), Some("Content-Type: application/json"),
-              "headers not set correctly");
+              "headers not set correctly ");
     
     // Print all modifiers for debugging
     for block in &blocks {
@@ -729,14 +729,14 @@ fn test_nested_blocks() {
     let blocks = parse_document(input).expect("Failed to parse document");
     
     // We should have one top-level section block
-    assert_eq!(blocks.len(), 1, "Expected 1 top-level block");
+    assert_eq!(blocks.len(), 1, "Expected 1 top-level block ");
     
     let outer_section = &blocks[0];
     assert_eq!(outer_section.block_type, "section:h1");
     assert_eq!(outer_section.name, Some("outer-section".to_string()));
     
     // The outer section should have 2 children: a code block and an inner section
-    assert_eq!(outer_section.children.len(), 2, "Expected 2 child blocks in outer section");
+    assert_eq!(outer_section.children.len(), 2, "Expected 2 child blocks in outer section ");
     
     // Check the nested code block
     let nested_code = &outer_section.children[0];
@@ -750,7 +750,7 @@ fn test_nested_blocks() {
     assert_eq!(inner_section.name, Some("inner-section".to_string()));
     
     // The inner section should have 1 child: a variable block
-    assert_eq!(inner_section.children.len(), 1, "Expected 1 child block in inner section");
+    assert_eq!(inner_section.children.len(), 1, "Expected 1 child block in inner section ");
     
     // Check the nested variable block
     let nested_variable = &inner_section.children[0];
@@ -773,7 +773,7 @@ fn test_complex_modifiers() {
     "#;
     
     let blocks = parse_document(input).expect("Failed to parse document");
-    assert_eq!(blocks.len(), 1, "Expected 1 block");
+    assert_eq!(blocks.len(), 1, "Expected 1 block ");
     
     let block = &blocks[0];
     assert_eq!(block.block_type, "code:python");
@@ -788,7 +788,7 @@ fn test_complex_modifiers() {
     assert_eq!(block.get_modifier("description").map(|s| s.as_str()), Some("This is a complex block with many modifiers"));
     
     // Test the is_modifier_true helper
-    assert!(block.is_modifier_true("auto_execute"));
+    assert!(block.is_modifier_true("auto_execute"), "auto_execute should be true ");
 }
 
 /// Test variable references in content
@@ -811,7 +811,7 @@ fn test_variable_references() {
     
     let expected: HashSet<String> = ["var"].iter().map(|s| s.to_string()).collect();
     assert_eq!(references, expected);
-    assert_eq!(references.len(), 1);
+    assert_eq!(references.len(), 1, "Should have exactly 1 unique reference ");
 }
 
 /// Test error handling for malformed blocks
@@ -824,7 +824,7 @@ fn test_malformed_blocks() {
     "#;
     
     let result = parse_document(input);
-    assert!(result.is_err(), "Expected an error for malformed block");
+    assert!(result.is_err(), "Expected an error for malformed block ");
     
     // Mismatched closing tag
     let input = r#"
@@ -834,7 +834,7 @@ fn test_malformed_blocks() {
     "#;
     
     let result = parse_document(input);
-    assert!(result.is_err(), "Expected an error for mismatched closing tag");
+    assert!(result.is_err(), "Expected an error for mismatched closing tag ");
     
     // Invalid block type
     let input = r#"
@@ -844,7 +844,7 @@ fn test_malformed_blocks() {
     "#;
     
     let result = parse_document(input);
-    assert!(result.is_err(), "Expected an error for invalid block type");
+    assert!(result.is_err(), "Expected an error for invalid block type ");
 }
 
 /// Test empty blocks and whitespace handling
@@ -860,7 +860,7 @@ fn test_empty_blocks() {
     "#;
     
     let blocks = parse_document(input).expect("Failed to parse document");
-    assert_eq!(blocks.len(), 2, "Expected 2 blocks");
+    assert_eq!(blocks.len(), 2, "Expected 2 blocks ");
     
     let empty_var = &blocks[0];
     assert_eq!(empty_var.block_type, "variable");
@@ -989,33 +989,33 @@ Error: Block not found
     let blocks = parse_document(input).expect("Failed to parse complex document");
     
     // Find the main section
-    let intro_section = find_block_by_name(&blocks, "document_intro").expect("Intro section not found");
+    let intro_section = find_block_by_name(&blocks, "document_intro").expect("Intro section not found ");
     assert_eq!(intro_section.block_type, "section:intro");
     
     // Check that the section has the expected number of child blocks
-    assert!(intro_section.children.len() >= 5, "Expected at least 5 child blocks, got {}", intro_section.children.len());
+    assert!(intro_section.children.len() >= 5, "Expected at least 5 child blocks, got {} ", intro_section.children.len());
     
     // Check nested sections
-    let data_section = find_child_by_name(intro_section, "data_section").expect("Data section not found");
+    let data_section = find_child_by_name(intro_section, "data_section").expect("Data section not found ");
     assert_eq!(data_section.block_type, "section:data_processing");
-    assert_eq!(data_section.children.len(), 4, "Expected 4 child blocks in data section, got {}", data_section.children.len());
+    assert_eq!(data_section.children.len(), 4, "Expected 4 child blocks in data section, got {} ", data_section.children.len());
     
-    let viz_section = find_child_by_name(intro_section, "viz_section").expect("Visualization section not found");
+    let viz_section = find_child_by_name(intro_section, "viz_section").expect("Visualization section not found ");
     assert_eq!(viz_section.block_type, "section:visualization");
-    assert_eq!(viz_section.children.len(), 3, "Expected 3 child blocks in viz section, got {}", viz_section.children.len());
+    assert_eq!(viz_section.children.len(), 3, "Expected 3 child blocks in viz section, got {} ", viz_section.children.len());
     
     // Check variable references
-    let process_data = find_child_by_name(data_section, "process_data").expect("Process data block not found");
+    let process_data = find_child_by_name(data_section, "process_data").expect("Process data block not found ");
     assert!(process_data.content.contains("${config.data_source}"));
     
     // Check dependencies
     assert!(has_modifier(process_data, "depends", "setup_code"));
     
-    let create_viz = find_child_by_name(viz_section, "create_viz").expect("Create viz block not found");
+    let create_viz = find_child_by_name(viz_section, "create_viz").expect("Create viz block not found ");
     assert!(has_modifier(create_viz, "depends", "process_data"));
     
     // Check template invocation
-    let final_report = find_block_by_name(&intro_section.children, "final_report").expect("Final report not found");
+    let final_report = find_block_by_name(&intro_section.children, "final_report").expect("Final report not found ");
     assert!(has_modifier(final_report, "title", "Analysis Report"));
     assert!(has_modifier(final_report, "data_processed", "Yes"));
     assert!(has_modifier(final_report, "visualization_path", "visualization.png"));
@@ -1024,7 +1024,7 @@ Error: Block not found
     // Check conditional block
     let conditional = intro_section.children.iter()
         .find(|b| b.block_type == "conditional")
-        .expect("Conditional block not found");
+        .expect("Conditional block not found ");
     assert!(has_modifier(conditional, "if", "config.max_rows>500"));
 }
 #[test]
@@ -1065,23 +1065,23 @@ print("Testing complex modifiers with multiline format")
     let blocks = parse_document(input).expect("Failed to parse complex modifiers");
     
     // Check string modifiers
-    let string_mod_block = find_block_by_name(&blocks, "string_modifier").expect("String modifier block not found");
+    let string_mod_block = find_block_by_name(&blocks, "string_modifier").expect("String modifier block not found ");
     assert!(has_modifier(string_mod_block, "format", "json"));
     assert!(has_modifier(string_mod_block, "description", "This is a data block with a string modifier"));
     
     // Check numeric modifiers
-    let numeric_mod_block = find_block_by_name(&blocks, "numeric_modifier").expect("Numeric modifier block not found");
+    let numeric_mod_block = find_block_by_name(&blocks, "numeric_modifier").expect("Numeric modifier block not found ");
     assert!(has_modifier(numeric_mod_block, "timeout", "60"));
     assert!(has_modifier(numeric_mod_block, "retries", "3"));
     
     // Check boolean modifiers
-    let boolean_mod_block = find_block_by_name(&blocks, "boolean_modifier").expect("Boolean modifier block not found");
+    let boolean_mod_block = find_block_by_name(&blocks, "boolean_modifier").expect("Boolean modifier block not found ");
     assert!(has_modifier(boolean_mod_block, "visible", "true"));
     assert!(has_modifier(boolean_mod_block, "editable", "false"));
     assert!(has_modifier(boolean_mod_block, "required", "true"));
     
     // Check complex multiline modifiers
-    let complex_mod_block = find_block_by_name(&blocks, "complex_modifiers").expect("Complex modifier block not found");
+    let complex_mod_block = find_block_by_name(&blocks, "complex_modifiers").expect("Complex modifier block not found ");
     assert!(has_modifier(complex_mod_block, "timeout", "30"));
     assert!(has_modifier(complex_mod_block, "auto_execute", "true"));
     assert!(has_modifier(complex_mod_block, "cache_result", "false"));
@@ -1138,20 +1138,20 @@ Line 3: ${var3}
     let blocks = parse_document(input).expect("Failed to parse variable references");
     
     // Check variable reference in Python code
-    let python_ref = find_block_by_name(&blocks, "var_reference").expect("Python reference block not found");
+    let python_ref = find_block_by_name(&blocks, "var_reference").expect("Python reference block not found ");
     assert!(python_ref.content.contains("${test_var}"));
     
     // Check variable reference in shell command
-    let shell_ref = find_block_by_name(&blocks, "shell_var_reference").expect("Shell reference block not found");
+    let shell_ref = find_block_by_name(&blocks, "shell_var_reference").expect("Shell reference block not found ");
     assert!(shell_ref.content.contains("${test_var}"));
     
     // Check nested references
-    let nested_ref = find_block_by_name(&blocks, "nested_reference").expect("Nested reference block not found");
+    let nested_ref = find_block_by_name(&blocks, "nested_reference").expect("Nested reference block not found ");
     assert!(nested_ref.content.contains("${test_var}"));
     assert!(nested_ref.content.contains("${nested_reference}"));
     
     // Check complex references
-    let complex_ref = find_block_by_name(&blocks, "complex_references").expect("Complex reference block not found");
+    let complex_ref = find_block_by_name(&blocks, "complex_references").expect("Complex reference block not found ");
     assert!(complex_ref.content.contains("${var1} ${var2} ${var3}"));
     assert!(complex_ref.content.contains("${prefix_${dynamic_suffix}}"));
     assert!(complex_ref.content.contains("${obj['key']} and ${arr[0]}"));
@@ -1164,7 +1164,7 @@ Line 3: ${var3}
         .iter().map(|s| s.to_string()).collect();
     
     for var in expected_refs {
-        assert!(refs.contains(&var), "Missing variable reference: {}", var);
+        assert!(refs.contains(&var), "Missing variable reference: {} ", var);
     }
 }
 #[test]
@@ -1216,20 +1216,20 @@ def process_data(data):
     assert_eq!(invocation_blocks.len(), 4, "Expected 4 template invocation blocks, got {}", invocation_blocks.len());
     
     // Check parameters in invocations
-    let greeting1 = find_block_by_name(&blocks, "greeting1").expect("Greeting1 invocation not found");
+    let greeting1 = find_block_by_name(&blocks, "greeting1").expect("Greeting1 invocation not found ");
     assert!(has_modifier(greeting1, "name", "Alice"));
     
-    let greeting2 = find_block_by_name(&blocks, "greeting2").expect("Greeting2 invocation not found");
+    let greeting2 = find_block_by_name(&blocks, "greeting2").expect("Greeting2 invocation not found ");
     assert!(has_modifier(greeting2, "name", "Bob"));
     assert!(has_modifier(greeting2, "extra", "parameter"));
     
-    let complex = find_block_by_name(&blocks, "complex_invocation").expect("Complex invocation not found");
+    let complex = find_block_by_name(&blocks, "complex_invocation").expect("Complex invocation not found ");
     assert!(has_modifier(complex, "param1", "Apple"));
     assert!(has_modifier(complex, "param2", "Orange"));
     assert!(has_modifier(complex, "result", "Fruit Salad"));
     
     // Check multiline template invocation
-    let multiline = find_block_by_name(&blocks, "multiline_invocation").expect("Multiline invocation not found");
+    let multiline = find_block_by_name(&blocks, "multiline_invocation").expect("Multiline invocation not found ");
     assert!(has_modifier(multiline, "algorithm", "quicksort"));
     assert!(has_modifier(multiline, "operation", "sort"));
     assert!(has_modifier(multiline, "extra_param", "This is a long parameter value with spaces and special chars: !@#$%^&*()"));
@@ -1279,13 +1279,13 @@ print("Block with special symbols in name")
     assert!(find_block_by_name(&blocks, "special_chars.3").is_some());
     
     // Check block with Unicode content
-    let unicode_block = find_block_by_name(&blocks, "unicode_chars").expect("Unicode block not found");
+    let unicode_block = find_block_by_name(&blocks, "unicode_chars").expect("Unicode block not found ");
     assert!(unicode_block.content.contains("你好"));
     assert!(unicode_block.content.contains("Привет"));
     assert!(unicode_block.content.contains("こんにちは"));
     
     // Check block with escaped characters
-    let escaped_block = find_block_by_name(&blocks, "escaped_chars").expect("Escaped chars block not found");
+    let escaped_block = find_block_by_name(&blocks, "escaped_chars").expect("Escaped chars block not found ");
     assert!(escaped_block.content.contains("\\t"));
     assert!(escaped_block.content.contains("\\n"));
     assert!(escaped_block.content.contains("\\\""));
@@ -2406,11 +2406,11 @@ fn test_different_languages() {
     
     for (name, expected_type) in languages {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some(name));
-        assert!(block.is_some(), "Block {} not found", name);
+        assert!(block.is_some(), "Block {} not found ", name);
         
         let block = block.unwrap();
         assert_eq!(block.block_type, expected_type, 
-                  "Block {} has incorrect type: {}", name, block.block_type);
+                  "Block {} has incorrect type: {} ", name, block.block_type);
         
         println!("DEBUG: {} content: {}", name, block.content);
     }
@@ -2463,39 +2463,39 @@ fn test_character_escaping() {
     
     // Check code with brackets
     let brackets_block = blocks.iter().find(|b| b.name.as_deref() == Some("code-with-brackets"));
-    assert!(brackets_block.is_some(), "Block with brackets not found");
+    assert!(brackets_block.is_some(), "Block with brackets not found ");
     assert!(brackets_block.unwrap().content.contains("[1, 2, 3, 4]"), 
-           "Block content with brackets not preserved");
+           "Block content with brackets not preserved ");
     
     // Check JSON with escaped quotes
     let json_block = blocks.iter().find(|b| b.name.as_deref() == Some("json-with-escaped-quotes"));
-    assert!(json_block.is_some(), "JSON block with escaped quotes not found");
+    assert!(json_block.is_some(), "JSON block with escaped quotes not found ");
     let json_content = &json_block.unwrap().content;
-    assert!(json_content.contains("\"quoted\""), "JSON escaped quotes not preserved");
-    assert!(json_content.contains("C:\\\\Users"), "JSON escaped backslashes not preserved");
+    assert!(json_content.contains("\"quoted\""), "JSON escaped quotes not preserved ");
+    assert!(json_content.contains("C:\\\\Users"), "JSON escaped backslashes not preserved ");
     
     // Check shell with redirects
     let shell_block = blocks.iter().find(|b| b.name.as_deref() == Some("shell-with-redirects"));
-    assert!(shell_block.is_some(), "Shell block with redirects not found");
+    assert!(shell_block.is_some(), "Shell block with redirects not found ");
     let shell_content = &shell_block.unwrap().content;
-    assert!(shell_content.contains(">"), "Shell redirects not preserved");
-    assert!(shell_content.contains("|"), "Shell pipes not preserved");
+    assert!(shell_content.contains(">"), "Shell redirects not preserved ");
+    assert!(shell_content.contains("|"), "Shell pipes not preserved ");
     
     // Check variable with special chars
     let var_block = blocks.iter().find(|b| b.name.as_deref() == Some("special-chars"));
-    assert!(var_block.is_some(), "Variable block with special chars not found");
+    assert!(var_block.is_some(), "Variable block with special chars not found ");
     let var_content = &var_block.unwrap().content;
-    assert!(var_content.contains("\\"), "Backslash not preserved");
-    assert!(var_content.contains("\\n"), "Escaped newline not preserved");
-    assert!(var_content.contains("$PATH"), "Dollar sign not preserved");
+    assert!(var_content.contains("\\"), "Backslash not preserved ");
+    assert!(var_content.contains("\\n"), "Escaped newline not preserved ");
+    assert!(var_content.contains("$PATH"), "Dollar sign not preserved ");
     
     // Check HTML with entities
     let html_block = blocks.iter().find(|b| b.name.as_deref() == Some("html-with-entities"));
-    assert!(html_block.is_some(), "HTML block with entities not found");
+    assert!(html_block.is_some(), "HTML block with entities not found ");
     let html_content = &html_block.unwrap().content;
-    assert!(html_content.contains("&lt;"), "HTML entities not preserved");
-    assert!(html_content.contains("x < 10"), "Less than sign not preserved");
-    assert!(html_content.contains("y > 20"), "Greater than sign not preserved");
+    assert!(html_content.contains("&lt;"), "HTML entities not preserved ");
+    assert!(html_content.contains("x < 10"), "Less than sign not preserved ");
+    assert!(html_content.contains("y > 20"), "Greater than sign not preserved ");
     
     println!("DEBUG: All blocks with escaped characters parsed correctly");
 }
@@ -2518,23 +2518,23 @@ fn test_large_blocks() {
     let result1 = parse_document(&large_block);
     assert!(result1.is_ok(), "Failed to parse large code block: {:?}", result1.err());
     if let Ok(blocks) = result1 {
-        assert_eq!(blocks.len(), 1, "Should have exactly one block");
-        assert_eq!(blocks[0].name.as_deref(), Some("large-code-block"), "Block name incorrect");
+        assert_eq!(blocks.len(), 1, "Should have exactly one block ");
+        assert_eq!(blocks[0].name.as_deref(), Some("large-code-block"), "Block name incorrect ");
         println!("DEBUG: Large code block parsed successfully, content length: {}", blocks[0].content.len());
     }
     
     let result2 = parse_document(&brackets_block);
     assert!(result2.is_ok(), "Failed to parse block with nested brackets: {:?}", result2.err());
     if let Ok(blocks) = result2 {
-        assert_eq!(blocks.len(), 1, "Should have exactly one block");
-        assert_eq!(blocks[0].name.as_deref(), Some("nested-brackets"), "Block name incorrect");
+        assert_eq!(blocks.len(), 1, "Should have exactly one block ");
+        assert_eq!(blocks[0].name.as_deref(), Some("nested-brackets"), "Block name incorrect ");
         println!("DEBUG: Nested brackets block parsed successfully, content length: {}", blocks[0].content.len());
     }
     
     let result3 = parse_document(&many_blocks);
     assert!(result3.is_ok(), "Failed to parse document with many blocks: {:?}", result3.err());
     if let Ok(blocks) = result3 {
-        assert_eq!(blocks.len(), 100, "Should have exactly 100 blocks");
+        assert_eq!(blocks.len(), 100, "Should have exactly 100 blocks ");
         println!("DEBUG: Document with many blocks parsed successfully, block count: {}", blocks.len());
     }
 }
