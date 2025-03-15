@@ -34,7 +34,7 @@ python script.py
         assert_eq!(blocks.len(), 3, "Expected 3 blocks, found {}", blocks.len());
         
         assert_eq!(blocks[0].block_type, "data");
-        assert_eq!(blocks[1].block_type, "code:python");
+        assert_eq!(blocks[1].block_type, "code");
         assert_eq!(blocks[2].block_type, "shell");
     }
     
@@ -129,9 +129,10 @@ bar-chart
         
         // Check the code block
         let code_block = &blocks[1];
-        assert_eq!(code_block.block_type, "code:python");
+        assert_eq!(code_block.block_type, "code");
         assert_eq!(code_block.name, Some("analyze-data".to_string()));
         assert_eq!(code_block.get_modifier("depends"), Some(&"dataset".to_string()));
+        assert_eq!(code_block.get_modifier("language"), Some(&"python".to_string()));
         
         // Check the visualization block
         let viz_block = &blocks[2];
@@ -199,7 +200,8 @@ The analysis of the data shows interesting patterns.
         // Check the top-level section block
         let section_block = &blocks[0];
         assert_eq!(section_block.name, Some("analysis-report".to_string()));
-        assert_eq!(section_block.block_type, "section:document");
+        assert_eq!(section_block.block_type, "section");
+        assert_eq!(section_block.get_modifier("type"), Some(&"document".to_string()));
         assert!(section_block.content.contains("# Data Analysis Report"));
         
         // Check that it has 3 children
@@ -214,13 +216,15 @@ The analysis of the data shows interesting patterns.
         // Check the code block (second child)
         let code_block = &section_block.children[1];  
         assert_eq!(code_block.name, Some("analyze-data".to_string()));
-        assert_eq!(code_block.block_type, "code:python");
+        assert_eq!(code_block.block_type, "code");
+        assert_eq!(code_block.get_modifier("language"), Some(&"python".to_string()));
         assert_eq!(code_block.get_modifier("depends"), Some(&"dataset".to_string()));
         
         // Check the section block (third child)
         let results_section = &section_block.children[2];
         assert_eq!(results_section.name, Some("data-results".to_string()));
-        assert_eq!(results_section.block_type, "section:results");
+        assert_eq!(results_section.block_type, "section");
+        assert_eq!(results_section.get_modifier("type"), Some(&"results".to_string()));
         assert!(results_section.content.contains("## Results"));
         assert!(results_section.content.contains("interesting patterns"));
     }
