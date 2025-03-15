@@ -4,9 +4,11 @@ mod tests {
     
     #[test]
     fn test_basic_section() {
-        let input = r#"<section type="chapter" name="introduction">
+        let input = r#"<meta:document>
+<meta:section type="chapter" name="introduction">
 This is an introduction chapter.
-</section>"#;
+</meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse basic section: {:?}", result.err());
@@ -22,17 +24,19 @@ This is an introduction chapter.
     
     #[test]
     fn test_multiple_sections() {
-        let input = r#"<section type="chapter" name="introduction">
+        let input = r#"<meta:document>
+<meta:section type="chapter" name="introduction">
 This is an introduction chapter.
-</section>
+</meta:section>
 
-<section type="chapter" name="methodology">
+<meta:section type="chapter" name="methodology">
 This is the methodology chapter.
-</section>
+</meta:section>
 
-<section type="chapter" name="conclusion">
+<meta:section type="chapter" name="conclusion">
 This is the conclusion chapter.
-</section>"#;
+</meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse multiple sections: {:?}", result.err());
@@ -55,18 +59,20 @@ This is the conclusion chapter.
     
     #[test]
     fn test_nested_sections() {
-        let input = r#"<section type="document" name="research-paper">
+        let input = r#"<meta:document>
+<meta:section type="document" name="research-paper">
 # Research Paper
 
-<section type="chapter" name="introduction">
+<meta:section type="chapter" name="introduction">
 This is an introduction chapter.
-</section>
+</meta:section>
 
-<section type="chapter" name="conclusion">
+<meta:section type="chapter" name="conclusion">
 This is the conclusion chapter.
-</section>
+</meta:section>
 
-</section>"#;
+</meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse nested sections: {:?}", result.err());
@@ -101,15 +107,17 @@ This is the conclusion chapter.
     
     #[test]
     fn test_section_with_data_block() {
-        let input = r#"<section type="data-container" name="sample-data">
+        let input = r#"<meta:document>
+<meta:section type="data-container" name="sample-data">
 # Sample Data Section
 
-<data name="numbers">
+<meta:data name="numbers">
 [1, 2, 3, 4, 5]
-</data>
+</meta:data>
 
 This section contains a data block.
-</section>"#;
+</meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse section with data block: {:?}", result.err());
@@ -136,18 +144,20 @@ This section contains a data block.
     
     #[test]
     fn test_section_with_code_block() {
-        let input = r#"<section type="code-example" name="python-example">
+        let input = r#"<meta:document>
+<meta:section type="code-example" name="python-example">
 # Python Example
 
-<code type="python" name="hello-world">
+<meta:code type="python" name="hello-world">
 def hello():
     print("Hello, World!")
 
 hello()
-</code>
+</meta:code>
 
 This section demonstrates a Python code block.
-</section>"#;
+</meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse section with code block: {:?}", result.err());
@@ -175,23 +185,25 @@ This section demonstrates a Python code block.
     
     #[test]
     fn test_deeply_nested_sections() {
-        let input = r#"<section type="document" name="nested-doc">
+        let input = r#"<meta:document>
+<meta:section type="document" name="nested-doc">
 # Deeply Nested Document
 
-<section type="chapter" name="chapter1">
+<meta:section type="chapter" name="chapter1">
 ## Chapter 1
 
-<section type="subsection" name="subsection1">
+<meta:section type="subsection" name="subsection1">
 ### Subsection 1.1
 
 This is the deepest level.
-</section>
+</meta:section>
 
 Back to chapter level.
-</section>
+</meta:section>
 
 Document conclusion.
-</section>"#;
+</meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse deeply nested sections: {:?}", result.err());
@@ -232,27 +244,29 @@ Document conclusion.
     
     #[test]
     fn test_sections_with_mixed_blocks() {
-        let input = r#"<section type="report" name="mixed-content">
+        let input = r#"<meta:document>
+<meta:section type="report" name="mixed-content">
 # Mixed Content Report
 
-<data name="metrics">
+<meta:data name="metrics">
 {"users": 100, "views": 500, "conversions": 25}
-</data>
+</meta:data>
 
 ## Analysis
 
-<code type="python" name="analysis-script">
+<meta:code type="python" name="analysis-script">
 import json
 data = json.loads(metrics)
 conversion_rate = data["conversions"] / data["users"] * 100
 print(f"Conversion rate: {conversion_rate}%")
-</code>
+</meta:code>
 
-<section type="conclusion" name="report-conclusion">
+<meta:section type="conclusion" name="report-conclusion">
 Based on the analysis, we can see that the conversion rate is 25%.
-</section>
+</meta:section>
 
-</section>"#;
+</meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse section with mixed blocks: {:?}", result.err());
@@ -279,7 +293,7 @@ Based on the analysis, we can see that the conversion rate is 25%.
         
         // Check the code block (second child)
         let code_block = &report.children[1];
-        assert_eq!(code_block.block_type, "code:python");
+        assert_eq!(code_block.block_type, "code");
         assert_eq!(code_block.name, Some("analysis-script".to_string()));
         assert!(code_block.content.contains("import json"));
         
