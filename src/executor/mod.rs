@@ -1508,11 +1508,22 @@ impl MetaLanguageExecutor {
                         println!("DEBUG: Processing end of named question block '{}' at line {}", question_name, i);
                         
                         // Look for a response to this specific question in the outputs
+                        // Try multiple possible formats for the response name
                         let response_name = format!("{}_response", question_name);
-                        println!("DEBUG: Looking for response with name: '{}'", response_name);
+                        let response_results_name = format!("{}_results", question_name);
+                        let response_dot_results_name = format!("{}.results", question_name);
                         
-                        if let Some(output) = self.outputs.get(&response_name) {
-                            println!("DEBUG: Found matching response '{}' (length: {})", response_name, output.len());
+                        println!("DEBUG: Looking for response with names: '{}', '{}', '{}', or '{}'", 
+                                 question_name, response_name, response_results_name, response_dot_results_name);
+                        
+                        // Try all possible response name formats
+                        let output = self.outputs.get(&response_name)
+                            .or_else(|| self.outputs.get(question_name))
+                            .or_else(|| self.outputs.get(&response_results_name))
+                            .or_else(|| self.outputs.get(&response_dot_results_name));
+                        
+                        if let Some(output) = output {
+                            println!("DEBUG: Found matching response for '{}' (length: {})", question_name, output.len());
                             // Insert the response block after the question block
                             // Use the same format (XML or markdown) as the question block
                             if trimmed_line.starts_with("<") {
