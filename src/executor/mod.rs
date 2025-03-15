@@ -672,18 +672,23 @@ impl MetaLanguageExecutor {
     
     // Execute a question block by sending it to an LLM API
     pub fn execute_question(&mut self, block: &Block, question: &str) -> Result<String, ExecutorError> {
-        println!("Executing question block: {}", question);
+        println!("DEBUG: Executing question block: {}", question);
+        println!("DEBUG: Block name: {:?}", block.name);
+        println!("DEBUG: Block modifiers: {:?}", block.modifiers);
         
         // Check if we're in test mode
         if block.is_modifier_true("test_mode") {
+            println!("DEBUG: Using test mode response");
             return Ok("This is a simulated response for testing purposes.".to_string());
         }
         
         // Create LLM client from block modifiers
         let llm_client = LlmClient::from_block_modifiers(&block.modifiers);
+        println!("DEBUG: Created LLM client with provider: {:?}", llm_client.config.provider);
         
         // Check if we have an API key
         if llm_client.config.api_key.is_empty() {
+            println!("DEBUG: Missing API key");
             return Err(ExecutorError::MissingApiKey(
                 "No API key provided for LLM. Set via block modifier or environment variable.".to_string()
             ));
@@ -691,59 +696,96 @@ impl MetaLanguageExecutor {
         
         // Prepare the prompt
         let mut prompt = question.to_string();
+        println!("DEBUG: Initial prompt: {}", prompt);
         
         // Check if there's a system prompt modifier
         if let Some(system_prompt) = block.get_modifier("system_prompt") {
             // For OpenAI, we'd format this differently, but for simplicity we'll just prepend
             prompt = format!("{}\n\n{}", system_prompt, prompt);
+            println!("DEBUG: Added system prompt, new prompt length: {}", prompt.len());
         }
         
         // Check if there's a context modifier that references other blocks
         if let Some(context_block) = block.get_modifier("context") {
+            println!("DEBUG: Found context block reference: {}", context_block);
             if let Some(context_content) = self.outputs.get(context_block) {
+                println!("DEBUG: Found context content, length: {}", context_content.len());
                 prompt = format!("Context:\n{}\n\nQuestion:\n{}", context_content, prompt);
+            } else {
+                println!("DEBUG: Context block '{}' not found in outputs", context_block);
             }
         }
         // Get any additional context from direct context modifier
         else if let Some(context) = block.get_modifier("context") {
+            println!("DEBUG: Using direct context, length: {}", context.len());
             prompt = format!("Context:\n{}\n\nQuestion:\n{}", context, prompt);
         }
         
+        println!("DEBUG: Final prompt length: {}", prompt.len());
+        
         // Execute the LLM request using the synchronous client
+        println!("DEBUG: Sending prompt to LLM API");
         let result = match llm_client.send_prompt(&prompt) {
-            Ok(response) => Ok(response),
-            Err(e) => Err(ExecutorError::LlmApiError(e.to_string())),
+            Ok(response) => {
+                println!("DEBUG: Received successful response from LLM, length: {}", response.len());
+                Ok(response)
+            },
+            Err(e) => {
+                println!("DEBUG: LLM API error: {}", e);
+                Err(ExecutorError::LlmApiError(e.to_string()))
+            },
         };
         
         // Process the result
         match result {
             Ok(response) => {
+                println!("DEBUG: Processing successful response");
+                
                 // Create a response block if the question block has a name
                 if let Some(name) = &block.name {
                     let response_block_name = format!("{}_response", name);
+                    println!("DEBUG: Creating response block: {}", response_block_name);
+                    
                     let response_str = response.as_str();
                     let mut response_block = Block::new("response", Some(&response_block_name), response_str);
+                    println!("DEBUG: Created response block with content length: {}", response_str.len());
                     
                     // Copy relevant modifiers from the question block
                     for (key, value) in &block.modifiers {
                         if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
+                            println!("DEBUG: Copying modifier from question to response: {}={}", key, value);
                             response_block.add_modifier(key, value);
                         }
                     }
                     
                     // Add reference back to the question block
                     response_block.add_modifier("for", name);
+                    println!("DEBUG: Added 'for' modifier pointing to: {}", name);
                     
                     // Store the response block
+                    println!("DEBUG: Storing response block in blocks map");
                     self.blocks.insert(response_block_name.clone(), response_block);
                     
                     // Store the response in outputs
+                    println!("DEBUG: Storing response in outputs map with key: {}", response_block_name);
                     self.outputs.insert(response_block_name, response.clone());
+                    
+                    // Debug: Print all outputs after adding this one
+                    println!("DEBUG: Current outputs after adding response:");
+                    for (k, v) in &self.outputs {
+                        println!("DEBUG:   '{}' => '{}' (length: {})", k, 
+                                 if v.len() > 30 { &v[..30] } else { v }, v.len());
+                    }
+                } else {
+                    println!("DEBUG: Question block has no name, not creating a response block");
                 }
                 
                 Ok(response)
             },
-            Err(e) => Err(e),
+            Err(e) => {
+                println!("DEBUG: Returning error from execute_question: {}", e);
+                Err(e)
+            },
         }
     }
     
@@ -793,31 +835,43 @@ impl MetaLanguageExecutor {
     
     // Generate a response block from a question block
     pub fn generate_response_block(&self, question_block: &Block, response_text: &str) -> Block {
+        println!("DEBUG: generate_response_block called");
+        println!("DEBUG: Question block name: {:?}", question_block.name);
+        println!("DEBUG: Response text length: {}", response_text.len());
+        
         let response_name = if let Some(name) = &question_block.name {
-            Some(format!("{}_response", name))
+            let name = format!("{}_response", name);
+            println!("DEBUG: Generated response name: {}", name);
+            Some(name)
         } else {
+            println!("DEBUG: No name for question block, response will be unnamed");
             None
         };
         
         let mut response_block = Block::new("response", response_name.as_deref(), response_text);
+        println!("DEBUG: Created response block with type: {}", response_block.block_type);
         
         // Add "for" modifier pointing to the original question block
         if let Some(block_name) = &question_block.name {
+            println!("DEBUG: Adding 'for' modifier with value: {}", block_name);
             response_block.add_modifier("for", block_name);
         }
         
         // Copy relevant modifiers from the question block
         for (key, value) in &question_block.modifiers {
             if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
+                println!("DEBUG: Copying modifier: {}={}", key, value);
                 response_block.add_modifier(key, value);
             }
         }
         
         // Set default format to markdown if not specified
         if !question_block.modifiers.iter().any(|(k, _)| k == "format") {
+            println!("DEBUG: Setting default format to markdown");
             response_block.add_modifier("format", "markdown");
         }
         
+        println!("DEBUG: Final response block modifiers: {:?}", response_block.modifiers);
         response_block
     }
     
@@ -1037,6 +1091,13 @@ impl MetaLanguageExecutor {
         println!("DEBUG: update_document called");
         println!("DEBUG: Current document length: {}", self.current_document.len());
         println!("DEBUG: Number of outputs: {}", self.outputs.len());
+        
+        // Debug: Print all outputs
+        println!("DEBUG: All outputs:");
+        for (k, v) in &self.outputs {
+            println!("DEBUG:   '{}' => '{}' (length: {})", k, 
+                     if v.len() > 30 { &v[..30] } else { v }, v.len());
+        }
         
         let mut updated_doc = self.current_document.clone();
         
