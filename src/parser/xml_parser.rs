@@ -61,9 +61,13 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             if key == "name" {
                                 block_name = Some(value);
                             } else if key == "type" && block_type == "section" {
+                                // Store both as modifier and in block_type
                                 block_type = format!("section:{}", value);
+                                modifiers.push((key.clone(), value.clone()));
                             } else if key == "language" && block_type == "code" {
+                                // Store both as modifier and in block_type
                                 block_type = format!("code:{}", value);
+                                modifiers.push((key.clone(), value.clone()));
                             } else {
                                 modifiers.push((key, value));
                             }
