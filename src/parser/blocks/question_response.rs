@@ -1,4 +1,4 @@
-use crate::parser::{Rule, extract_modifiers};
+use crate::parser::{Rule, extract_modifiers, extract_name};
 use crate::parser::blocks::Block;
 
 #[cfg(test)]
@@ -32,6 +32,9 @@ pub fn process_question_block(pair: pest::iterators::Pair<Rule>) -> Block {
     
     for inner_pair in pair.into_inner() {
         match inner_pair.as_rule() {
+            Rule::name_attr => {
+                block.name = extract_name(inner_pair);
+            }
             Rule::modifiers => {
                 for modifier in extract_modifiers(inner_pair) {
                     block.add_modifier(&modifier.0, &modifier.1);

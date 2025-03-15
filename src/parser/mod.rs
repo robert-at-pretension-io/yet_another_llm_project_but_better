@@ -14,6 +14,7 @@ mod block_parser;
 mod utils;
 mod block_parsers;
 mod modifiers;
+pub mod document_processor;
 
 // Re-export important types
 pub use self::blocks::Block;
@@ -75,6 +76,9 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             }
                         }
                     }
+                    
+                    // Process document-level relationships
+                    document_processor::update_document(&mut blocks);
                 }
                 _ => {}
             }
@@ -323,6 +327,9 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
     
     // Check for duplicate block names
     check_duplicate_names(&blocks)?;
+    
+    // Process document-level relationships
+    document_processor::update_document(&mut blocks);
     
     println!("DEBUG: Successfully parsed {} blocks with fallback parser", blocks.len());
     Ok(blocks)
