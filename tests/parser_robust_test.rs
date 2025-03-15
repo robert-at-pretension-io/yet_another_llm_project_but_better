@@ -267,7 +267,7 @@ fn test_multiple_modifiers() {
     https://api.example.com/data
     [/api]
     
-    [variable name:comma-separated-modifiers, format:plain, display:block, order:0.1, priority:9]
+    [variable name:comma-separated-modifiers format:plain display:block order:0.1 priority:9]
     Block with comma-separated modifiers
     [/variable]
     "#;
