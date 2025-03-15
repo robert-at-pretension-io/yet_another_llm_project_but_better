@@ -671,7 +671,7 @@ impl MetaLanguageExecutor {
     
     
     // Execute a question block by sending it to an LLM API
-    pub fn execute_question(&self, block: &Block, question: &str) -> Result<String, ExecutorError> {
+    pub fn execute_question(&mut self, block: &Block, question: &str) -> Result<String, ExecutorError> {
         println!("Executing question block: {}", question);
         
         // Check if we're in test mode
@@ -738,7 +738,7 @@ impl MetaLanguageExecutor {
                     self.blocks.insert(response_block_name.clone(), response_block);
                     
                     // Store the response in outputs
-                    self.outputs.insert(response_block_name, response);
+                    self.outputs.insert(response_block_name, response.clone());
                 }
                 
                 Ok(response)
@@ -981,7 +981,7 @@ impl MetaLanguageExecutor {
                     .or_else(|| Some(self.determine_format_from_content(&output)));
                 
                 // Create a results block
-                let results_block = self.generate_results_block(&block, &output, format);
+                let results_block = self.generate_results_block(&block, &output, format.clone());
                 
                 // Process the results content with all modifiers
                 let processed_content = self.process_results_content(&results_block, &output);
