@@ -970,10 +970,10 @@ fn test_error_recovery() {
 print("This is a valid block")
 [/code:python]
 
-[[[COMPLETELY INVALID]]]
+[code:python name:valid_block] INVALID CONTENT HERE [
 This is not a valid block format at all
-It has multiple opening brackets and no proper structure
-[[[/INVALID]]]
+It has unclosed brackets and invalid tag structure
+[/INVALID
 
 [code:python name:another_valid]
 print("This block should still be parsed")
