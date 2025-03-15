@@ -26,24 +26,27 @@ Memory usage: 128MB"#.to_string();
     fn test_visualization_block() {
         // Create a visualization block manually
         let mut block = Block::new("visualization", Some("context-preview"), "");
-        block.content = r#"[question debug:true]
-What are the key factors affecting climate change?
-[/question]
+        block.content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question debug="true">
+  What are the key factors affecting climate change?
+  </meta:question>
 
-[preview]
-The following context will be sent to the AI:
-- User query about climate change factors
-- Recent IPCC report summary (from data block 'ipcc-summary')
-- Historical temperature data visualization (from code block 'temp-vis')
-- Previous conversation context about environmental policies
-[/preview]"#.to_string();
+  <meta:preview>
+  The following context will be sent to the AI:
+  - User query about climate change factors
+  - Recent IPCC report summary (from data block 'ipcc-summary')
+  - Historical temperature data visualization (from code block 'temp-vis')
+  - Previous conversation context about environmental policies
+  </meta:preview>
+</meta:document>"#.to_string();
         
         assert_eq!(block.block_type, "visualization");
         assert_eq!(block.name, Some("context-preview".to_string()));
         
         let content = block.content.as_str();
-        assert!(content.contains("[question debug:true]"));
-        assert!(content.contains("[preview]"));
+        assert!(content.contains("<meta:question debug=\"true\">"));
+        assert!(content.contains("<meta:preview>"));
         assert!(content.contains("climate change"));
         assert!(content.contains("IPCC report"));
     }
@@ -72,27 +75,32 @@ Context:
     fn test_nested_visualization() {
         // Create a visualization block with nested content
         let mut block = Block::new("visualization", Some("complex-view"), "");
-        block.content = r#"[question name:climate-query]
-Explain the greenhouse effect.
-[/question]
+        block.content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="climate-query">
+  Explain the greenhouse effect.
+  </meta:question>
 
-[data name:context-data format:json]
-{
-  "source": "IPCC",
-  "key_points": [
-    "Greenhouse gases trap heat in the atmosphere",
-    "CO2 levels have increased by 40% since pre-industrial times",
-    "Human activities are the primary cause"
-  ]
-}
-[/data]
+  <meta:data name="context-data" format="json">
+  <![CDATA[
+  {
+    "source": "IPCC",
+    "key_points": [
+      "Greenhouse gases trap heat in the atmosphere",
+      "CO2 levels have increased by 40% since pre-industrial times",
+      "Human activities are the primary cause"
+    ]
+  }
+  ]]>
+  </meta:data>
 
-[preview name:final-prompt]
-The final prompt will include:
-1. User question about greenhouse effect
-2. Scientific context from IPCC
-3. Previous conversation history (3 turns)
-[/preview]"#.to_string();
+  <meta:preview name="final-prompt">
+  The final prompt will include:
+  1. User question about greenhouse effect
+  2. Scientific context from IPCC
+  3. Previous conversation history (3 turns)
+  </meta:preview>
+</meta:document>"#.to_string();
         
         // In the test, we're creating just one block manually
         let blocks = vec![block];
@@ -102,9 +110,9 @@ The final prompt will include:
         assert_eq!(blocks[0].name, Some("complex-view".to_string()));
         
         let content = blocks[0].content.as_str();
-        assert!(content.contains("[question name:climate-query]"));
-        assert!(content.contains("[data name:context-data format:json]"));
-        assert!(content.contains("[preview name:final-prompt]"));
+        assert!(content.contains("<meta:question name=\"climate-query\">"));
+        assert!(content.contains("<meta:data name=\"context-data\" format=\"json\">"));
+        assert!(content.contains("<meta:preview name=\"final-prompt\">"));
         assert!(content.contains("greenhouse effect"));
         assert!(content.contains("IPCC"));
     }
