@@ -1472,29 +1472,33 @@ fn test_closing_tag_variants() {
     if let Ok(blocks) = result1 {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("with-language-close"));
         assert!(block.is_some(), "Block with language in closing tag not found");
-        assert_eq!(block.unwrap().block_type, "code", "Block type incorrect");
-        // In XML format, language is an attribute, not part of the block type
+        let block = block.unwrap();
+        assert_eq!(block.block_type, "code", "Block type incorrect");
+        assert_eq!(block.get_modifier("language"), Some(&"python".to_string()), "Language modifier incorrect");
     }
     
     if let Ok(blocks) = result2 {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("without-language-close"));
         assert!(block.is_some(), "Block without language in closing tag not found");
-        assert_eq!(block.unwrap().block_type, "code", "Block type incorrect");
-        // In XML format, language is an attribute, not part of the block type
+        let block = block.unwrap();
+        assert_eq!(block.block_type, "code", "Block type incorrect");
+        assert_eq!(block.get_modifier("language"), Some(&"python".to_string()), "Language modifier incorrect");
     }
     
     if let Ok(blocks) = result3 {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("with-type-close"));
         assert!(block.is_some(), "Block with type in closing tag not found");
-        assert_eq!(block.unwrap().block_type, "section", "Block type incorrect");
-        // In XML format, type is an attribute, not part of the block type
+        let block = block.unwrap();
+        assert_eq!(block.block_type, "section", "Block type incorrect");
+        assert_eq!(block.get_modifier("type"), Some(&"intro".to_string()), "Type modifier incorrect");
     }
     
     if let Ok(blocks) = result4 {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("without-type-close"));
         assert!(block.is_some(), "Block without type in closing tag not found");
-        assert_eq!(block.unwrap().block_type, "section", "Block type incorrect");
-        // In XML format, type is an attribute, not part of the block type
+        let block = block.unwrap();
+        assert_eq!(block.block_type, "section", "Block type incorrect");
+        assert_eq!(block.get_modifier("type"), Some(&"summary".to_string()), "Type modifier incorrect");
     }
 }
 
