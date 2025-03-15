@@ -70,11 +70,18 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
             // For question blocks, we need to use the LLM client
             println!("Processing question: {}", block.content);
             
+            // Check if the file already has a response block
+            let file_content = fs::read_to_string(file_path).unwrap_or_default();
+            if file_content.contains("[response]") && file_content.contains("[/response]") {
+                println!("File already has a response block, skipping question execution");
+                return Ok("Response already exists in file".to_string());
+            }
+            
             // Create a new executor to handle the question
             let mut executor = MetaLanguageExecutor::new();
             
             // Process the document to ensure the executor has the current state
-            executor.process_document(&fs::read_to_string(file_path).unwrap_or_default())
+            executor.process_document(&file_content)
                 .unwrap_or_default();
             
             // Add test_mode modifier to avoid actual API calls during testing
@@ -92,13 +99,19 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                         executor.outputs.insert("question_response".to_string(), response.clone());
                     }
                     
-                    // Update the file with the response
-                    let updated_content = executor.update_document()
-                        .unwrap_or_else(|_| response.clone());
-                    
-                    // Write the updated content back to the file
-                    if let Ok(path) = std::env::current_dir().map(|p| p.join(file_path)) {
-                        let _ = fs::write(&path, updated_content);
+                    // Create a simple response block directly
+                    let mut updated_content = file_content.clone();
+                    if !updated_content.contains("[response]") {
+                        // Find the end of the question block
+                        if let Some(pos) = updated_content.find("[/question]") {
+                            let insert_pos = pos + "[/question]".len();
+                            let response_block = format!("\n\n[response]\n{}\n[/response]", response);
+                            updated_content.insert_str(insert_pos, &response_block);
+                            
+                            // Write the updated content back to the file
+                            fs::write(file_path, &updated_content)
+                                .unwrap_or_else(|_| println!("Failed to write updated file"));
+                        }
                     }
                     
                     Ok(response)
@@ -207,11 +220,17 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
         let updated_content = executor.update_document()
             .map_err(|e| anyhow!("Failed to update document: {}", e))?;
         
-        // Write the updated content back to the file
-        fs::write(file_path, updated_content)
-            .context("Failed to write updated file")?;
-        
-        println!("Updated file with execution results");
+        // Check if the content actually changed
+        let current_content = fs::read_to_string(file_path)?;
+        if current_content != updated_content {
+            // Write the updated content back to the file
+            fs::write(file_path, updated_content)
+                .context("Failed to write updated file")?;
+            
+            println!("Updated file with execution results");
+        } else {
+            println!("No changes needed to file");
+        }
     }
     
     Ok(())
@@ -275,14 +294,22 @@ fn main() -> Result<(), anyhow::Error> {
             Ok(FileEvent { path, event_type: FileEventType::Modified }) => {
                 // Avoid processing the same change multiple times
                 let now = Instant::now();
-                if now.duration_since(last_modified) < Duration::from_millis(100) {
+                if now.duration_since(last_modified) < Duration::from_millis(500) {
                     continue;
                 }
                 last_modified = now;
                 
-                println!("File changed: {}", path);
-                if let Err(e) = process_file(&PathBuf::from(&path)) {
-                    eprintln!("Error processing file after change: {:?}", e);
+                // Read the current content to check if we need to process it
+                let current_content = fs::read_to_string(&path).unwrap_or_default();
+                
+                // Only process if the file doesn't already have a response block
+                if !current_content.contains("[response]") {
+                    println!("File changed: {}", path);
+                    if let Err(e) = process_file(&PathBuf::from(&path)) {
+                        eprintln!("Error processing file after change: {:?}", e);
+                    }
+                } else {
+                    println!("File already has response blocks, skipping processing");
                 }
             },
             Ok(FileEvent { event_type: FileEventType::Created, .. }) => {

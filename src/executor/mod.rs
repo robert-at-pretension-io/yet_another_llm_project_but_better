@@ -1054,44 +1054,31 @@ impl MetaLanguageExecutor {
             }
         }
         
+        // Check if the document already contains response blocks
+        let has_response_block = updated_doc.contains("[response]") || updated_doc.contains("[/response]");
+        
+        // If there are already response blocks, don't add new ones
+        if has_response_block {
+            return Ok(updated_doc);
+        }
+        
         // Handle question blocks by adding response blocks after them
         let mut result = String::new();
-        let mut lines = updated_doc.lines().peekable();
-        let mut in_question_block = false;
-        let mut in_response_block = false;
-        let mut current_question_content = String::new();
+        let mut lines = updated_doc.lines().collect::<Vec<_>>();
+        let mut i = 0;
         
-        while let Some(line) = lines.next() {
+        while i < lines.len() {
+            let line = lines[i];
             result.push_str(line);
             result.push('\n');
             
-            // Track if we're in a question block
-            if line.trim().starts_with("[question") {
-                in_question_block = true;
-                current_question_content.clear();
-                continue;
-            }
-            
-            // Collect question content
-            if in_question_block && !line.trim().starts_with("[") && !line.trim().starts_with("[/") {
-                current_question_content.push_str(line);
-                current_question_content.push('\n');
-            }
-            
             // Check if this is the end of a question block
             if line.trim() == "[/question]" {
-                in_question_block = false;
-                
                 // Check if the next line is already a response block
-                if let Some(next_line) = lines.peek() {
-                    if next_line.trim().starts_with("[response") {
-                        in_response_block = true;
-                        continue;
-                    }
-                }
+                let next_is_response = i + 1 < lines.len() && lines[i + 1].trim().starts_with("[response");
                 
                 // If there's no response block following, add one
-                if !in_response_block {
+                if !next_is_response {
                     // Look for a response to this question in the outputs
                     for (_, output) in &self.outputs {
                         // Insert the response block after the question block
@@ -1103,15 +1090,7 @@ impl MetaLanguageExecutor {
                 }
             }
             
-            // Track if we're in a response block
-            if line.trim().starts_with("[response") {
-                in_response_block = true;
-            }
-            
-            // Check if this is the end of a response block
-            if line.trim() == "[/response]" {
-                in_response_block = false;
-            }
+            i += 1;
         }
         
         Ok(result)
