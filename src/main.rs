@@ -10,6 +10,7 @@ use std::process;
 use anyhow::{Result, Context, anyhow};
 use lazy_static::lazy_static;
 use chrono::Local;
+use ctrlc;
 
 // Debug logging function that only prints if verbose mode is enabled
 fn log_debug(message: &str) {
@@ -343,16 +344,37 @@ fn start_file_watcher() -> Result<()> {
     log_debug("Starting file watch event loop");
     drop(config); // Release the mutex lock
     
-    loop {
+    // Set up Ctrl+C handler
+    let (interrupt_tx, interrupt_rx) = channel();
+    ctrlc::set_handler(move || {
+        let _ = interrupt_tx.send(());
+        println!("[{}] Received interrupt signal, shutting down...", 
+                 Local::now().format("%H:%M:%S"));
+    }).expect("Error setting Ctrl-C handler");
+    
+    // Main event loop
+    'event_loop: loop {
         log_debug("Waiting for file events...");
-        match rx.recv() {
+        
+        // Check for interrupt signal
+        if interrupt_rx.try_recv().is_ok() {
+            log_debug("Received interrupt signal, breaking event loop");
+            break 'event_loop;
+        }
+        
+        // Wait for file events with timeout to allow checking for interrupts
+        match rx.recv_timeout(std::time::Duration::from_millis(500)) {
             Ok(event) => {
                 log_debug(&format!("Received file event for: {}", event.path));
                 handle_file_event(event);
             },
-            Err(e) => {
-                eprintln!("File watcher error: {}", e);
-                log_debug(&format!("File watcher error, exiting loop: {}", e));
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Just a timeout, continue and check for interrupts
+                continue;
+            },
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                eprintln!("File watcher channel disconnected");
+                log_debug("File watcher channel disconnected, exiting loop");
                 break;
             }
         }
