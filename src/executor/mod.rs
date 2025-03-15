@@ -673,6 +673,129 @@ impl MetaLanguageExecutor {
         }
     }
     
+    pub fn execute_question_block(&self, content: &str, block: &Block) -> Result<String, ExecutorError> {
+        println!("DEBUG: Executing question block with content: '{}'", content);
+        
+        // Get the model to use from block modifiers or use a default
+        let model = block.get_modifier("model")
+            .map(|s| s.as_str())
+            .unwrap_or("gpt-4");
+            
+        println!("DEBUG: Using model: '{}'", model);
+        
+        // Get any additional context from modifiers
+        let context = block.get_modifier("context")
+            .map(|s| s.as_str())
+            .unwrap_or("");
+            
+        // Get temperature from modifiers or use a default
+        let temperature = block.get_modifier("temperature")
+            .and_then(|s| s.parse::<f32>().ok())
+            .unwrap_or(0.7);
+            
+        // Get max tokens from modifiers or use a default
+        let max_tokens = block.get_modifier("max_tokens")
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(1000);
+            
+        // In a real implementation, this would use a proper LLM client
+        // For now, we'll simulate it with a simple response
+        
+        // Check if we're in test mode
+        if block.is_modifier_true("test_mode") {
+            return Ok("This is a simulated response for testing purposes.".to_string());
+        }
+        
+        // Try to use an environment variable for the API key
+        let api_key = std::env::var("OPENAI_API_KEY")
+            .or_else(|_| std::env::var("LLM_API_KEY"))
+            .map_err(|_| ExecutorError::ExecutionFailed(
+                "No API key found. Set OPENAI_API_KEY or LLM_API_KEY environment variable.".to_string()
+            ))?;
+            
+        // Prepare the full prompt with context if available
+        let full_prompt = if context.is_empty() {
+            content.to_string()
+        } else {
+            format!("Context:\n{}\n\nQuestion:\n{}", context, content)
+        };
+        
+        // In a real implementation, this would make an API call to the LLM service
+        // For now, we'll use a simple HTTP request to simulate it
+        
+        // Create a temporary file for the request payload
+        let temp_dir = tempfile::tempdir()
+            .map_err(|e| ExecutorError::ExecutionFailed(format!("Failed to create temp dir: {}", e)))?;
+        let payload_path = temp_dir.path().join("payload.json");
+        
+        // Create the JSON payload
+        let payload = format!(
+            r#"{{
+                "model": "{}",
+                "messages": [
+                    {{"role": "user", "content": "{}"}}
+                ],
+                "temperature": {},
+                "max_tokens": {}
+            }}"#,
+            model,
+            full_prompt.replace("\"", "\\\"").replace("\n", "\\n"),
+            temperature,
+            max_tokens
+        );
+        
+        // Write the payload to the temporary file
+        std::fs::write(&payload_path, payload)
+            .map_err(|e| ExecutorError::ExecutionFailed(format!("Failed to write payload: {}", e)))?;
+            
+        println!("DEBUG: Sending request to OpenAI API");
+        
+        // Make the API request using curl
+        let output = Command::new("curl")
+            .arg("-s")
+            .arg("-X").arg("POST")
+            .arg("https://api.openai.com/v1/chat/completions")
+            .arg("-H").arg("Content-Type: application/json")
+            .arg("-H").arg(format!("Authorization: Bearer {}", api_key))
+            .arg("-d").arg(format!("@{}", payload_path.display()))
+            .output()
+            .map_err(|e| ExecutorError::ExecutionFailed(format!("Failed to execute curl: {}", e)))?;
+            
+        // Clean up the temporary file
+        let _ = std::fs::remove_file(payload_path);
+        
+        if output.status.success() {
+            let response = String::from_utf8_lossy(&output.stdout).to_string();
+            println!("DEBUG: Received response: '{}'", response);
+            
+            // Parse the JSON response to extract the content
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&response) {
+                if let Some(content) = json.get("choices")
+                    .and_then(|choices| choices.get(0))
+                    .and_then(|choice| choice.get("message"))
+                    .and_then(|message| message.get("content"))
+                    .and_then(|content| content.as_str()) {
+                    return Ok(content.to_string());
+                }
+            }
+            
+            // If we couldn't parse the response, return the raw response
+            Ok(response)
+        } else {
+            let error = String::from_utf8_lossy(&output.stderr).to_string();
+            println!("DEBUG: API request failed: '{}'", error);
+            
+            Err(ExecutorError::ExecutionFailed(format!(
+                "LLM API request failed: {}",
+                if error.is_empty() {
+                    String::from_utf8_lossy(&output.stdout).to_string()
+                } else {
+                    error
+                }
+            )))
+        }
+    }
+    
     // Execute a question block by sending it to an LLM API
     pub fn execute_question(&self, block: &Block, question: &str) -> Result<String, ExecutorError> {
         println!("Executing question block: {}", question);
