@@ -1445,19 +1445,16 @@ impl MetaLanguageExecutor {
                 // Try to extract name from the opening tag
                 if let Some(name_start) = trimmed.find("name:") {
                     let name_start = name_start + 5; // skip "name:"
-                    let name_end = trimmed[name_start..].find(']')
+                    // For markdown-style blocks, find the end of the name before any space, bracket or other attribute
+                    let name_end = trimmed[name_start..].find(|c: char| c == ' ' || c == ']' || c == '>')
                         .map(|pos| name_start + pos)
-                        .unwrap_or_else(|| trimmed[name_start..].find('>')
-                            .map(|pos| name_start + pos)
-                            .unwrap_or_else(|| trimmed[name_start..].find(' ')
-                                .map(|pos| name_start + pos)
-                                .unwrap_or(trimmed.len())));
+                        .unwrap_or(trimmed.len());
                     
                     current_question_name = Some(trimmed[name_start..name_end].trim().to_string());
                     println!("DEBUG: Found question block with name: {:?}", current_question_name);
                 } else if let Some(name_start) = trimmed.find("name=\"") {
                     let name_start = name_start + 6; // skip "name=\""
-                    // Find the closing quote for just the name attribute
+                    // For XML-style blocks, find the closing quote for just the name attribute
                     let name_end = trimmed[name_start..].find('"')
                         .map(|pos| name_start + pos)
                         .unwrap_or(trimmed.len());
