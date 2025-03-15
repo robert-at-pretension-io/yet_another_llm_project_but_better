@@ -2,13 +2,10 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
-use std::thread;
 
-use pest::Parser;
-use pest_derive::Parser;
-use anyhow::{Result, Context, anyhow};
+use anyhow::{Context, anyhow};
 
 // Import from our library
 use yet_another_llm_project_but_better::{
@@ -18,10 +15,6 @@ use yet_another_llm_project_but_better::{
     FileEvent, 
     FileEventType
 };
-
-#[derive(Parser)]
-#[grammar = "parser/meta_language.pest"]
-struct MetaLanguageParser;
 
 /// Executes a block based on its type
 fn execute_block(block: &Block) -> Result<String, String> {
@@ -176,15 +169,3 @@ fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[allow(non_camel_case_types)]
-enum Rule {
-    document,
-    block,
-    EOI,
-    data_block,
-    code_block,
-    block_content,
-    modifiers,
-    name_attr,
-    // Add other rules as needed
-}
