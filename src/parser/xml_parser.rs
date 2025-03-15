@@ -71,6 +71,34 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     let mut final_block_type = block_type.clone();
                     
                     println!("DEBUG: Extracting attributes for block type: {}", block_type);
+                    // First check for special attribute formats in the raw tag
+                    let raw_tag = str::from_utf8(e.name().as_ref())
+                        .unwrap_or_default()
+                        .to_string();
+                    
+                    // Get the raw tag with all attributes
+                    let raw_tag_with_attrs = str::from_utf8(e.raw())
+                        .unwrap_or_default()
+                        .to_string();
+                    
+                    println!("DEBUG:   Raw tag with attributes: '{}'", raw_tag_with_attrs);
+                    
+                    // Check for name:value format in the raw tag
+                    if let Some(name_pos) = raw_tag_with_attrs.find("name:") {
+                        let name_start = name_pos + 5; // skip "name:"
+                        let name_end = raw_tag_with_attrs[name_start..].find(']')
+                            .map(|pos| name_start + pos)
+                            .unwrap_or_else(|| raw_tag_with_attrs[name_start..].find('>')
+                                .map(|pos| name_start + pos)
+                                .unwrap_or_else(|| raw_tag_with_attrs[name_start..].find(' ')
+                                    .map(|pos| name_start + pos)
+                                    .unwrap_or(raw_tag_with_attrs.len())));
+                        
+                        let name_value = raw_tag_with_attrs[name_start..name_end].trim().to_string();
+                        println!("DEBUG:   Found name attribute in raw tag: '{}'", name_value);
+                        block_name = Some(name_value);
+                    }
+                    
                     for attr_result in e.attributes() {
                         if let Ok(attr) = attr_result {
                             let raw_key = str::from_utf8(attr.key.as_ref())

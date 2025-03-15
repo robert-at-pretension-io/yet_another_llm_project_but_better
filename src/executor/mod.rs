@@ -1377,7 +1377,8 @@ impl MetaLanguageExecutor {
         }
         
         // Check if the document already contains response blocks
-        let has_response_block = updated_doc.contains("[response]") || updated_doc.contains("[/response]");
+        let has_response_block = updated_doc.contains("[response]") || updated_doc.contains("[/response]") ||
+                                updated_doc.contains("<meta:response") || updated_doc.contains("</meta:response>");
         println!("DEBUG: Document already contains response blocks: {}", has_response_block);
         println!("DEBUG: Executor {} has {} outputs available for insertion", 
                  self.instance_id, self.outputs.len());
@@ -1461,7 +1462,9 @@ impl MetaLanguageExecutor {
                 let named_question_pos = question_blocks.iter().position(|(line_idx, _)| *line_idx == i);
                 
                 // Check if the next line is already a response block
-                let next_is_response = i + 1 < lines.len() && lines[i + 1].trim().starts_with("[response");
+                let next_is_response = i + 1 < lines.len() && 
+                    (lines[i + 1].trim().starts_with("[response") || 
+                     lines[i + 1].trim().starts_with("<meta:response"));
                 println!("DEBUG: Next line is already a response block: {}", next_is_response);
                 
                 // If there's no response block following, try to add the corresponding one
@@ -1481,9 +1484,9 @@ impl MetaLanguageExecutor {
                             // Use the same format (XML or markdown) as the question block
                             if trimmed_line.starts_with("<") {
                                 // XML format
-                                result.push_str("<meta:response>\n");
-                                result.push_str(output);
-                                result.push_str("\n</meta:response>\n\n");
+                                result.push_str("  <meta:response>\n  ");
+                                result.push_str(&output.replace("\n", "\n  ")); // Indent response content
+                                result.push_str("\n  </meta:response>\n\n");
                             } else {
                                 // Markdown format
                                 result.push_str("[response]\n");
@@ -1507,9 +1510,9 @@ impl MetaLanguageExecutor {
                             // Use the same format (XML or markdown) as the question block
                             if trimmed_line.starts_with("<") {
                                 // XML format
-                                result.push_str("<meta:response>\n");
-                                result.push_str(output);
-                                result.push_str("\n</meta:response>\n\n");
+                                result.push_str("  <meta:response>\n  ");
+                                result.push_str(&output.replace("\n", "\n  ")); // Indent response content
+                                result.push_str("\n  </meta:response>\n\n");
                             } else {
                                 // Markdown format
                                 result.push_str("[response]\n");
