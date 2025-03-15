@@ -85,7 +85,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                                 let parts: Vec<&str> = raw_key.splitn(2, ':').collect();
                                 (parts[0].to_string(), parts[1].to_string())
                             } else {
-                                (raw_key, value)
+                                (raw_key, value.clone())
                             };
                             
                             println!("DEBUG:   Attribute: {}=\"{}\"", key, actual_value);
