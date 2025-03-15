@@ -2,7 +2,8 @@ use std::env;
 use std::process;
 use std::sync::mpsc::channel;
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
+use std::fs;
 
 use yet_another_llm_project_but_better::file_watcher::{FileEvent, FileEventType, FileWatcher};
 use yet_another_llm_project_but_better::parser::{parse_document, Block};
@@ -38,7 +39,7 @@ fn main() {
     let mut executor = MetaLanguageExecutor::new();
     
     // Process file events
-    println!("\n🔍 Waiting for file changes... (Press Ctrl+C to exit)");
+    println!("\nWaiting for file changes... (Press Ctrl+C to exit)");
     println!("Watching file: {}", file_path);
     
     loop {
@@ -46,18 +47,10 @@ fn main() {
         if let Ok(event) = rx.recv_timeout(Duration::from_secs(1)) {
             match event.event_type {
                 FileEventType::Created | FileEventType::Modified => {
-                    println!("\n📄 File changed: {}", event.path);
-                    
-                    // Get timestamp using a simple format
-                    let timestamp = {
-                        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-                        format!("{}s since epoch", now.as_secs())
-                    };
-                    
-                    println!("Timestamp: {}", timestamp);
+                    println!("\nFile changed: {}", event.path);
                     
                     // Read the file content
-                    match std::fs::read_to_string(&event.path) {
+                    match fs::read_to_string(&event.path) {
                         Ok(content) => {
                             // Parse the document
                             match parse_document(&content) {
@@ -98,29 +91,12 @@ fn process_block(executor: &mut MetaLanguageExecutor, block: &Block) {
     // Get block name or generate a temporary one
     let block_name = match &block.name {
         Some(name) => name.clone(),
-        None => {
-            // For unnamed blocks, we'll use the first few characters of content as identifier
-            let preview = if block.content.len() > 20 {
-                format!("{:.20}...", block.content)
-            } else {
-                block.content.clone()
-            };
-            format!("unnamed_{}", preview.replace(" ", "_"))
-        }
+        None => format!("unnamed_block_{}", block.block_type)
     };
     
     println!("\n==================================================");
     println!("Executing block: {} (type: {})", block_name, block.block_type);
     println!("==================================================");
-    
-    // Print block content preview
-    let content_preview = if block.content.len() > 100 {
-        format!("{:.100}...\n(content truncated, total length: {} chars)", 
-                block.content, block.content.len())
-    } else {
-        block.content.clone()
-    };
-    println!("Block content:\n{}", content_preview);
     
     // Register the block with the executor
     executor.blocks.insert(block_name.clone(), block.clone());
@@ -128,43 +104,11 @@ fn process_block(executor: &mut MetaLanguageExecutor, block: &Block) {
     // Execute the block
     match executor.execute_block(&block_name) {
         Ok(output) => {
-            println!("\n✅ Execution successful!");
-            
-            // Print output preview
-            let output_preview = if output.len() > 500 {
-                format!("{:.500}...\n(output truncated, total length: {} chars)", 
-                        output, output.len())
-            } else {
-                output.clone()
-            };
-            println!("Output:\n{}", output_preview);
-            
-            // Generate and display results block
-            let results_block = executor.generate_results_block(
-                block, 
-                &output, 
-                block.get_modifier("format").map(|s| s.as_str())
-            );
-            
-            println!("\nResults block:");
-            if let Some(format) = results_block.get_modifier("format") {
-                println!("[results for:{} format:{}]", block_name, format);
-            } else {
-                println!("[results for:{}]", block_name);
-            }
-            println!("{}", results_block.content);
-            println!("[/results]");
+            println!("\nExecution successful!");
+            println!("Output:\n{}", output);
         },
         Err(e) => {
-            eprintln!("\n❌ Execution failed: {}", e);
-            
-            // Generate and display error block
-            let error_block = executor.generate_error_results_block(block, &e.to_string());
-            
-            println!("\nError block:");
-            println!("[error_results for:{}]", block_name);
-            println!("{}", error_block.content);
-            println!("[/error_results]");
+            eprintln!("\nExecution failed: {}", e);
         }
     }
 }
