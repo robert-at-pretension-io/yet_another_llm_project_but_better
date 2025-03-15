@@ -90,7 +90,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                                 .unwrap_or_default()
                                 .to_string();
                                 
-                            // Check if this is a name attribute in the format name:value
+                            // Check if this is a name attribute in the format name="value"
                             if raw_key == "name" && !value.is_empty() {
                                 println!("DEBUG:   Found name attribute with value: {}", value);
                                 block_name = Some(value.clone());
@@ -101,6 +101,11 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             // This is now our primary way to detect name:value format
                             let (key, actual_value) = if raw_key.contains(':') {
                                 let parts: Vec<&str> = raw_key.splitn(2, ':').collect();
+                                // If this is a name:value attribute, set the block name
+                                if parts[0] == "name" {
+                                    println!("DEBUG:   Found name:value attribute: name:{}", parts[1]);
+                                    block_name = Some(parts[1].to_string());
+                                }
                                 (parts[0].to_string(), parts[1].to_string())
                             } else {
                                 (raw_key, value.clone())
@@ -141,6 +146,8 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     // Double check that name was properly set
                     if let Some(name) = &block_name {
                         println!("DEBUG:   Block name confirmed: {}", name);
+                        // Ensure the name is set in the block
+                        block.name = Some(name.clone());
                     }
                     
                     // Special debug for question blocks
