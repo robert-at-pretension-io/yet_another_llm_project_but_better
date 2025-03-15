@@ -295,12 +295,15 @@ mod tests {
     // Tests would go here
 }
 use std::collections::HashMap;
-use std::time::Duration;
+use std::process::Command;
+use std::io::Write;
+use std::fs;
+use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
-use reqwest::{Client, header};
 use serde::{Serialize, Deserialize};
-use serde_json::json;
+use serde_json::{json, Value};
+use rand::random;
 
 // LLM Provider enum
 #[derive(Debug, Clone, PartialEq)]
@@ -333,6 +336,56 @@ impl Default for LlmRequestConfig {
             max_tokens: Some(1000),
             timeout_seconds: 60,
         }
+    }
+}
+
+// Temporary file manager for curl requests
+struct TempFileManager {
+    request_path: PathBuf,
+    response_path: PathBuf,
+}
+
+impl TempFileManager {
+    fn new() -> Result<Self> {
+        let temp_dir = std::env::temp_dir();
+        let request_path = temp_dir.join(format!("llm_request_{}.json", random::<u64>()));
+        let response_path = temp_dir.join(format!("llm_response_{}.json", random::<u64>()));
+        
+        Ok(Self {
+            request_path,
+            response_path,
+        })
+    }
+    
+    fn write_request<T: Serialize>(&self, request: &T) -> Result<()> {
+        let json = serde_json::to_string(request)?;
+        fs::write(&self.request_path, json)?;
+        Ok(())
+    }
+    
+    fn read_response(&self) -> Result<String> {
+        fs::read_to_string(&self.response_path)
+            .map_err(|e| anyhow!("Failed to read response file: {}", e))
+    }
+    
+    fn cleanup(&self) -> Result<()> {
+        if self.request_path.exists() {
+            fs::remove_file(&self.request_path)
+                .map_err(|e| anyhow!("Failed to remove request file: {}", e))?;
+        }
+        
+        if self.response_path.exists() {
+            fs::remove_file(&self.response_path)
+                .map_err(|e| anyhow!("Failed to remove response file: {}", e))?;
+        }
+        
+        Ok(())
+    }
+}
+
+impl Drop for TempFileManager {
+    fn drop(&mut self) {
+        let _ = self.cleanup();
     }
 }
 
@@ -378,19 +431,12 @@ struct AnthropicResponse {
 
 // LLM Client implementation
 pub struct LlmClient {
-    http_client: Client,
     pub config: LlmRequestConfig,
 }
 
 impl LlmClient {
     pub fn new(config: LlmRequestConfig) -> Self {
-        let http_client = Client::builder()
-            .timeout(Duration::from_secs(config.timeout_seconds))
-            .build()
-            .expect("Failed to create HTTP client");
-            
         Self {
-            http_client,
             config,
         }
     }
@@ -472,16 +518,16 @@ impl LlmClient {
     }
     
     // Send a prompt to the LLM and get the response
-    pub async fn send_prompt(&self, prompt: &str) -> Result<String> {
+    pub fn send_prompt(&self, prompt: &str) -> Result<String> {
         match self.config.provider {
-            LlmProvider::OpenAI => self.send_openai_prompt(prompt).await,
-            LlmProvider::Anthropic => self.send_anthropic_prompt(prompt).await,
-            LlmProvider::Custom(ref endpoint) => self.send_custom_prompt(endpoint, prompt).await,
+            LlmProvider::OpenAI => self.send_openai_prompt(prompt),
+            LlmProvider::Anthropic => self.send_anthropic_prompt(prompt),
+            LlmProvider::Custom(ref endpoint) => self.send_custom_prompt(endpoint, prompt),
         }
     }
     
-    // Send a prompt to OpenAI
-    async fn send_openai_prompt(&self, prompt: &str) -> Result<String> {
+    // Send a prompt to OpenAI using curl
+    fn send_openai_prompt(&self, prompt: &str) -> Result<String> {
         let endpoint = self.config.api_endpoint.clone()
             .unwrap_or_else(|| "https://api.openai.com/v1/chat/completions".to_string());
             
@@ -495,43 +541,54 @@ impl LlmClient {
             max_tokens: self.config.max_tokens,
         };
         
-        let mut headers = header::HeaderMap::new();
-        headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
-        headers.insert(
-            header::AUTHORIZATION,
-            header::HeaderValue::from_str(&format!("Bearer {}", self.config.api_key))
-                .map_err(|e| anyhow!("Invalid API key: {}", e))?,
-        );
+        // Create temporary files for request and response
+        let temp_files = TempFileManager::new()?;
+        temp_files.write_request(&request)?;
         
-        let response = self.http_client
-            .post(&endpoint)
-            .headers(headers)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| anyhow!("Failed to send request to OpenAI: {}", e))?;
+        // Build curl command
+        let status = Command::new("curl")
+            .arg("-s")
+            .arg("-X").arg("POST")
+            .arg("-H").arg("Content-Type: application/json")
+            .arg("-H").arg(format!("Authorization: Bearer {}", self.config.api_key))
+            .arg("-d").arg(format!("@{}", temp_files.request_path.display()))
+            .arg("-o").arg(format!("{}", temp_files.response_path.display()))
+            .arg("--max-time").arg(self.config.timeout_seconds.to_string())
+            .arg(endpoint)
+            .status()
+            .map_err(|e| anyhow!("Failed to execute curl: {}", e))?;
             
-        if !response.status().is_success() {
-            let error_text = response.text().await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(anyhow!("OpenAI API error: {}", error_text));
+        if !status.success() {
+            return Err(anyhow!("Curl command failed with status: {}", status));
         }
         
-        let response_data: OpenAIResponse = response.json().await
-            .map_err(|e| anyhow!("Failed to parse OpenAI response: {}", e))?;
-            
-        if response_data.choices.is_empty() {
-            return Err(anyhow!("OpenAI returned no choices"));
-        }
+        // Read and parse the response
+        let response_text = temp_files.read_response()?;
+        let response_data: Result<OpenAIResponse, _> = serde_json::from_str(&response_text);
         
-        Ok(response_data.choices[0].message.content.clone())
+        match response_data {
+            Ok(data) => {
+                if data.choices.is_empty() {
+                    return Err(anyhow!("OpenAI returned no choices"));
+                }
+                Ok(data.choices[0].message.content.clone())
+            },
+            Err(e) => {
+                // Check if the response contains an error message
+                if let Ok(error_json) = serde_json::from_str::<Value>(&response_text) {
+                    if let Some(error) = error_json.get("error") {
+                        if let Some(message) = error.get("message").and_then(|m| m.as_str()) {
+                            return Err(anyhow!("OpenAI API error: {}", message));
+                        }
+                    }
+                }
+                Err(anyhow!("Failed to parse OpenAI response: {}", e))
+            }
+        }
     }
     
-    // Send a prompt to Anthropic
-    async fn send_anthropic_prompt(&self, prompt: &str) -> Result<String> {
+    // Send a prompt to Anthropic using curl
+    fn send_anthropic_prompt(&self, prompt: &str) -> Result<String> {
         let endpoint = self.config.api_endpoint.clone()
             .unwrap_or_else(|| "https://api.anthropic.com/v1/complete".to_string());
             
@@ -545,96 +602,117 @@ impl LlmClient {
             max_tokens_to_sample: self.config.max_tokens.unwrap_or(1000),
         };
         
-        let mut headers = header::HeaderMap::new();
-        headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
-        headers.insert(
-            "X-API-Key",
-            header::HeaderValue::from_str(&self.config.api_key)
-                .map_err(|e| anyhow!("Invalid API key: {}", e))?,
-        );
+        // Create temporary files for request and response
+        let temp_files = TempFileManager::new()?;
+        temp_files.write_request(&request)?;
         
-        let response = self.http_client
-            .post(&endpoint)
-            .headers(headers)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| anyhow!("Failed to send request to Anthropic: {}", e))?;
+        // Build curl command
+        let status = Command::new("curl")
+            .arg("-s")
+            .arg("-X").arg("POST")
+            .arg("-H").arg("Content-Type: application/json")
+            .arg("-H").arg(format!("X-API-Key: {}", self.config.api_key))
+            .arg("-H").arg("Anthropic-Version: 2023-06-01")
+            .arg("-d").arg(format!("@{}", temp_files.request_path.display()))
+            .arg("-o").arg(format!("{}", temp_files.response_path.display()))
+            .arg("--max-time").arg(self.config.timeout_seconds.to_string())
+            .arg(endpoint)
+            .status()
+            .map_err(|e| anyhow!("Failed to execute curl: {}", e))?;
             
-        if !response.status().is_success() {
-            let error_text = response.text().await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(anyhow!("Anthropic API error: {}", error_text));
+        if !status.success() {
+            return Err(anyhow!("Curl command failed with status: {}", status));
         }
         
-        let response_data: AnthropicResponse = response.json().await
-            .map_err(|e| anyhow!("Failed to parse Anthropic response: {}", e))?;
-            
-        Ok(response_data.completion)
+        // Read and parse the response
+        let response_text = temp_files.read_response()?;
+        let response_data: Result<AnthropicResponse, _> = serde_json::from_str(&response_text);
+        
+        match response_data {
+            Ok(data) => Ok(data.completion),
+            Err(e) => {
+                // Check if the response contains an error message
+                if let Ok(error_json) = serde_json::from_str::<Value>(&response_text) {
+                    if let Some(error) = error_json.get("error") {
+                        if let Some(message) = error.get("message").and_then(|m| m.as_str()) {
+                            return Err(anyhow!("Anthropic API error: {}", message));
+                        }
+                    }
+                }
+                Err(anyhow!("Failed to parse Anthropic response: {}", e))
+            }
+        }
     }
     
-    // Send a prompt to a custom endpoint
-    async fn send_custom_prompt(&self, endpoint: &str, prompt: &str) -> Result<String> {
+    // Send a prompt to a custom endpoint using curl
+    fn send_custom_prompt(&self, endpoint: &str, prompt: &str) -> Result<String> {
         // Simple implementation for custom endpoints
-        // In a real implementation, this would be more configurable
-        
         let request = serde_json::json!({
             "prompt": prompt,
             "temperature": self.config.temperature,
             "max_tokens": self.config.max_tokens,
         });
         
-        let mut headers = header::HeaderMap::new();
-        headers.insert(
-            header::CONTENT_TYPE,
-            header::HeaderValue::from_static("application/json"),
-        );
+        // Create temporary files for request and response
+        let temp_files = TempFileManager::new()?;
+        temp_files.write_request(&request)?;
         
-        // Add API key if available
+        // Build curl command with authorization if API key is provided
+        let mut curl_cmd = Command::new("curl");
+        curl_cmd.arg("-s")
+            .arg("-X").arg("POST")
+            .arg("-H").arg("Content-Type: application/json");
+            
         if !self.config.api_key.is_empty() {
-            headers.insert(
-                header::AUTHORIZATION,
-                header::HeaderValue::from_str(&format!("Bearer {}", self.config.api_key))
-                    .map_err(|e| anyhow!("Invalid API key: {}", e))?,
-            );
+            curl_cmd.arg("-H").arg(format!("Authorization: Bearer {}", self.config.api_key));
         }
         
-        let response = self.http_client
-            .post(endpoint)
-            .headers(headers)
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| anyhow!("Failed to send request to custom endpoint: {}", e))?;
+        let status = curl_cmd
+            .arg("-d").arg(format!("@{}", temp_files.request_path.display()))
+            .arg("-o").arg(format!("{}", temp_files.response_path.display()))
+            .arg("--max-time").arg(self.config.timeout_seconds.to_string())
+            .arg(endpoint)
+            .status()
+            .map_err(|e| anyhow!("Failed to execute curl: {}", e))?;
             
-        if !response.status().is_success() {
-            let error_text = response.text().await
-                .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(anyhow!("Custom API error: {}", error_text));
+        if !status.success() {
+            return Err(anyhow!("Curl command failed with status: {}", status));
         }
         
-        // Try to extract the response from common response formats
-        let response_json: serde_json::Value = response.json().await
-            .map_err(|e| anyhow!("Failed to parse custom response: {}", e))?;
-            
-        // Try different common response fields
-        if let Some(text) = response_json.get("text").and_then(|v| v.as_str()) {
-            return Ok(text.to_string());
-        } else if let Some(content) = response_json.get("content").and_then(|v| v.as_str()) {
-            return Ok(content.to_string());
-        } else if let Some(completion) = response_json.get("completion").and_then(|v| v.as_str()) {
-            return Ok(completion.to_string());
-        } else if let Some(message) = response_json.get("message") {
-            if let Some(content) = message.get("content").and_then(|v| v.as_str()) {
+        // Read the response
+        let response_text = temp_files.read_response()?;
+        
+        // Try to parse as JSON and extract common response fields
+        if let Ok(response_json) = serde_json::from_str::<Value>(&response_text) {
+            // Try different common response fields
+            if let Some(text) = response_json.get("text").and_then(|v| v.as_str()) {
+                return Ok(text.to_string());
+            } else if let Some(content) = response_json.get("content").and_then(|v| v.as_str()) {
                 return Ok(content.to_string());
+            } else if let Some(completion) = response_json.get("completion").and_then(|v| v.as_str()) {
+                return Ok(completion.to_string());
+            } else if let Some(message) = response_json.get("message") {
+                if let Some(content) = message.get("content").and_then(|v| v.as_str()) {
+                    return Ok(content.to_string());
+                }
+            } else if let Some(choices) = response_json.get("choices").and_then(|v| v.as_array()) {
+                if !choices.is_empty() {
+                    if let Some(message) = choices[0].get("message") {
+                        if let Some(content) = message.get("content").and_then(|v| v.as_str()) {
+                            return Ok(content.to_string());
+                        }
+                    } else if let Some(text) = choices[0].get("text").and_then(|v| v.as_str()) {
+                        return Ok(text.to_string());
+                    }
+                }
             }
+            
+            // If we couldn't extract a specific field, return the whole JSON as a string
+            return Ok(serde_json::to_string_pretty(&response_json)
+                .unwrap_or_else(|_| "Failed to format response".to_string()));
         }
         
-        // If we couldn't extract a specific field, return the whole JSON as a string
-        Ok(serde_json::to_string_pretty(&response_json)
-            .unwrap_or_else(|_| "Failed to format response".to_string()))
+        // If not JSON, return the raw text
+        Ok(response_text)
     }
 }
