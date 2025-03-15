@@ -7,7 +7,6 @@ use std::str;
 use crate::parser::blocks::Block;
 use crate::parser::ParserError;
 use crate::parser::is_valid_block_type;
-use crate::parser::debug_utils::parser_debug;
 
 /// Parse an XML document into a vector of blocks
 pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
@@ -197,8 +196,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     let text = str::from_utf8(e.as_ref())
                         .unwrap_or_default();
                     println!("DEBUG: CDATA event, length: {} characters", text.len());
-                    println!("DEBUG: CDATA preview: {}", 
-                             &text[..std::cmp::min(50, text.len())]);
+
                     let last_idx = content_stack.len() - 1;
                     content_stack[last_idx].push_str(text);
                 }
