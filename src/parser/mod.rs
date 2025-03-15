@@ -83,12 +83,15 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
         // Check for duplicate block names
         check_duplicate_names(&blocks)?;
         
+        println!("DEBUG: Successfully parsed {} blocks with grammar parser", blocks.len());
         return Ok(blocks);
     }
     
     // If full document parsing fails, use a simpler direct approach
     let mut blocks = Vec::new();
     let mut remaining = input.trim();
+    
+    println!("DEBUG: Parsing document with length: {}", remaining.len());
     
     // Define valid block start patterns
     let valid_block_starts = [
@@ -166,6 +169,7 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 
                 // Try to parse a regular block
                 if let Some((block, consumed)) = try_parse_single_block(potential_block) {
+                    println!("DEBUG: Successfully parsed block of type: {}", block.block_type);
                     blocks.push(block);
                     
                     // Move past this block
@@ -174,57 +178,112 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     }
                     remaining = &remaining[start_pos + consumed..].trim_start();
                 } else {
+                    println!("DEBUG: Failed to parse block at position {}", start_pos);
+                    
                     // Try to extract block type and find matching closing tag
                     if let Some(block_type_end) = potential_block.find(']') {
                         let block_type_raw = &potential_block[1..block_type_end];
                         let block_type = block_type_raw.split_whitespace().next().unwrap_or("");
                         
+                        println!("DEBUG: Extracted potential block type: {}", block_type);
+                        
                         if !block_type.is_empty() {
-                            // Find closing tag
-                            let closing_tag = format!("[/{}", block_type);
-                            if let Some(close_pos) = potential_block.find(&closing_tag) {
-                                if let Some(close_tag_end) = potential_block[close_pos..].find(']') {
-                                    let close_tag_end = close_pos + close_tag_end + 1;
+                            // Try to find the base type if it's a subtype
+                            let base_type = if block_type.contains(':') {
+                                block_type.split(':').next().unwrap_or(block_type)
+                            } else {
+                                block_type
+                            };
+                            
+                            // Try with full type first, then base type
+                            let closing_tags = [
+                                format!("[/{}", block_type),
+                                format!("[/{}", base_type)
+                            ];
+                            
+                            let mut found_closing = false;
+                            
+                            for closing_tag in &closing_tags {
+                                if let Some(close_pos) = potential_block.find(closing_tag) {
+                                    println!("DEBUG: Found closing tag {} at position {}", closing_tag, close_pos);
+                                    
+                                    if let Some(close_tag_end) = potential_block[close_pos..].find(']') {
+                                        let close_tag_end = close_pos + close_tag_end + 1;
+                                        
+                                        // Extract content
+                                        let open_tag_end = block_type_end + 1;
+                                        let block_content = &potential_block[open_tag_end..close_pos].trim();
+                                        
+                                        // Extract name if present
+                                        let mut name = None;
+                                        if let Some(name_pos) = block_type_raw.find("name:") {
+                                            let name_start = name_pos + 5;
+                                            let name_end = block_type_raw[name_start..].find(' ')
+                                                .map(|pos| name_start + pos)
+                                                .unwrap_or(block_type_raw.len());
+                                            
+                                            name = Some(block_type_raw[name_start..name_end].trim().to_string());
+                                            println!("DEBUG: Extracted name: {:?}", name);
+                                        }
+                                        
+                                        // Create block
+                                        let mut block = Block::new(block_type, name.as_deref(), block_content);
+                                    
+                                        // Extract modifiers
+                                        if let Some(space_pos) = block_type_raw.find(' ') {
+                                            let modifiers_text = &block_type_raw[space_pos + 1..];
+                                            println!("DEBUG: Modifiers text: {}", modifiers_text);
+                                            
+                                            // Use a more systematic approach to extract modifiers
+                                            for modifier_name in &["format", "depends", "fallback", "cache_result", 
+                                                                 "timeout", "retry", "method", "always_include"] {
+                                                let search = format!("{}:", modifier_name);
+                                                if let Some(mod_pos) = modifiers_text.find(&search) {
+                                                    let mod_start = mod_pos + search.len();
+                                                    let mod_end = modifiers_text[mod_start..].find(' ')
+                                                        .map(|pos| mod_start + pos)
+                                                        .unwrap_or(modifiers_text.len());
+                                                    
+                                                    let mod_value = modifiers_text[mod_start..mod_end].trim();
+                                                    block.add_modifier(modifier_name, mod_value);
+                                                    println!("DEBUG: Added modifier: {} = {}", modifier_name, mod_value);
+                                                }
+                                            }
+                                        }
+                                        
+                                        blocks.push(block);
+                                        println!("DEBUG: Added block with recovery parsing");
+                                        
+                                        // Move past this block
+                                        remaining = &remaining[start_pos + close_tag_end..].trim_start();
+                                        found_closing = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if found_closing {
+                                continue;
+                            }
+                            
+                            // If we couldn't find a proper closing tag, try a more aggressive approach
+                            println!("DEBUG: Trying more aggressive recovery for block type: {}", block_type);
+                            
+                            // For code blocks, try with just [/code]
+                            if block_type.starts_with("code:") {
+                                let simple_close_tag = "[/code]";
+                                if let Some(close_pos) = potential_block.find(simple_close_tag) {
+                                    let close_tag_end = close_pos + simple_close_tag.len();
                                     
                                     // Extract content
                                     let open_tag_end = block_type_end + 1;
                                     let block_content = &potential_block[open_tag_end..close_pos].trim();
                                     
-                                    // Extract name if present
-                                    let mut name = None;
-                                    if let Some(name_pos) = block_type_raw.find("name:") {
-                                        let name_start = name_pos + 5;
-                                        let name_end = block_type_raw[name_start..].find(' ')
-                                            .map(|pos| name_start + pos)
-                                            .unwrap_or(block_type_raw.len());
-                                        
-                                        name = Some(block_type_raw[name_start..name_end].trim().to_string());
-                                    }
-                                    
                                     // Create block
-                                    let mut block = Block::new(block_type, name.as_deref(), block_content);
-                                    
-                                    // Extract modifiers
-                                    if let Some(space_pos) = block_type_raw.find(' ') {
-                                        let modifiers_text = &block_type_raw[space_pos + 1..];
-                                        
-                                        // Use a more systematic approach to extract modifiers
-                                        for modifier_name in &["format", "depends", "fallback", "cache_result", 
-                                                             "timeout", "retry", "method", "always_include"] {
-                                            let search = format!("{}:", modifier_name);
-                                            if let Some(mod_pos) = modifiers_text.find(&search) {
-                                                let mod_start = mod_pos + search.len();
-                                                let mod_end = modifiers_text[mod_start..].find(' ')
-                                                    .map(|pos| mod_start + pos)
-                                                    .unwrap_or(modifiers_text.len());
-                                                
-                                                let mod_value = modifiers_text[mod_start..mod_end].trim();
-                                                block.add_modifier(modifier_name, mod_value);
-                                            }
-                                        }
-                                    }
+                                    let mut block = Block::new(block_type, None, block_content);
                                     
                                     blocks.push(block);
+                                    println!("DEBUG: Added code block with simple closing tag");
                                     
                                     // Move past this block
                                     remaining = &remaining[start_pos + close_tag_end..].trim_start();
@@ -235,6 +294,10 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     }
                     
                     // If we couldn't parse the block, move ahead one character
+                    println!("DEBUG: Skipping character at position {}", start_pos);
+                    if start_pos + 1 >= remaining.len() {
+                        break;
+                    }
                     remaining = &remaining[start_pos + 1..];
                 }
             } else {
@@ -248,7 +311,7 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
     }
     
     if blocks.is_empty() {
-        return Err(ParserError::ParseError(format!("Failed to parse any blocks from: {}", input)));
+        return Err(ParserError::ParseError(format!("Failed to parse any blocks from input")));
     }
     
     // Check for invalid block types
@@ -261,6 +324,7 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
     // Check for duplicate block names
     check_duplicate_names(&blocks)?;
     
+    println!("DEBUG: Successfully parsed {} blocks with fallback parser", blocks.len());
     Ok(blocks)
 }
 
@@ -269,6 +333,9 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
 fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
     // Trim leading whitespace for more reliable detection
     let trimmed_content = content.trim_start();
+    
+    println!("DEBUG: Trying to parse single block: '{}'", 
+             &trimmed_content[..std::cmp::min(30, trimmed_content.len())]);
     
     // Check if this is a section block which can contain nested blocks
     // Make sure we're checking the trimmed content for the section prefix
@@ -334,7 +401,7 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         return None;
     }
     
-    // Try to parse the block
+    // Try to parse the block using the block_parser
     if let Ok(mut block) = block_parser::parse_single_block(content) {
         // If the block type wasn't properly set, set it now
         if block.block_type.is_empty() {
@@ -343,11 +410,14 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         
         // Find the end position of the block
         if let Some(end_pos) = find_block_end(content, &block_type) {
+            println!("DEBUG: Successfully parsed block using block_parser");
             return Some((block, end_pos));
         }
     }
     
     // Manual fallback parsing for common block types
+    println!("DEBUG: Falling back to manual parsing");
+    
     let open_bracket = trimmed_content.find('[')?;
     // Make sure we don't go out of bounds
     if open_bracket >= trimmed_content.len() {
@@ -364,6 +434,7 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
     
     // Extract the opening tag
     let opening_tag = &trimmed_content[open_bracket..=close_bracket];
+    println!("DEBUG: Opening tag: {}", opening_tag);
     
     // Extract name if present
     let mut name = None;
@@ -375,25 +446,90 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
                 .map(|pos| name_start + pos)
                 .unwrap_or(opening_tag.len()));
         
-        name = Some(opening_tag[name_start..name_end].to_string());
+        if name_end > name_start {
+            name = Some(opening_tag[name_start..name_end].to_string());
+            println!("DEBUG: Extracted name: {:?}", name);
+        }
     }
     
-    // Find the closing tag
-    let closing_tag = format!("[/{}", block_type);
-    
-    // Make sure close_bracket + 1 doesn't overflow
-    if close_bracket >= trimmed_content.len() {
-        return None;
+    // Extract modifiers
+    let mut modifiers = Vec::new();
+    if let Some(space_pos) = opening_tag.find(' ') {
+        let modifiers_text = &opening_tag[space_pos + 1..opening_tag.len() - 1];
+        println!("DEBUG: Modifiers text: {}", modifiers_text);
+        
+        // Split by spaces, but handle quoted values
+        let mut in_quotes = false;
+        let mut current_modifier = String::new();
+        
+        for c in modifiers_text.chars() {
+            if c == '"' {
+                in_quotes = !in_quotes;
+                current_modifier.push(c);
+            } else if c == ' ' && !in_quotes {
+                // End of a modifier
+                if !current_modifier.is_empty() {
+                    if let Some(colon_pos) = current_modifier.find(':') {
+                        let key = &current_modifier[0..colon_pos];
+                        let value = &current_modifier[colon_pos + 1..];
+                        
+                        // Skip name as we already handled it
+                        if key != "name" {
+                            modifiers.push((key.to_string(), value.to_string()));
+                            println!("DEBUG: Added modifier: {} = {}", key, value);
+                        }
+                    }
+                    current_modifier.clear();
+                }
+            } else {
+                current_modifier.push(c);
+            }
+        }
+        
+        // Handle the last modifier
+        if !current_modifier.is_empty() {
+            if let Some(colon_pos) = current_modifier.find(':') {
+                let key = &current_modifier[0..colon_pos];
+                let value = &current_modifier[colon_pos + 1..];
+                
+                // Skip name as we already handled it
+                if key != "name" {
+                    modifiers.push((key.to_string(), value.to_string()));
+                    println!("DEBUG: Added last modifier: {} = {}", key, value);
+                }
+            }
+        }
     }
     
-    let content_start = close_bracket + 1;
+    // Find the closing tag - try different variations
+    let base_type = if let Some(colon_pos) = block_type.find(':') {
+        &block_type[0..colon_pos]
+    } else {
+        &block_type
+    };
     
-    // Make sure content_start is within bounds
-    if content_start >= trimmed_content.len() {
-        return None;
+    // Try with full block type first
+    let mut closing_tag = format!("[/{}", block_type);
+    let mut closing_start_opt = trimmed_content[close_bracket + 1..].find(&closing_tag);
+    
+    // If that fails and we have a subtype, try with just the base type
+    if closing_start_opt.is_none() && block_type != base_type {
+        closing_tag = format!("[/{}", base_type);
+        closing_start_opt = trimmed_content[close_bracket + 1..].find(&closing_tag);
+        
+        println!("DEBUG: Trying base type closing tag: {}", closing_tag);
     }
     
-    if let Some(closing_start) = trimmed_content[content_start..].find(&closing_tag) {
+    // Special case for code blocks
+    if closing_start_opt.is_none() && block_type.starts_with("code:") {
+        closing_tag = "[/code]".to_string();
+        closing_start_opt = trimmed_content[close_bracket + 1..].find(&closing_tag);
+        
+        println!("DEBUG: Trying simple code closing tag: {}", closing_tag);
+    }
+    
+    if let Some(closing_start) = closing_start_opt {
+        let content_start = close_bracket + 1;
         let closing_start = content_start + closing_start;
         
         // Make sure closing_start is within bounds
@@ -415,42 +551,73 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         // Create the block
         let mut block = Block::new(&block_type, name.as_deref(), content);
         
-        // Extract modifiers from opening tag
-        if let Some(space_pos) = opening_tag.find(' ') {
-            let modifiers_text = &opening_tag[space_pos + 1..];
-            
-            // Extract common modifiers
-            for modifier_name in &["format", "depends", "fallback", "cache_result", "timeout", 
-                                  "retry", "method", "always_include"] {
-                let search = format!("{}:", modifier_name);
-                if let Some(mod_pos) = modifiers_text.find(&search) {
-                    let mod_start = mod_pos + search.len();
-                    if mod_start < modifiers_text.len() {
-                        let mod_end = modifiers_text[mod_start..].find(' ')
-                            .map(|pos| mod_start + pos)
-                            .unwrap_or_else(|| modifiers_text[mod_start..].find(']')
-                                .map(|pos| mod_start + pos)
-                                .unwrap_or(modifiers_text.len()));
-                        
-                        if mod_start < mod_end && mod_end <= modifiers_text.len() {
-                            let mod_value = &modifiers_text[mod_start..mod_end];
-                            block.add_modifier(modifier_name, mod_value);
-                        }
-                    }
-                }
-            }
+        // Add all extracted modifiers
+        for (key, value) in modifiers {
+            block.add_modifier(&key, &value);
         }
         
-        // Adjust for whitespace, but be careful with subtraction
-        let whitespace_offset = if content.len() > trimmed_content.len() {
-            0 // This shouldn't happen, but prevents overflow
-        } else {
-            trimmed_content.len() - content.len()
-        };
+        // Calculate the total length consumed
+        let whitespace_prefix = content.len() - trimmed_content.len();
+        let total_consumed = closing_end - whitespace_prefix;
         
-        return Some((block, closing_end + whitespace_offset));
+        println!("DEBUG: Successfully parsed block with manual approach");
+        return Some((block, total_consumed));
     }
     
+    // Try an even more aggressive approach for complex blocks
+    println!("DEBUG: Trying aggressive approach for complex blocks");
+    
+    // For code blocks, look for language-specific closing tags
+    if block_type.starts_with("code:") {
+        if let Some(colon_pos) = block_type.find(':') {
+            let language = &block_type[colon_pos + 1..];
+            let specific_close_tag = format!("[/code:{}]", language);
+            
+            if let Some(close_pos) = trimmed_content[close_bracket + 1..].find(&specific_close_tag) {
+                let content_start = close_bracket + 1;
+                let closing_start = content_start + close_pos;
+                let closing_end = closing_start + specific_close_tag.len();
+                
+                // Extract content
+                let content = trimmed_content[content_start..closing_start].trim();
+                
+                // Create the block
+                let mut block = Block::new(&block_type, name.as_deref(), content);
+                
+                // Add all extracted modifiers
+                for (key, value) in &modifiers {
+                    block.add_modifier(key, value);
+                }
+                
+                println!("DEBUG: Successfully parsed code block with language-specific closing tag");
+                return Some((block, closing_end));
+            }
+        }
+    }
+    
+    // Look for any closing tag that might match
+    let simple_close_tag = format!("[/{}]", base_type);
+    if let Some(close_pos) = trimmed_content[close_bracket + 1..].find(&simple_close_tag) {
+        let content_start = close_bracket + 1;
+        let closing_start = content_start + close_pos;
+        let closing_end = closing_start + simple_close_tag.len();
+        
+        // Extract content
+        let content = trimmed_content[content_start..closing_start].trim();
+        
+        // Create the block
+        let mut block = Block::new(&block_type, name.as_deref(), content);
+        
+        // Add all extracted modifiers
+        for (key, value) in &modifiers {
+            block.add_modifier(key, value);
+        }
+        
+        println!("DEBUG: Successfully parsed block with simple closing tag");
+        return Some((block, closing_end));
+    }
+    
+    println!("DEBUG: Failed to parse block");
     None
 }
 
@@ -484,10 +651,13 @@ fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
         block_type
     };
     
+    println!("DEBUG: Finding end for block type: {}, base type: {}", block_type, base_type);
+    
     // Try with the full block type first
     let full_close_tag = format!("[/{}", block_type);
     if let Some(close_pos) = content.find(&full_close_tag) {
         if let Some(end_pos) = content[close_pos..].find(']') {
+            println!("DEBUG: Found end with full close tag at position {}", close_pos + end_pos + 1);
             return Some(close_pos + end_pos + 1);
         }
     }
@@ -497,6 +667,7 @@ fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
         let base_close_tag = format!("[/{}", base_type);
         if let Some(close_pos) = content.find(&base_close_tag) {
             if let Some(end_pos) = content[close_pos..].find(']') {
+                println!("DEBUG: Found end with base close tag at position {}", close_pos + end_pos + 1);
                 return Some(close_pos + end_pos + 1);
             }
         }
@@ -507,7 +678,20 @@ fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
         // Try with just [/code]
         let simple_close_tag = "[/code]";
         if let Some(close_pos) = content.find(simple_close_tag) {
+            println!("DEBUG: Found end with simple code close tag at position {}", close_pos + simple_close_tag.len());
             return Some(close_pos + simple_close_tag.len());
+        }
+        
+        // Try with language-specific closing tag
+        if let Some(colon_pos) = block_type.find(':') {
+            let language = &block_type[colon_pos + 1..];
+            let specific_close_tag = format!("[/code:{}]", language);
+            
+            if let Some(close_pos) = content.find(&specific_close_tag) {
+                println!("DEBUG: Found end with language-specific close tag at position {}", 
+                         close_pos + specific_close_tag.len());
+                return Some(close_pos + specific_close_tag.len());
+            }
         }
     }
     
@@ -522,11 +706,20 @@ fn find_block_end(content: &str, block_type: &str) -> Option<usize> {
         if base_type == *btype || block_type.starts_with(&format!("{}:", btype)) {
             let close_tag = format!("[/{}]", btype);
             if let Some(close_pos) = content.find(&close_tag) {
+                println!("DEBUG: Found {} close tag at position {}", btype, close_pos + close_tag.len());
                 return Some(close_pos + close_tag.len());
             }
         }
     }
     
+    // Try a simple approach as last resort
+    let simple_close_tag = format!("[/{}]", base_type);
+    if let Some(close_pos) = content.find(&simple_close_tag) {
+        println!("DEBUG: Found simple close tag at position {}", close_pos + simple_close_tag.len());
+        return Some(close_pos + simple_close_tag.len());
+    }
+    
+    println!("DEBUG: Could not find end for block type: {}", block_type);
     None
 }
 
