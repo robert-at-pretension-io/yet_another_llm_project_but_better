@@ -31,8 +31,10 @@ mod tests {
     
     #[test]
     fn test_missing_closing_tag() {
-        let input = r#"[code:python name:missing-close]
-print("Hello, world!")
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:code language="python" name="missing-close">
+  print("Hello, world!")
 "#;
         
         let result = parse_document(input);
@@ -50,13 +52,16 @@ print("Hello, world!")
     
     #[test]
     fn test_duplicate_block_names() {
-        let input = r#"[variable name:config]
-debug=true
-[/variable]
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:variable name="config">
+  debug=true
+  </meta:variable>
 
-[data name:config]
-{"setting": "value"}
-[/data]"#;
+  <meta:data name="config">
+  {"setting": "value"}
+  </meta:data>
+</meta:document>"#;
         
         let result = parse_document(input);
         
@@ -71,9 +76,12 @@ debug=true
     
     #[test]
     fn test_invalid_block_type() {
-        let input = r#"[invalid-type name:test]
-This is an invalid block type
-[/invalid-type]"#;
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:invalid-type name="test">
+  This is an invalid block type
+  </meta:invalid-type>
+</meta:document>"#;
         
         let result = parse_document(input);
         
@@ -92,13 +100,18 @@ This is an invalid block type
     fn test_malformed_json_in_data_block() {
         // Note: This is testing semantic validation rather than syntax parsing
         // Depending on implementation, this might parse successfully but fail during execution
-        let input = r#"[data name:malformed-json format:json]
-{
-  "name": "Test",
-  "value": 42,
-  missing quotes
-}
-[/data]"#;
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:data name="malformed-json" format="json">
+  <![CDATA[
+  {
+    "name": "Test",
+    "value": 42,
+    missing quotes
+  }
+  ]]>
+  </meta:data>
+</meta:document>"#;
         
         let result = parse_document(input);
         
