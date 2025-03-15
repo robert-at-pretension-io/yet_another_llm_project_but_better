@@ -6,6 +6,7 @@ use std::str;
 
 use crate::parser::blocks::Block;
 use crate::parser::ParserError;
+use crate::parser::is_valid_block_type;
 
 /// Parse an XML document into a vector of blocks
 pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
@@ -15,7 +16,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
     let mut blocks = Vec::new();
     let mut buf = Vec::new();
     
-    // Track if we're inside a meta:document element
+    // Track if we're inside a document element (either meta:document or document)
     let mut in_document = false;
     
     // Track current block being built
@@ -30,24 +31,30 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     .unwrap_or_default()
                     .to_string();
                 
-                // Check for meta:document
-                if name == "meta:document" {
+                // Check for document tag (with or without meta: prefix)
+                if name == "meta:document" || name == "document" {
                     in_document = true;
                     continue;
                 }
                 
-                // Only process elements inside meta:document
+                // Only process elements inside document
                 if !in_document {
                     continue;
                 }
                 
-                // Handle meta: prefixed elements as blocks
-                if name.starts_with("meta:") {
-                    let block_type = name.trim_start_matches("meta:").to_string();
-                    
+                // Get the block type by removing meta: prefix if present
+                let block_type = if name.starts_with("meta:") {
+                    name.trim_start_matches("meta:").to_string()
+                } else {
+                    name
+                };
+                
+                // Check if this is a valid block type
+                if is_valid_block_type(&block_type) {
                     // Extract attributes
                     let mut block_name = None;
                     let mut modifiers = Vec::new();
+                    let mut final_block_type = block_type.clone();
                     
                     for attr_result in e.attributes() {
                         if let Ok(attr) = attr_result {
@@ -61,10 +68,13 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             if key == "name" {
                                 block_name = Some(value);
                             } else if key == "type" && block_type == "section" {
-                                // Store only as modifier, not in block_type
+                                // For sections, store type as a modifier
                                 modifiers.push((key.clone(), value.clone()));
+                            } else if key == "type" && block_type == "code" {
+                                // For code blocks, handle language/type as a modifier
+                                modifiers.push(("language".to_string(), value.clone()));
                             } else if key == "language" && block_type == "code" {
-                                // Store only as modifier, not in block_type
+                                // Handle explicit language attribute
                                 modifiers.push((key.clone(), value.clone()));
                             } else {
                                 modifiers.push((key, value));
@@ -73,7 +83,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     }
                     
                     // Create a new block
-                    let mut block = Block::new(&block_type, block_name.as_deref(), "");
+                    let mut block = Block::new(&final_block_type, block_name.as_deref(), "");
                     
                     // Add modifiers
                     for (key, value) in modifiers {
@@ -90,12 +100,21 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     .unwrap_or_default()
                     .to_string();
                 
-                if name == "meta:document" {
+                // Handle document end tag (with or without meta: prefix)
+                if name == "meta:document" || name == "document" {
                     in_document = false;
                     continue;
                 }
                 
-                if in_document && name.starts_with("meta:") {
+                // Get the block type by removing meta: prefix if present
+                let block_type = if name.starts_with("meta:") {
+                    name.trim_start_matches("meta:").to_string()
+                } else {
+                    name
+                };
+                
+                // Process end of any valid block type
+                if in_document && is_valid_block_type(&block_type) {
                     if !block_stack.is_empty() {
                         // Pop the current block and its content
                         let mut block = block_stack.pop().unwrap();
@@ -164,8 +183,23 @@ pub fn is_xml_document(input: &str) -> bool {
     
     // Check for root element with meta namespace
     if trimmed.contains("<meta:document") || 
+       trimmed.contains("<document") ||
        trimmed.contains("xmlns:meta=") {
         return true;
+    }
+    
+    // Check for common block types as XML tags
+    let common_block_types = [
+        "<code", "<data", "<shell", "<visualization", "<template", 
+        "<variable", "<secret", "<filename", "<memory", "<api", 
+        "<question", "<response", "<results", "<error_results", 
+        "<error", "<preview", "<conditional", "<section"
+    ];
+    
+    for block_type in common_block_types {
+        if trimmed.contains(block_type) {
+            return true;
+        }
     }
     
     false
