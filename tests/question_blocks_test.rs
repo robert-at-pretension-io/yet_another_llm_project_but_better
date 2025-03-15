@@ -120,7 +120,7 @@ fn test_question_block_fallback() {
 
 <?xml version="1.0" encoding="UTF-8"?>
 <meta:document xmlns:meta="https://example.com/meta-language">
-  <meta:question name="test-fallback" fallback="Default answer when no response is available">
+  <meta:question name="test-fallback" test_mode="true" fallback="Default answer when no response is available">
   What happens if there's no response block?
   </meta:question>
 </meta:document>
