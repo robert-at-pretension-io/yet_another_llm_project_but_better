@@ -741,8 +741,9 @@ impl MetaLanguageExecutor {
             Ok(response) => {
                 println!("DEBUG: Processing successful response");
                 
-                // Create a response block if the question block has a name
+                // Create a response block
                 if let Some(name) = &block.name {
+                    // For named question blocks
                     let response_block_name = format!("{}_response", name);
                     println!("DEBUG: Creating response block: {}", response_block_name);
                     
@@ -769,15 +770,36 @@ impl MetaLanguageExecutor {
                     // Store the response in outputs
                     println!("DEBUG: Storing response in outputs map with key: {}", response_block_name);
                     self.outputs.insert(response_block_name, response.clone());
-                    
-                    // Debug: Print all outputs after adding this one
-                    println!("DEBUG: Current outputs after adding response:");
-                    for (k, v) in &self.outputs {
-                        println!("DEBUG:   '{}' => '{}' (length: {})", k, 
-                                 if v.len() > 30 { &v[..30] } else { v }, v.len());
-                    }
                 } else {
-                    println!("DEBUG: Question block has no name, not creating a response block");
+                    // For unnamed question blocks
+                    println!("DEBUG: Question block has no name, creating generic response block");
+                    
+                    let response_str = response.as_str();
+                    let mut response_block = Block::new("response", Some("generic_response"), response_str);
+                    println!("DEBUG: Created generic response block with content length: {}", response_str.len());
+                    
+                    // Copy relevant modifiers from the question block
+                    for (key, value) in &block.modifiers {
+                        if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
+                            println!("DEBUG: Copying modifier from question to response: {}={}", key, value);
+                            response_block.add_modifier(key, value);
+                        }
+                    }
+                    
+                    // Store the response block
+                    println!("DEBUG: Storing generic response block in blocks map");
+                    self.blocks.insert("generic_response".to_string(), response_block);
+                    
+                    // Store the response in outputs with a generic key
+                    println!("DEBUG: Storing response in outputs map with key: question_response");
+                    self.outputs.insert("question_response".to_string(), response.clone());
+                }
+                
+                // Debug: Print all outputs after adding this one
+                println!("DEBUG: Current outputs after adding response:");
+                for (k, v) in &self.outputs {
+                    println!("DEBUG:   '{}' => '{}' (length: {})", k, 
+                             if v.len() > 30 { &v[..30] } else { v }, v.len());
                 }
                 
                 Ok(response)
@@ -1190,16 +1212,17 @@ impl MetaLanguageExecutor {
         // Second pass: insert responses after their corresponding question blocks
         let mut i = 0;
         let mut response_blocks_added = 0;
+        let mut unnamed_question_count = 0;
         
         while i < lines.len() {
             let line = lines[i];
             result.push_str(line);
             result.push('\n');
             
-            // Check if this is the end of a question block we identified
-            if let Some(pos) = question_blocks.iter().position(|(line_idx, _)| *line_idx == i) {
-                let (_, question_name) = &question_blocks[pos];
-                println!("DEBUG: Processing end of question block '{}' at line {}", question_name, i);
+            // Check if this is the end of a question block
+            if line.trim() == "[/question]" {
+                // Check if this is a named question block we identified
+                let named_question_pos = question_blocks.iter().position(|(line_idx, _)| *line_idx == i);
                 
                 // Check if the next line is already a response block
                 let next_is_response = i + 1 < lines.len() && lines[i + 1].trim().starts_with("[response");
@@ -1207,20 +1230,43 @@ impl MetaLanguageExecutor {
                 
                 // If there's no response block following, try to add the corresponding one
                 if !next_is_response {
-                    // Look for a response to this specific question in the outputs
-                    let response_name = format!("{}_response", question_name);
-                    println!("DEBUG: Looking for response with name: '{}'", response_name);
-                    
-                    if let Some(output) = self.outputs.get(&response_name) {
-                        println!("DEBUG: Found matching response '{}' (length: {})", response_name, output.len());
-                        // Insert the response block after the question block
-                        result.push_str("[response]\n");
-                        result.push_str(output);
-                        result.push_str("\n[/response]\n\n");
-                        response_blocks_added += 1;
-                        println!("DEBUG: Added response block #{} for question '{}'", response_blocks_added, question_name);
+                    if let Some(pos) = named_question_pos {
+                        // Handle named question block
+                        let (_, question_name) = &question_blocks[pos];
+                        println!("DEBUG: Processing end of named question block '{}' at line {}", question_name, i);
+                        
+                        // Look for a response to this specific question in the outputs
+                        let response_name = format!("{}_response", question_name);
+                        println!("DEBUG: Looking for response with name: '{}'", response_name);
+                        
+                        if let Some(output) = self.outputs.get(&response_name) {
+                            println!("DEBUG: Found matching response '{}' (length: {})", response_name, output.len());
+                            // Insert the response block after the question block
+                            result.push_str("[response]\n");
+                            result.push_str(output);
+                            result.push_str("\n[/response]\n\n");
+                            response_blocks_added += 1;
+                            println!("DEBUG: Added response block #{} for question '{}'", response_blocks_added, question_name);
+                        } else {
+                            println!("DEBUG: No matching response found for question '{}'", question_name);
+                        }
                     } else {
-                        println!("DEBUG: No matching response found for question '{}'", question_name);
+                        // Handle unnamed question block
+                        unnamed_question_count += 1;
+                        println!("DEBUG: Processing end of unnamed question block #{} at line {}", unnamed_question_count, i);
+                        
+                        // For unnamed question blocks, check the generic "question_response" key
+                        if let Some(output) = self.outputs.get("question_response") {
+                            println!("DEBUG: Found generic question_response (length: {})", output.len());
+                            // Insert the response block after the question block
+                            result.push_str("[response]\n");
+                            result.push_str(output);
+                            result.push_str("\n[/response]\n\n");
+                            response_blocks_added += 1;
+                            println!("DEBUG: Added response block #{} for unnamed question", response_blocks_added);
+                        } else {
+                            println!("DEBUG: No generic question_response found for unnamed question");
+                        }
                     }
                 }
             }
@@ -1228,8 +1274,8 @@ impl MetaLanguageExecutor {
             i += 1;
         }
         
-        println!("DEBUG: Found {} question blocks, added {} response blocks", 
-                 question_blocks.len(), response_blocks_added);
+        println!("DEBUG: Found {} named question blocks, {} unnamed question blocks, added {} response blocks", 
+                 question_blocks.len(), unnamed_question_count, response_blocks_added);
         println!("DEBUG: Final document length: {}", result.len());
         
         Ok(result)
