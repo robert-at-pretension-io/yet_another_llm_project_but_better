@@ -99,6 +99,10 @@ fn test_all_block_types() {
     [error_results name:test-error-results]
     Error results content
     [/error_results]
+    
+    [template name:test-template]
+    Template content with ${variable} placeholder
+    [/template]
     "#;
     
     let result = parse_document(input);
