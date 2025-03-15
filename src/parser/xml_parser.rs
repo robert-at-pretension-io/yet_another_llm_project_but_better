@@ -49,6 +49,9 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     let mut block_name = None;
                     let mut modifiers = Vec::new();
                     
+                    // Debug the element being processed
+                    println!("DEBUG: Processing XML element: {}", name);
+                    
                     for attr_result in e.attributes() {
                         if let Ok(attr) = attr_result {
                             let key = str::from_utf8(attr.key.as_ref())
@@ -123,6 +126,12 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
     
     if blocks.is_empty() {
         return Err(ParserError::ParseError("No valid blocks found in XML document".to_string()));
+    }
+    
+    // Debug output of parsed blocks
+    println!("DEBUG: Parsed {} blocks from XML document", blocks.len());
+    for (i, block) in blocks.iter().enumerate() {
+        println!("DEBUG:   Block {}: type={}, name={:?}", i, block.block_type, block.name);
     }
     
     Ok(blocks)
