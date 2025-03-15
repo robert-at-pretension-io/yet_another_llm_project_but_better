@@ -839,40 +839,40 @@ impl MetaLanguageExecutor {
     }
     
     // Determine the format for a results block
-    pub fn determine_format(&self, block: &Block) -> String{
+    pub fn determine_format(&self, block: &Block) -> String {
         if let Some(format) = block.get_modifier("format") {
             format.to_string()
         } else {
-            self.determine_format_from_content(&block.content).to_string()
+            self.determine_format_from_content(&block.content)
         }
     }
     
     // Auto-detect content format based on its structure
-    pub fn determine_format_from_content(&self, content: &str) -> &str {
+    pub fn determine_format_from_content(&self, content: &str) -> String {
         let trimmed = content.trim();
         
         // Check if it's JSON
         if (trimmed.starts_with('{') && trimmed.ends_with('}')) || 
            (trimmed.starts_with('[') && trimmed.ends_with(']')) {
-            return "json";
+            return "json".to_string();
         }
         
         // Check if it's CSV
         if trimmed.contains(',') && 
            trimmed.lines().count() > 1 && 
            trimmed.lines().all(|line| line.contains(',')) {
-            return "csv";
+            return "csv".to_string();
         }
         
         // Check if it's Markdown (contains common MD markers)
         if trimmed.contains('#') || 
            trimmed.contains("```") || 
            (trimmed.contains('|') && trimmed.contains('-')) {
-            return "markdown";
+            return "markdown".to_string();
         }
         
         // Default to plain text
-        "plain"
+        "plain".to_string()
     }
     
     // Apply trim modifier to results content
