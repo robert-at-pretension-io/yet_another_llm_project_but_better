@@ -11,38 +11,50 @@ mod tests {
     #[test]
     fn test_complex_workflow_with_dependencies() {
         // Test parsing a complex document with dependencies
-        let input = r#"[data name:target-app format:json always_include:true]
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="target-app" format="json" always_include="true">
+<![CDATA[
 {
   "url": "https://example-app.com",
   "tech_stack": ["Python", "Django", "PostgreSQL"],
   "authentication": true
 }
-[/data]
+]]>
+</meta:data>
 
-[api name:security-headers method:GET cache_result:true retry:2 timeout:10 fallback:security-headers-fallback]
+<meta:api name="security-headers" method="GET" cache_result="true" retry="2" timeout="10" fallback="security-headers-fallback">
+<![CDATA[
 https://securityheaders.com/?url=${target-app.url}&format=json
-[/api]
+]]>
+</meta:api>
 
-[data name:security-headers-fallback format:json]
+<meta:data name="security-headers-fallback" format="json">
+<![CDATA[
 {
   "headers": [],
   "grade": "unknown"
 }
-[/data]
+]]>
+</meta:data>
 
-[shell name:nmap-scan cache_result:true timeout:20 fallback:nmap-scan-fallback]
+<meta:shell name="nmap-scan" cache_result="true" timeout="20" fallback="nmap-scan-fallback">
+<![CDATA[
 nmap -Pn -p 1-1000 ${target-app.url}
-[/shell]
+]]>
+</meta:shell>
 
-[data name:nmap-scan-fallback format:text]
+<meta:data name="nmap-scan-fallback" format="text">
+<![CDATA[
 Failed to scan ports. Using fallback data.
 PORT   STATE  SERVICE
 22/tcp open   ssh
 80/tcp open   http
 443/tcp open   https
-[/data]
+]]>
+</meta:data>
 
-[code:python name:security-analysis depends:security-headers fallback:analysis-fallback]
+<meta:code:python name="security-analysis" depends="security-headers" fallback="analysis-fallback">
+<![CDATA[
 import json
 
 headers = json.loads('''${security-headers}''')
@@ -58,17 +70,23 @@ if "443/tcp" not in scan_results:
 print(f"Found {len(vulnerabilities)} potential issues")
 for vuln in vulnerabilities:
     print(f"- {vuln}")
-[/code:python]
+]]>
+</meta:code:python>
 
-[code:python name:analysis-fallback]
+<meta:code:python name="analysis-fallback">
+<![CDATA[
 print("Security analysis could not be completed")
 print("- Using fallback data")
 print("- Recommend manual review")
-[/code:python]
+]]>
+</meta:code:python>
 
-[question name:security-review depends:security-analysis]
+<meta:question name="security-review" depends="security-analysis">
+<![CDATA[
 Based on the security analysis, what are the key vulnerabilities that need addressing?
-[/question]"#;
+]]>
+</meta:question>
+</meta:document>"#;
 
         println!("\n==== RAW INPUT DOCUMENT ====");
         println!("{}", input);
@@ -80,33 +98,44 @@ Based on the security analysis, what are the key vulnerabilities that need addre
         
         // Define the block patterns we need to extract
         let block_patterns = [
-            r#"[data name:target-app format:json always_include:true]
+            r#"<meta:data name="target-app" format="json" always_include="true">
+<![CDATA[
 {
   "url": "https://example-app.com",
   "tech_stack": ["Python", "Django", "PostgreSQL"],
   "authentication": true
 }
-[/data]"#,
-            r#"[api name:security-headers method:GET cache_result:true retry:2 timeout:10 fallback:security-headers-fallback]
+]]>
+</meta:data>"#,
+            r#"<meta:api name="security-headers" method="GET" cache_result="true" retry="2" timeout="10" fallback="security-headers-fallback">
+<![CDATA[
 https://securityheaders.com/?url=${target-app.url}&format=json
-[/api]"#,
-            r#"[data name:security-headers-fallback format:json]
+]]>
+</meta:api>"#,
+            r#"<meta:data name="security-headers-fallback" format="json">
+<![CDATA[
 {
   "headers": [],
   "grade": "unknown"
 }
-[/data]"#,
-            r#"[shell name:nmap-scan cache_result:true timeout:20 fallback:nmap-scan-fallback]
+]]>
+</meta:data>"#,
+            r#"<meta:shell name="nmap-scan" cache_result="true" timeout="20" fallback="nmap-scan-fallback">
+<![CDATA[
 nmap -Pn -p 1-1000 ${target-app.url}
-[/shell]"#,
-            r#"[data name:nmap-scan-fallback format:text]
+]]>
+</meta:shell>"#,
+            r#"<meta:data name="nmap-scan-fallback" format="text">
+<![CDATA[
 Failed to scan ports. Using fallback data.
 PORT   STATE  SERVICE
 22/tcp open   ssh
 80/tcp open   http
 443/tcp open   https
-[/data]"#,
-            r#"[code:python name:security-analysis depends:security-headers fallback:analysis-fallback]
+]]>
+</meta:data>"#,
+            r#"<meta:code:python name="security-analysis" depends="security-headers" fallback="analysis-fallback">
+<![CDATA[
 import json
 
 headers = json.loads('''${security-headers}''')
@@ -122,15 +151,20 @@ if "443/tcp" not in scan_results:
 print(f"Found {len(vulnerabilities)} potential issues")
 for vuln in vulnerabilities:
     print(f"- {vuln}")
-[/code:python]"#,
-            r#"[code:python name:analysis-fallback]
+]]>
+</meta:code:python>"#,
+            r#"<meta:code:python name="analysis-fallback">
+<![CDATA[
 print("Security analysis could not be completed")
 print("- Using fallback data")
 print("- Recommend manual review")
-[/code:python]"#,
-            r#"[question name:security-review depends:security-analysis]
+]]>
+</meta:code:python>"#,
+            r#"<meta:question name="security-review" depends="security-analysis">
+<![CDATA[
 Based on the security analysis, what are the key vulnerabilities that need addressing?
-[/question]"#
+]]>
+</meta:question>"#
         ];
         
         // Parse each block individually and collect the results
@@ -227,32 +261,39 @@ Based on the security analysis, what are the key vulnerabilities that need addre
         println!("\n==== TESTING INDIVIDUAL BLOCK PARSING ====");
         
         // Test data block
-        let data_block = r#"[data name:target-app format:json always_include:true]
+        let data_block = r#"<meta:data name="target-app" format="json" always_include="true">
+<![CDATA[
 {
   "url": "https://example-app.com",
   "tech_stack": ["Python", "Django", "PostgreSQL"],
   "authentication": true
 }
-[/data]"#;
+]]>
+</meta:data>"#;
         
         test_parse_block("DATA BLOCK", data_block);
         
         // Test API block
-        let api_block = r#"[api name:security-headers method:GET cache_result:true retry:2 timeout:10 fallback:security-headers-fallback]
+        let api_block = r#"<meta:api name="security-headers" method="GET" cache_result="true" retry="2" timeout="10" fallback="security-headers-fallback">
+<![CDATA[
 https://securityheaders.com/?url=https://example-app.com&format=json
-[/api]"#;
+]]>
+</meta:api>"#;
         
         test_parse_block("API BLOCK", api_block);
         
         // Test shell block
-        let shell_block = r#"[shell name:nmap-scan cache_result:true timeout:20 fallback:nmap-scan-fallback]
+        let shell_block = r#"<meta:shell name="nmap-scan" cache_result="true" timeout="20" fallback="nmap-scan-fallback">
+<![CDATA[
 nmap -Pn -p 1-1000 example-app.com
-[/shell]"#;
+]]>
+</meta:shell>"#;
         
         test_parse_block("SHELL BLOCK", shell_block);
         
         // Test code block
-        let code_block = r#"[code:python name:security-analysis depends:security-headers fallback:analysis-fallback]
+        let code_block = r#"<meta:code:python name="security-analysis" depends="security-headers" fallback="analysis-fallback">
+<![CDATA[
 import json
 
 headers = json.loads('''{"grade": "B"}''')
@@ -270,14 +311,17 @@ if "443/tcp" not in scan_results:
 print(f"Found {len(vulnerabilities)} potential issues")
 for vuln in vulnerabilities:
     print(f"- {vuln}")
-[/code:python]"#;
+]]>
+</meta:code:python>"#;
         
         test_parse_block("CODE BLOCK", code_block);
         
         // Test question block
-        let question_block = r#"[question name:security-review depends:security-analysis]
+        let question_block = r#"<meta:question name="security-review" depends="security-analysis">
+<![CDATA[
 Based on the security analysis, what are the key vulnerabilities that need addressing?
-[/question]"#;
+]]>
+</meta:question>"#;
         
         test_parse_block("QUESTION BLOCK", question_block);
     }
@@ -305,18 +349,22 @@ Based on the security analysis, what are the key vulnerabilities that need addre
     #[test]
     fn test_simple_workflow() {
         // Create a test document with just a few blocks for testing
-        let test_document = r#"
-[data name:simple-data format:json]
+        let test_document = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="simple-data" format="json">
+<![CDATA[
 [1, 2, 3, 4, 5]
-[/data]
+]]>
+</meta:data>
 
-[code:python name:process-data depends:simple-data]
+<meta:code:python name="process-data" depends="simple-data">
+<![CDATA[
 import json
 data = ${simple-data}
 result = sum(data)
 print(result)
-[/code:python]
-"#;
+]]>
+</meta:code:python>
+</meta:document>"#;
 
         // Parse the document
         let blocks = parse_document(test_document).expect("Failed to parse document");
