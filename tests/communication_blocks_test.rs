@@ -40,16 +40,19 @@ mod tests {
     #[test]
      // Temporarily ignore test until we fix the block parsing
     fn test_question_response_sequence() {
-        let input = r#"[question]
-What are the three laws of robotics?
-[/question]
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question>
+  What are the three laws of robotics?
+  </meta:question>
 
-[response]
-The three laws of robotics are:
-1. A robot may not harm a human.
-2. A robot must obey human orders.
-3. A robot must protect its own existence.
-[/response]"#;
+  <meta:response>
+  The three laws of robotics are:
+  1. A robot may not harm a human.
+  2. A robot must obey human orders.
+  3. A robot must protect its own existence.
+  </meta:response>
+</meta:document>"#;
         
         let result = parse_document(input).unwrap();
         assert_eq!(result.len(), 2);
@@ -60,12 +63,15 @@ The three laws of robotics are:
     
     #[test]
     fn test_question_with_multiline_content() {
-        let input = r#"[question model:gpt-4]
-Can you explain:
-1. The concept of recursion
-2. How to implement a recursive function
-3. When to use recursion vs iteration
-[/question]"#;
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question model="gpt-4">
+  Can you explain:
+  1. The concept of recursion
+  2. How to implement a recursive function
+  3. When to use recursion vs iteration
+  </meta:question>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse question with multiline content: {:?}", result.err());
@@ -78,9 +84,12 @@ Can you explain:
     
     #[test]
     fn test_simple_response_block() {
-        let input = r#"[response]
-This is a simple response.
-[/response]"#;
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:response>
+  This is a simple response.
+  </meta:response>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse simple response: {:?}", result.err());
