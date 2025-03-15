@@ -1457,6 +1457,7 @@ impl MetaLanguageExecutor {
                     println!("DEBUG: Found question block with name: {:?}", current_question_name);
                 } else if let Some(name_start) = trimmed.find("name=\"") {
                     let name_start = name_start + 6; // skip "name=\""
+                    // Find the closing quote for just the name attribute
                     let name_end = trimmed[name_start..].find('"')
                         .map(|pos| name_start + pos)
                         .unwrap_or(trimmed.len());
