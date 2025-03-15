@@ -43,7 +43,7 @@ impl Block {
     pub fn is_modifier_true(&self, key: &str) -> bool {
         if let Some(value) = self.get_modifier(key) {
             let value = value.to_lowercase();
-            value == "true" || value == "yes" || value == "1"
+            value == "true" || value == "yes" || value == "1" || value == "on" || value == "enabled"
         } else {
             false
         }
