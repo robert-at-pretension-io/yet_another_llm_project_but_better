@@ -16,6 +16,7 @@ mod block_parsers;
 mod modifiers;
 pub mod document_processor;
 mod xml_parser;
+mod debug_utils;
 
 // Re-export important types
 pub use self::blocks::Block;
