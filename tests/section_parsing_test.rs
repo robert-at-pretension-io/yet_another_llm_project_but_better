@@ -18,7 +18,8 @@ mod tests {
         assert_eq!(blocks.len(), 1, "Expected 1 top-level block, found {}", blocks.len());
         
         let section = &blocks[0];
-        assert_eq!(section.block_type, "section:test");
+        assert_eq!(section.block_type, "section");
+        assert_eq!(section.get_modifier("type").unwrap(), "test");
         assert_eq!(section.name, Some("simple-section".to_string()));
         assert!(section.content.contains("This is a simple section"));
         assert_eq!(section.children.len(), 0, "Expected 0 child blocks, found {}", section.children.len());
@@ -46,7 +47,8 @@ mod tests {
         assert_eq!(blocks.len(), 1, "Expected 1 top-level block, found {}", blocks.len());
         
         let section = &blocks[0];
-        assert_eq!(section.block_type, "section:test");
+        assert_eq!(section.block_type, "section");
+        assert_eq!(section.get_modifier("type").unwrap(), "test");
         assert_eq!(section.name, Some("parent".to_string()));
         assert!(section.content.contains("Some content before"));
         assert!(section.content.contains("Some content after"));
@@ -90,7 +92,8 @@ mod tests {
         assert_eq!(blocks.len(), 1, "Expected 1 top-level block, found {}", blocks.len());
         
         let section = &blocks[0];
-        assert_eq!(section.block_type, "section:document");
+        assert_eq!(section.block_type, "section");
+        assert_eq!(section.get_modifier("type").unwrap(), "document");
         assert_eq!(section.name, Some("multi-child".to_string()));
         assert!(section.content.contains("# Header"));
         
@@ -135,7 +138,8 @@ mod tests {
         assert_eq!(blocks.len(), 1, "Expected 1 top-level block, found {}", blocks.len());
         
         let outer = &blocks[0];
-        assert_eq!(outer.block_type, "section:outer");
+        assert_eq!(outer.block_type, "section");
+        assert_eq!(outer.get_modifier("type").unwrap(), "outer");
         assert_eq!(outer.name, Some("parent".to_string()));
         assert!(outer.content.contains("Outer content"));
         assert!(outer.content.contains("More outer content"));
@@ -145,7 +149,8 @@ mod tests {
         
         // Check the inner section
         let inner = &outer.children[0];
-        assert_eq!(inner.block_type, "section:inner");
+        assert_eq!(inner.block_type, "section");
+        assert_eq!(inner.get_modifier("type").unwrap(), "inner");
         assert_eq!(inner.name, Some("child".to_string()));
         assert!(inner.content.contains("Inner content"));
     }
