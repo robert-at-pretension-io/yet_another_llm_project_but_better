@@ -3,16 +3,12 @@
 //! This module provides functionality to watch for file system events
 //! and notify listeners when watched files are modified.
 
-use notify::{Watcher, DebouncedEvent, RecursiveMode};
-use std::path::{Path, PathBuf};
+use notify::{Watcher, DebouncedEvent, RecursiveMode, watcher};
+use std::path::PathBuf;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::collections::HashSet;
 use std::time::Duration;
 use std::thread;
-use std::fs;
-
-use crate::parser::{parse_document, Block};
-use crate::executor::MetaLanguageExecutor;
 
 /// Types of file events that can be detected
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,7 +33,7 @@ pub struct FileEvent {
 /// File watcher that monitors specified files for changes
 pub struct FileWatcher {
     // Internal notify watcher
-    watcher: notify::Watcher,
+    watcher: notify::RecommendedWatcher,
     // Set of files being watched
     watched_files: HashSet<PathBuf>,
     // Sender for file events
@@ -59,7 +55,7 @@ impl FileWatcher {
         let (tx, rx) = channel();
         
         // Create the notify watcher with a debounce time of 100ms
-        let mut watcher = notify::Watcher::new(tx, Duration::from_millis(100))
+        let watcher = watcher(tx, Duration::from_millis(100))
             .expect("Failed to create file watcher");
         
         // Spawn a thread to handle events from the watcher
