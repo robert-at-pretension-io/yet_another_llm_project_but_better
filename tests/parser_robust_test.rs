@@ -1032,7 +1032,9 @@ done
         let block = find_block_by_name(&blocks, &block_name);
         assert!(block.is_some(), "{} block not found", lang);
         assert_eq!(block.unwrap().block_type, "code");
-        assert_eq!(block.unwrap().get_modifier("language").map(|s| s.as_str()), Some(lang));
+        // Dereference lang to get &str instead of &&str
+        let lang_str = *lang;
+        assert_eq!(block.unwrap().get_modifier("language").map(|s| s.as_str()), Some(lang_str));
     }
     
     // Verify content of specific blocks
