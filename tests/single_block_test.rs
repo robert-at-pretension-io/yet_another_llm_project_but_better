@@ -47,7 +47,10 @@ print(result)
         
         let blocks = doc_result.unwrap();
         assert_eq!(blocks.len(), 1, "Expected 1 code block, found {}", blocks.len());
-        assert_eq!(blocks[0].block_type, "code:python");
+        assert_eq!(blocks[0].block_type, "code");
+        // Check that the language modifier is set correctly
+        let language = blocks[0].get_modifier("language");
+        assert_eq!(language, Some(&"python".to_string()));
         assert_eq!(blocks[0].name, Some("calculate-sum".to_string()));
     }
     
