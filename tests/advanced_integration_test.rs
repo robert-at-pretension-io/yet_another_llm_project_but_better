@@ -1,5 +1,5 @@
-use crate::executor::MetaLanguageExecutor;
-use crate::parser::{parse_document, Block};
+use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
+use yet_another_llm_project_but_better::parser::{parse_document, Block};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -568,7 +568,7 @@ print(json.dumps({"message": message}, indent=2))
         assert!(result.is_err(), "Circular dependency not detected");
         
         match result {
-            Err(crate::executor::ExecutorError::CircularDependency(_)) => {
+            Err(yet_another_llm_project_but_better::executor::ExecutorError::CircularDependency(_)) => {
                 // This is the expected error
             },
             _ => panic!("Wrong error type returned for circular dependency")
