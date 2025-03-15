@@ -148,9 +148,9 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                         println!("DEBUG: Updated content length: {} bytes", updated_content.len());
                         
                         // Write the updated content back to the file
-                        println!("DEBUG: Writing updated content to file: {}", file_path.display());
+                        println!("DEBUG: DIRECT UPDATE: Writing updated content to file: {}", file_path.display());
                         match fs::write(file_path, &updated_content) {
-                            Ok(_) => println!("DEBUG: Successfully wrote updated content to file"),
+                            Ok(_) => println!("DEBUG: DIRECT UPDATE: Successfully wrote updated content to file"),
                             Err(e) => println!("DEBUG: Failed to write updated file: {}", e)
                         }
                     } else {
@@ -208,8 +208,9 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
     executor.process_document(&content)
         .map_err(|e| anyhow!("Executor error: {}", e))?;
     
-    // Track if we need to update the file
+    // Track if we need to update the file and if it was already directly updated
     let mut file_updated = false;
+    let mut file_directly_updated = false;
     
     // Print detailed information about each block
     for (i, block) in blocks.iter().enumerate() {
@@ -241,9 +242,11 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
                     println!("{}", output);
                     println!("=== End of output ===");
                     
-                    // For question blocks, update the file with the response
+                    // For question blocks, the file was already directly updated in execute_block
                     if block.block_type == "question" {
-                        file_updated = true;
+                        file_directly_updated = true;
+                        // We don't need to update the file again via executor.update_document()
+                        file_updated = false;
                     }
                 },
                 Err(e) => {
@@ -257,8 +260,9 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
         }
     }
     
-    // If we executed any blocks that require file updates, update the file
-    if file_updated {
+    // If we executed any blocks that require file updates and the file wasn't already directly updated,
+    // update the file using the executor
+    if file_updated && !file_directly_updated {
         println!("DEBUG: File update required, calling executor.update_document()");
         
         // Get the updated document content from the executor
@@ -288,7 +292,7 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
         };
         
         if current_content != updated_content {
-            println!("DEBUG: Content has changed, writing updated content to file");
+            println!("DEBUG: Content has changed, writing updated content to file via executor.update_document()");
             
             // Write the updated content back to the file
             match fs::write(file_path, &updated_content) {
