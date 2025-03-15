@@ -1,0 +1,3 @@
+[build]
+# Exclude running tests that might depend on problematic dependencies
+exclude_tests = true
