@@ -68,8 +68,18 @@ fn watch(watcher: &mut FileWatcher, path: String) -> Result<()> {
 
 // Process a file immediately
 fn process_file(file_path: &str) -> Result<()> {
-    log_debug(&format!("Starting process_file for: {}", file_path));
+    log_debug(&format!("Starting process_file for: '{}'", file_path));
     let start_time = Instant::now();
+    
+    // Check file extension
+    let path = Path::new(file_path);
+    if let Some(ext) = path.extension() {
+        let ext_str = format!(".{}", ext.to_string_lossy());
+        log_debug(&format!("File extension: '{}' for file: '{}'", ext_str, file_path));
+    } else {
+        log_debug(&format!("File '{}' has no extension", file_path));
+    }
+    
     let config = CONFIG.lock().unwrap();
     
     if config.verbose {
@@ -77,35 +87,47 @@ fn process_file(file_path: &str) -> Result<()> {
     }
     
     // Read the file
-    log_debug(&format!("Reading file content from: {}", file_path));
-    let content = fs::read_to_string(file_path)
-        .with_context(|| format!("Failed to read file: {}", file_path))?;
-    log_debug(&format!("File read successfully, content length: {} bytes", content.len()));
+    log_debug(&format!("Reading file content from: '{}'", file_path));
+    let content = match fs::read_to_string(file_path) {
+        Ok(content) => {
+            log_debug(&format!("File read successfully, content length: {} bytes", content.len()));
+            log_debug(&format!("First 100 chars of content: '{}'", 
+                              if content.len() > 100 { &content[..100] } else { &content }));
+            content
+        },
+        Err(e) => {
+            log_debug(&format!("Failed to read file '{}': {}", file_path, e));
+            return Err(anyhow!("Failed to read file: {}: {}", file_path, e));
+        }
+    };
     
     // Get or create an executor for this file
-    log_debug(&format!("Getting executor for file: {}", file_path));
+    log_debug(&format!("Getting executor for file: '{}'", file_path));
     let executor = get_or_create_executor(file_path);
     let mut executor = executor.lock().unwrap();
-    log_debug("Executor acquired successfully");
+    log_debug(&format!("Executor acquired successfully for '{}'", file_path));
     
     // Process the document
-    log_debug("Beginning document processing");
+    log_debug(&format!("Beginning document processing for '{}'", file_path));
     println!("Processing document content: {} bytes", content.len());
     
     match executor.process_document(&content) {
         Ok(_) => {
-            log_debug(&format!("Document processed successfully, found {} blocks", executor.blocks.len()));
+            log_debug(&format!("Document '{}' processed successfully, found {} blocks", 
+                              file_path, executor.blocks.len()));
             println!("Successfully parsed document, found {} blocks", executor.blocks.len());
             
             // Debug: Print all blocks found
+            log_debug("Listing all blocks found:");
             for (name, block) in &executor.blocks {
+                log_debug(&format!("Block: '{}' of type '{}'", name, block.block_type));
                 println!("Found block: '{}' of type '{}'", name, block.block_type);
             }
         },
         Err(e) => {
             // Print the error but continue execution
             eprintln!("Error processing document {}: {}", file_path, e);
-            log_debug(&format!("Error processing document: {}", e));
+            log_debug(&format!("Error processing document '{}': {}", file_path, e));
         }
     }
     
@@ -413,12 +435,17 @@ fn parse_args() -> Result<Vec<String>> {
     let args: Vec<String> = env::args().collect();
     log_debug(&format!("Processing {} command line arguments", args.len() - 1));
     
+    // Debug: Print all arguments
+    for (idx, arg) in args.iter().enumerate() {
+        log_debug(&format!("Argument[{}]: '{}'", idx, arg));
+    }
+    
     let mut config = CONFIG.lock().unwrap();
     let mut files_to_process = Vec::new();
     
     let mut i = 1;
     while i < args.len() {
-        log_debug(&format!("Processing argument: {}", args[i]));
+        log_debug(&format!("Processing argument[{}]: '{}'", i, args[i]));
         match args[i].as_str() {
             "--watch" | "-w" => {
                 config.watch_mode = true;
@@ -427,7 +454,7 @@ fn parse_args() -> Result<Vec<String>> {
             "--path" | "-p" => {
                 if i + 1 < args.len() && !args[i + 1].starts_with('-') {
                     config.watch_paths = vec![args[i + 1].clone()];
-                    log_debug(&format!("Watch path set to: {}", args[i + 1]));
+                    log_debug(&format!("Watch path set to: '{}'", args[i + 1]));
                     i += 1;
                 } else {
                     log_debug("Warning: --path specified without a value");
@@ -475,18 +502,21 @@ fn parse_args() -> Result<Vec<String>> {
             },
             // If not a known flag, assume it's a file to process
             _ if args[i].starts_with('-') => {
-                log_debug(&format!("Unknown option: {}", args[i]));
+                log_debug(&format!("Unknown option: '{}'", args[i]));
                 return Err(anyhow!("Unknown option: {}", args[i]));
             },
             // Individual file to process
             _ => {
-                log_debug(&format!("Found file argument: {}", args[i]));
+                log_debug(&format!("Found file argument[{}]: '{}'", i, args[i]));
+                log_debug(&format!("Adding '{}' to files_to_process", args[i]));
                 files_to_process.push(args[i].clone());
             }
         }
         i += 1;
     }
     
+    log_debug(&format!("Final files_to_process: {:?}", files_to_process));
+    log_debug(&format!("Number of files to process: {}", files_to_process.len()));
     log_debug("Completed parse_args successfully");
     Ok(files_to_process)
 }
@@ -510,28 +540,46 @@ fn print_usage() {
 // Process a list of files
 fn process_files(files: &[String]) -> Result<()> {
     log_debug(&format!("Entering process_files with {} files", files.len()));
+    log_debug(&format!("Files to process: {:?}", files));
     
     if files.is_empty() {
+        log_debug("No files specified to process, returning early");
         println!("No files specified to process");
         return Ok(());
     }
     
     for (index, file) in files.iter().enumerate() {
-        log_debug(&format!("Processing file {}/{}: {}", index + 1, files.len(), file));
+        log_debug(&format!("Processing file {}/{}: '{}'", index + 1, files.len(), file));
+        log_debug(&format!("File path type check - absolute: {}, relative: {}", 
+                          Path::new(file).is_absolute(), 
+                          !Path::new(file).is_absolute()));
         println!("Processing file: {}", file);
         
         // Check if file exists
-        if !std::path::Path::new(file).exists() {
+        let file_path = Path::new(file);
+        let exists = file_path.exists();
+        log_debug(&format!("File existence check: '{}' exists: {}", file, exists));
+        
+        if !exists {
             eprintln!("Error: File does not exist: {}", file);
-            log_debug(&format!("File does not exist: {}", file));
+            log_debug(&format!("File does not exist: '{}', skipping", file));
             continue;
         }
         
+        // Log file metadata if possible
+        if let Ok(metadata) = fs::metadata(file) {
+            log_debug(&format!("File '{}' metadata - size: {} bytes, is_file: {}, is_dir: {}", 
+                              file, metadata.len(), metadata.is_file(), metadata.is_dir()));
+        } else {
+            log_debug(&format!("Could not retrieve metadata for file: '{}'", file));
+        }
+        
+        log_debug(&format!("About to call process_file for: '{}'", file));
         if let Err(e) = process_file(file) {
             eprintln!("Error processing file {}: {}", file, e);
-            log_debug(&format!("Error processing file {}: {}", file, e));
+            log_debug(&format!("Error processing file '{}': {}", file, e));
         } else {
-            log_debug(&format!("Successfully processed file: {}", file));
+            log_debug(&format!("Successfully processed file: '{}'", file));
             println!("Successfully processed file: {}", file);
         }
     }
@@ -547,7 +595,10 @@ fn main() -> Result<()> {
     // Parse command-line arguments
     log_debug("Starting argument parsing");
     let files = match parse_args() {
-        Ok(files) => files,
+        Ok(files) => {
+            log_debug(&format!("parse_args returned {} files: {:?}", files.len(), files));
+            files
+        },
         Err(e) => {
             eprintln!("Error parsing arguments: {}", e);
             log_debug(&format!("Error parsing arguments: {}", e));
@@ -556,17 +607,19 @@ fn main() -> Result<()> {
         }
     };
     
-    log_debug(&format!("Found {} files to process", files.len()));
+    log_debug(&format!("Found {} files to process: {:?}", files.len(), files));
     
     // Process specified files
     if !files.is_empty() {
-        log_debug("Processing specified files");
+        log_debug(&format!("Processing {} specified files: {:?}", files.len(), files));
         if let Err(e) = process_files(&files) {
             eprintln!("Error processing files: {}", e);
             log_debug(&format!("Error processing files: {}", e));
         } else {
-            log_debug("Completed processing all specified files");
+            log_debug(&format!("Completed processing all {} specified files", files.len()));
         }
+    } else {
+        log_debug("No files to process from command line arguments");
     }
     
     // Start file watcher if in watch mode
