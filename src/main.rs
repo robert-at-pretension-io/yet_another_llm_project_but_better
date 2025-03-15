@@ -13,7 +13,7 @@ use chrono::Local;
 
 // Import from our library
 use yet_another_llm_project_but_better::{
-    parser::{parse_document, Block},
+    parser::Block,
     file_watcher::{FileWatcher, FileEvent, FileEventType},
     executor::MetaLanguageExecutor
 };
