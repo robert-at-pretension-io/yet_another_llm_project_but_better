@@ -185,7 +185,7 @@ mod tests {
         
         // Generate a results block
         let output = "Hello, world!";
-        let results_block = executor.generate_results_block(&source_block, output, Some("text"));
+        let results_block = executor.generate_results_block(&source_block, output, Some("text".to_string()));
         
         // Check the results block
         assert_eq!(results_block.block_type, "results");
