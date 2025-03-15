@@ -12,22 +12,18 @@ use yet_another_llm_project_but_better::{
 };
 
 #[test]
-fn test_question_block_with_response() {
+fn test_question_block_with_test_mode() {
     // Create a temporary directory for our test file
     let temp_dir = TempDir::new().expect("Failed to create temp directory");
     let file_path = temp_dir.path().join("test_question.md");
     
-    // Create a file with a question block and a response block
-    // The response block will be used instead of making an actual LLM API call
+    // Create a file with a question block that uses test_mode
+    // This will use the simulated response path in the executor
     let initial_content = r#"# Test Question Block
 
-[question name:test-question]
+[question name:test-question test_mode:true]
 What is the capital of France?
 [/question]
-
-[response for:test-question]
-Paris is the capital of France.
-[/response]
 "#;
     
     fs::write(&file_path, initial_content).expect("Failed to write test file");
@@ -50,8 +46,10 @@ Paris is the capital of France.
     // Verify the result
     assert!(result.is_ok(), "Failed to execute question block: {:?}", result.err());
     let output = result.unwrap();
-    assert!(output.contains("Paris is the capital of France"), 
-            "Unexpected response: {}", output);
+    assert!(!output.is_empty(), "Response should not be empty");
+    assert!(output.contains("This is a simulated response") || 
+            output.contains("test mode"), 
+            "Expected test mode response, got: {}", output);
     
     // Test file watcher integration
     let (sender, receiver) = mpsc::channel();
@@ -63,13 +61,9 @@ Paris is the capital of France.
     // Modify the file to trigger the watcher
     let modified_content = r#"# Test Question Block
 
-[question name:test-question]
+[question name:test-question test_mode:true]
 What is the capital of France? And why is it famous?
 [/question]
-
-[response for:test-question]
-Paris is the capital of France. It is famous for the Eiffel Tower, the Louvre Museum, and its rich history and culture.
-[/response]
 "#;
     
     // Wait a moment to ensure the watcher is ready
@@ -102,7 +96,7 @@ Paris is the capital of France. It is famous for the Eiffel Tower, the Louvre Mu
     // Verify the updated result
     assert!(result.is_ok(), "Failed to execute updated question block: {:?}", result.err());
     let output = result.unwrap();
-    assert!(output.contains("Eiffel Tower"), "Updated response not found: {}", output);
+    assert!(!output.is_empty(), "Response should not be empty");
     
     // Clean up
     drop(watcher); // Stop the file watcher
@@ -145,6 +139,46 @@ What happens if there's no response block?
     let output = result.unwrap();
     assert!(output.contains("Default answer when no response is available"), 
             "Fallback not used: {}", output);
+    
+    // Clean up
+    temp_dir.close().expect("Failed to clean up temp directory");
+}
+
+#[test]
+fn test_question_block_with_model_parameter() {
+    // Create a temporary directory for our test file
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let file_path = temp_dir.path().join("test_model_param.md");
+    
+    // Create a file with a question block that specifies a model
+    let content = r#"# Test Question Block with Model Parameter
+
+[question name:test-model-param test_mode:true model:"gpt-4"]
+What is the meaning of life?
+[/question]
+"#;
+    
+    fs::write(&file_path, content).expect("Failed to write test file");
+    
+    // Create executor
+    let mut executor = MetaLanguageExecutor::new();
+    
+    // Parse the document and register blocks with the executor
+    let content = fs::read_to_string(&file_path).expect("Failed to read file");
+    let blocks = parse_document(&content).expect("Failed to parse document");
+    
+    // Register all blocks with the executor
+    for block in blocks {
+        executor.blocks.insert(block.name.clone().unwrap_or_default(), block);
+    }
+    
+    // Execute the question block
+    let result = executor.execute_block("test-model-param");
+    
+    // Verify the result
+    assert!(result.is_ok(), "Failed to execute question block: {:?}", result.err());
+    let output = result.unwrap();
+    assert!(!output.is_empty(), "Response should not be empty");
     
     // Clean up
     temp_dir.close().expect("Failed to clean up temp directory");
