@@ -3,7 +3,7 @@
 //! This module provides functionality to watch for file system events
 //! and notify listeners when watched files are modified.
 
-use notify::{Watcher as NotifyWatcher, RecursiveMode, Result as NotifyResult, Event, EventKind};
+use notify::{Watcher, DebouncedEvent, RecursiveMode};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::collections::HashSet;
@@ -37,7 +37,7 @@ pub struct FileEvent {
 /// File watcher that monitors specified files for changes
 pub struct FileWatcher {
     // Internal notify watcher
-    watcher: notify::RecommendedWatcher,
+    watcher: notify::Watcher,
     // Set of files being watched
     watched_files: HashSet<PathBuf>,
     // Sender for file events
@@ -55,25 +55,27 @@ impl FileWatcher {
     ///
     /// A new FileWatcher instance
     pub fn new(sender: Sender<FileEvent>) -> Self {
-        let tx_clone = sender.clone();
+        // Create an internal channel for the notify watcher
+        let (tx, rx) = channel();
         
-        // Create the notify watcher
-        let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
-            match res {
-                Ok(event) => {
-                    // Convert notify events to our FileEvent type
-                    if let Some(file_event) = Self::convert_event(event) {
-                        // Send the event
-                        if tx_clone.send(file_event).is_err() {
-                            eprintln!("Error sending file event: receiver may have been dropped");
-                        }
+        // Create the notify watcher with a debounce time of 100ms
+        let mut watcher = notify::Watcher::new(tx, Duration::from_millis(100))
+            .expect("Failed to create file watcher");
+        
+        // Spawn a thread to handle events from the watcher
+        let tx_clone = sender.clone();
+        thread::spawn(move || {
+            for event in rx {
+                // Convert notify events to our FileEvent type
+                if let Some(file_event) = Self::convert_event(event) {
+                    // Send the event
+                    if tx_clone.send(file_event).is_err() {
+                        eprintln!("Error sending file event: receiver may have been dropped");
+                        break;
                     }
-                },
-                Err(e) => {
-                    eprintln!("Watch error: {:?}", e);
                 }
             }
-        }).expect("Failed to create file watcher");
+        });
         
         FileWatcher {
             watcher,
@@ -104,23 +106,29 @@ impl FileWatcher {
         }
     }
     
-    // Convert notify::Event to our FileEvent
-    fn convert_event(event: Event) -> Option<FileEvent> {
-        let event_type = match event.kind {
-            EventKind::Create(_) => FileEventType::Created,
-            EventKind::Modify(_) => FileEventType::Modified,
-            EventKind::Remove(_) => FileEventType::Deleted,
+    // Convert notify::DebouncedEvent to our FileEvent
+    fn convert_event(event: DebouncedEvent) -> Option<FileEvent> {
+        let event_type = match event {
+            DebouncedEvent::Create(_) => FileEventType::Created,
+            DebouncedEvent::Write(_) => FileEventType::Modified,
+            DebouncedEvent::Chmod(_) => FileEventType::Modified, // Treat chmod as modification
+            DebouncedEvent::Remove(_) => FileEventType::Deleted,
             _ => return None, // Ignore other event types
         };
         
         // Get the path from the event
-        // We only care about the first path in the event
-        event.paths.first().and_then(|path| {
-            path.to_str().map(|p| FileEvent {
-                path: p.to_string(),
-                event_type,
-            })
-        })
+        match event {
+            DebouncedEvent::Create(path) | 
+            DebouncedEvent::Write(path) | 
+            DebouncedEvent::Chmod(path) | 
+            DebouncedEvent::Remove(path) => {
+                path.to_str().map(|p| FileEvent {
+                    path: p.to_string(),
+                    event_type,
+                })
+            },
+            _ => None,
+        }
     }
 }
 
