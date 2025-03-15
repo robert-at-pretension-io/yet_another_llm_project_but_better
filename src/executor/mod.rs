@@ -49,10 +49,20 @@ pub struct MetaLanguageExecutor {
     pub current_document: String,
     // Track blocks being processed to detect circular dependencies
     processing_blocks: Vec<String>,
+    // Track if this is a new or existing executor
+    pub instance_id: String,
 }
 
 impl MetaLanguageExecutor {
     pub fn new() -> Self {
+        // Generate a unique ID for this executor instance
+        let instance_id = format!("executor_{}", std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis());
+        
+        println!("DEBUG: Creating new executor instance: {}", instance_id);
+        
         Self {
             blocks: HashMap::new(),
             outputs: HashMap::new(),
@@ -60,13 +70,43 @@ impl MetaLanguageExecutor {
             cache: HashMap::new(),
             current_document: String::new(),
             processing_blocks: Vec::new(),
+            instance_id,
         }
+    }
+    
+    // Debug method to print the current state of outputs
+    pub fn debug_print_outputs(&self, context: &str) {
+        println!("\nDEBUG: [{}] Executor {} outputs state:", context, self.instance_id);
+        println!("DEBUG: Total outputs: {}", self.outputs.len());
+        
+        if self.outputs.is_empty() {
+            println!("DEBUG: No outputs stored.");
+        } else {
+            for (key, value) in &self.outputs {
+                let preview = if value.len() > 50 {
+                    format!("{}... (length: {})", &value[..50], value.len())
+                } else {
+                    format!("{} (length: {})", value, value.len())
+                };
+                println!("DEBUG:   '{}' => '{}'", key, preview);
+            }
+        }
+        println!("DEBUG: End of outputs state\n");
     }
 
     // Process a document
     pub fn process_document(&mut self, content: &str) -> Result<(), ExecutorError> {
+        println!("DEBUG: Processing document with executor: {}", self.instance_id);
+        
+        // Debug: Print the current state of outputs before processing
+        self.debug_print_outputs("BEFORE PROCESSING");
+        
         // Parse the document
         let blocks = parse_document(content).map_err(|e| ExecutorError::ExecutionFailed(e.to_string()))?;
+        
+        // Store the current outputs before clearing
+        let previous_outputs = self.outputs.clone();
+        println!("DEBUG: Preserved {} previous outputs before clearing", previous_outputs.len());
         
         // Clear existing state (keeping cache)
         self.blocks.clear();
@@ -89,9 +129,26 @@ impl MetaLanguageExecutor {
                 // Store content of data blocks directly in outputs
                 if block.block_type == "data" {
                     self.outputs.insert(name.clone(), block.content.clone());
+                    println!("DEBUG: Stored data block '{}' in outputs", name);
                 }
             }
         }
+        
+        // Restore previous responses that aren't in the current document
+        // This preserves LLM responses between document edits
+        let mut restored_count = 0;
+        for (key, value) in previous_outputs {
+            // Only restore responses, not other outputs
+            if key.ends_with("_response") || key == "question_response" {
+                // Check if this response isn't already in the outputs map
+                if !self.outputs.contains_key(&key) {
+                    self.outputs.insert(key.clone(), value);
+                    restored_count += 1;
+                    println!("DEBUG: Restored previous response: '{}'", key);
+                }
+            }
+        }
+        println!("DEBUG: Restored {} previous responses", restored_count);
         
         // Process variable references in all blocks
         // We need to do this in a separate pass after all blocks are registered
@@ -750,6 +807,7 @@ impl MetaLanguageExecutor {
                     let response_str = response.as_str();
                     let mut response_block = Block::new("response", Some(&response_block_name), response_str);
                     println!("DEBUG: Created response block with content length: {}", response_str.len());
+                    println!("DEBUG: Storing response in executor: {}", self.instance_id);
                     
                     // Copy relevant modifiers from the question block
                     for (key, value) in &block.modifiers {
@@ -1156,6 +1214,8 @@ impl MetaLanguageExecutor {
         // Check if the document already contains response blocks
         let has_response_block = updated_doc.contains("[response]") || updated_doc.contains("[/response]");
         println!("DEBUG: Document already contains response blocks: {}", has_response_block);
+        println!("DEBUG: Executor {} has {} outputs available for insertion", 
+                 self.instance_id, self.outputs.len());
         
         // If there are already response blocks, don't add new ones
         if has_response_block {
