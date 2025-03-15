@@ -357,7 +357,8 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
             .map(|pos| lang_start + pos)
             .unwrap_or(trimmed_content.len());
         
-        let language = &trimmed_content[lang_start..lang_end];
+        // Ensure we don't include the closing bracket in the language
+        let language = trimmed_content[lang_start..lang_end].trim_end_matches(']');
         format!("code:{}", language)
     } else if trimmed_content.starts_with("[data") {
         "data".to_string()
@@ -735,7 +736,7 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     let type_end = trimmed_content[type_start..].find(' ').map(|pos| type_start + pos)
         .or_else(|| trimmed_content[type_start..].find(']').map(|pos| type_start + pos))?;
     
-    let section_type = trimmed_content[type_start..type_end].trim();
+    let section_type = trimmed_content[type_start..type_end].trim().trim_end_matches(']');
     let block_type = format!("section:{}", section_type);
     
     // Adjust for the original content's whitespace
@@ -923,7 +924,7 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
                                 .map(|pos| lang_start + pos)
                                 .unwrap_or(block_content.len()));
                         
-                        let language = &block_content[lang_start..lang_end];
+                        let language = block_content[lang_start..lang_end].trim_end_matches(']');
                         let block_type = format!("code:{}", language);
                         
                         // Find closing tag - try with language first, then without
