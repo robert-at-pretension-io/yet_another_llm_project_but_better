@@ -23,6 +23,7 @@ pub use block_parser::{parse_single_block, extract_block_type};
 pub use utils::extractors::{extract_name, extract_modifiers, extract_variable_references};
 pub use utils::validators::check_duplicate_names;
 pub use xml_parser::{parse_xml_document, is_xml_document};
+pub use self::is_valid_block_type;
 
 // Define error type
 #[derive(Error, Debug)]
@@ -41,7 +42,7 @@ pub enum ParserError {
 }
 
 // List of valid block types
-fn is_valid_block_type(block_type: &str) -> bool {
+pub fn is_valid_block_type(block_type: &str) -> bool {
     // Check base types
     let base_types = [
         "code", "data", "shell", "visualization", "template", "variable", 
@@ -64,7 +65,15 @@ fn is_valid_block_type(block_type: &str) -> bool {
 pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
     // Use only the XML parser for document parsing
     match xml_parser::parse_xml_document(input) {
-        Ok(blocks) => Ok(blocks),
+        Ok(blocks) => {
+            // Validate block types
+            for block in &blocks {
+                if !is_valid_block_type(&block.block_type) {
+                    return Err(ParserError::InvalidBlockType(block.block_type.clone()));
+                }
+            }
+            Ok(blocks)
+        },
         Err(err) => Err(ParserError::ParseError(format!("XML parsing failed: {}", err)))
     }
 }
