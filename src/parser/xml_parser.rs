@@ -19,8 +19,8 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
     let mut in_document = false;
     
     // Track current block being built
-    let mut current_block: Option<Block> = None;
-    let mut current_content = String::new();
+    let mut block_stack: Vec<Block> = Vec::new();
+    let mut content_stack: Vec<String> = Vec::new();
     
     loop {
         match reader.read_event_into(&mut buf) {
@@ -43,14 +43,11 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 
                 // Handle meta: prefixed elements as blocks
                 if name.starts_with("meta:") {
-                    let block_type = name.trim_start_matches("meta:").to_string();
+                    let mut block_type = name.trim_start_matches("meta:").to_string();
                     
                     // Extract attributes
                     let mut block_name = None;
                     let mut modifiers = Vec::new();
-                    
-                    // Debug the element being processed
-                    println!("DEBUG: Processing XML element: {}", name);
                     
                     for attr_result in e.attributes() {
                         if let Ok(attr) = attr_result {
@@ -63,6 +60,10 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             
                             if key == "name" {
                                 block_name = Some(value);
+                            } else if key == "type" && block_type == "section" {
+                                block_type = format!("section:{}", value);
+                            } else if key == "language" && block_type == "code" {
+                                block_type = format!("code:{}", value);
                             } else {
                                 modifiers.push((key, value));
                             }
@@ -77,8 +78,9 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                         block.add_modifier(&key, &value);
                     }
                     
-                    current_block = Some(block);
-                    current_content.clear();
+                    // Push to the stack
+                    block_stack.push(block);
+                    content_stack.push(String::new());
                 }
             },
             Ok(Event::End(ref e)) => {
@@ -92,26 +94,37 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 }
                 
                 if in_document && name.starts_with("meta:") {
-                    if let Some(mut block) = current_block.take() {
-                        // Set the content
-                        block.content = current_content.trim().to_string();
-                        blocks.push(block);
+                    if !block_stack.is_empty() {
+                        // Pop the current block and its content
+                        let mut block = block_stack.pop().unwrap();
+                        let content = content_stack.pop().unwrap();
+                        block.content = content.trim().to_string();
+                        
+                        // If there's a parent block, add this as a child
+                        if !block_stack.is_empty() {
+                            let parent_index = block_stack.len() - 1;
+                            block_stack[parent_index].children.push(block);
+                        } else {
+                            // This is a top-level block
+                            blocks.push(block);
+                        }
                     }
-                    current_content.clear();
                 }
             },
             Ok(Event::Text(e)) => {
-                if in_document && current_block.is_some() {
+                if in_document && !block_stack.is_empty() {
                     if let Ok(text) = e.unescape() {
-                        current_content.push_str(&text);
+                        let last_idx = content_stack.len() - 1;
+                        content_stack[last_idx].push_str(&text);
                     }
                 }
             },
             Ok(Event::CData(e)) => {
-                if in_document && current_block.is_some() {
+                if in_document && !block_stack.is_empty() {
                     let text = str::from_utf8(e.as_ref())
                         .unwrap_or_default();
-                    current_content.push_str(text);
+                    let last_idx = content_stack.len() - 1;
+                    content_stack[last_idx].push_str(text);
                 }
             },
             Ok(Event::Eof) => break,
@@ -131,7 +144,8 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
     // Debug output of parsed blocks
     println!("DEBUG: Parsed {} blocks from XML document", blocks.len());
     for (i, block) in blocks.iter().enumerate() {
-        println!("DEBUG:   Block {}: type={}, name={:?}", i, block.block_type, block.name);
+        println!("DEBUG:   Block {}: type={}, name={:?}, children={}", 
+                 i, block.block_type, block.name, block.children.len());
     }
     
     Ok(blocks)
