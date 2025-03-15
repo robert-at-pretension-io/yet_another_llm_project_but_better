@@ -4,9 +4,9 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
 
-use metalanguage::file_watcher::{FileEvent, FileEventType, FileWatcher};
-use metalanguage::parser::{parse_document, Block};
-use metalanguage::executor::MetaLanguageExecutor;
+use yet_another_llm_project_but_better::file_watcher::{FileEvent, FileEventType, FileWatcher};
+use yet_another_llm_project_but_better::parser::{parse_document, Block};
+use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
 
 fn main() {
     // Get file path from command line arguments
