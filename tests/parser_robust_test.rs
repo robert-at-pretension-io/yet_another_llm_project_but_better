@@ -676,7 +676,7 @@ Section without type in closing tag
 
 [data name:data_without_closing]
 {"key": "value"}
-[/]
+[/data]
 "#;
 
     let blocks = parse_document(input).expect("Failed to parse closing tags");
