@@ -1031,7 +1031,8 @@ done
         let block_name = format!("{}_code", lang);
         let block = find_block_by_name(&blocks, &block_name);
         assert!(block.is_some(), "{} block not found", lang);
-        assert_eq!(block.unwrap().block_type, format!("code:{}", lang));
+        assert_eq!(block.unwrap().block_type, "code");
+        assert_eq!(block.unwrap().get_modifier("language").map(|s| s.as_str()), Some(lang));
     }
     
     // Verify content of specific blocks
@@ -1624,6 +1625,7 @@ fn test_different_languages() {
         println!("DEBUG: Block {}: type={}, modifiers={:?}", 
                  name, block.block_type, block.modifiers);
                  
+        // Check block type (should be just "code", not "code:language")
         assert_eq!(block.block_type, expected_type, 
                   "Block {} has incorrect type. Expected: '{}', Found: '{}' ", 
                   name, expected_type, block.block_type);
