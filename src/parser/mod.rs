@@ -558,7 +558,8 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         
         // Calculate the total length consumed
         let whitespace_prefix = content.len() - trimmed_content.len();
-        let total_consumed = closing_end - whitespace_prefix;
+        // Fix for potential underflow: add whitespace_prefix to closing_end instead of subtracting
+        let total_consumed = closing_end + whitespace_prefix;
         
         println!("DEBUG: Successfully parsed block with manual approach");
         return Some((block, total_consumed));
