@@ -823,8 +823,9 @@ done
     let languages = ["python", "javascript", "rust", "html", "css", "sql", "json", "yaml", "markdown", "bash"];
     for lang in languages.iter() {
         let block_name = format!("{}_code", lang);
-        let block = find_block_by_name(&blocks, &block_name).expect(&format!("{} block not found", lang));
-        assert_eq!(block.block_type, format!("code:{}", lang));
+        let block = find_block_by_name(&blocks, &block_name);
+        assert!(block.is_some(), "{} block not found", lang);
+        assert_eq!(block.unwrap().block_type, format!("code:{}", lang));
     }
     
     // Verify content of specific blocks
