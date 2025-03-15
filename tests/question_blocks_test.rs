@@ -21,9 +21,12 @@ fn test_question_block_with_test_mode() {
     // This will use the simulated response path in the executor
     let initial_content = r#"# Test Question Block
 
-[question name:test-question test_mode:true]
-What is the capital of France?
-[/question]
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="test-question" test_mode="true">
+  What is the capital of France?
+  </meta:question>
+</meta:document>
 "#;
     
     fs::write(&file_path, initial_content).expect("Failed to write test file");
@@ -61,9 +64,12 @@ What is the capital of France?
     // Modify the file to trigger the watcher
     let modified_content = r#"# Test Question Block
 
-[question name:test-question test_mode:true]
-What is the capital of France? And why is it famous?
-[/question]
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="test-question" test_mode="true">
+  What is the capital of France? And why is it famous?
+  </meta:question>
+</meta:document>
 "#;
     
     // Wait a moment to ensure the watcher is ready
@@ -112,9 +118,12 @@ fn test_question_block_fallback() {
     // Create a file with a question block that has a fallback
     let content = r#"# Test Question Block with Fallback
 
-[question name:test-fallback fallback:"Default answer when no response is available"]
-What happens if there's no response block?
-[/question]
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="test-fallback" fallback="Default answer when no response is available">
+  What happens if there's no response block?
+  </meta:question>
+</meta:document>
 "#;
     
     fs::write(&file_path, content).expect("Failed to write test file");
@@ -153,9 +162,12 @@ fn test_question_block_with_model_parameter() {
     // Create a file with a question block that specifies a model
     let content = r#"# Test Question Block with Model Parameter
 
-[question name:test-model-param test_mode:true model:"gpt-4"]
-What is the meaning of life?
-[/question]
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="test-model-param" test_mode="true" model="gpt-4">
+  What is the meaning of life?
+  </meta:question>
+</meta:document>
 "#;
     
     fs::write(&file_path, content).expect("Failed to write test file");
