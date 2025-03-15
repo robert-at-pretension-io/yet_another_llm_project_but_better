@@ -1,14 +1,14 @@
 # Meta Programming Language Implementation
 
-This project implements a robust parser and executor for the Meta Programming Language, designed for embedding code, data, and AI interactions directly within structured documents. The implementation follows a well-defined language specification with careful handling of edge cases and error conditions.
+This project implements a robust parser and executor for the Meta Programming Language, designed for embedding code, data, and AI interactions directly within structured documents. The implementation now supports XML format for greater interoperability with standard tooling and follows a well-defined language specification with careful handling of edge cases and error conditions.
 
 ## Architecture
 
 ### 1. Parser (`src/parser/`)
 
-- **Block Parsing**: Parses structured blocks with different types and modifiers using a combination of grammar rules and fallback parsing mechanisms
+- **XML Parsing**: Parses structured elements with different types and attributes using XML format
 - **Block Types**: Handles various block types including code, shell, API, data, template, and control blocks
-- **Modifiers**: Processes block modifiers that control execution and behavior
+- **Modifiers**: Processes block attributes that control execution and behavior
 - **Variable References**: Extracts references to other blocks using `${variable-name}` syntax
 - **Robust Handling**: Provides graceful parsing for varied syntax patterns, whitespace, indentation, and edge cases
 
@@ -27,139 +27,158 @@ This project implements a robust parser and executor for the Meta Programming La
 - **Change Detection**: Identifies file creation, modification, and deletion events
 - **Event Notification**: Notifies listeners when watched files are modified
 
-## Block Types
+## Block Types (XML Format)
 
-The Meta Programming Language supports a wide variety of block types:
+The Meta Programming Language now supports an XML-based format for all block types:
 
 ### Communication Blocks
-```markdown
-[question name:user-query]
-What insights can be derived from this data?
-[/question]
+```xml
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="user-query">
+    What insights can be derived from this data?
+  </meta:question>
 
-[response name:ai-response]
-Based on the data, the key insights are...
-[/response]
+  <meta:response name="ai-response">
+    Based on the data, the key insights are...
+  </meta:response>
+</meta:document>
 ```
 
 ### Executable Blocks
-```markdown
-[code:python name:data-analysis]
-import pandas as pd
-data = pd.read_csv('data.csv')
-print(data.describe())
-[/code:python]
+```xml
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:code language="python" name="data-analysis">
+  <![CDATA[
+  import pandas as pd
+  data = pd.read_csv('data.csv')
+  print(data.describe())
+  ]]>
+  </meta:code>
 
-[shell name:list-files]
-ls -la
-[/shell]
+  <meta:shell name="list-files">
+  <![CDATA[
+  ls -la
+  ]]>
+  </meta:shell>
 
-[api name:get-weather method:GET]
-https://api.weather.com/forecast?location=NYC
-[/api]
+  <meta:api name="get-weather" method="GET">
+  <![CDATA[
+  https://api.weather.com/forecast?location=NYC
+  ]]>
+  </meta:api>
+</meta:document>
 ```
 
 ### Data Management Blocks
-```markdown
-[data name:config format:json]
-{
-  "api_key": "abcd1234",
-  "endpoint": "https://api.example.com",
-  "parameters": {
-    "limit": 100,
-    "format": "json"
+```xml
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:data name="config" format="json">
+  <![CDATA[
+  {
+    "api_key": "abcd1234",
+    "endpoint": "https://api.example.com",
+    "parameters": {
+      "limit": 100,
+      "format": "json"
+    }
   }
-}
-[/data]
+  ]]>
+  </meta:data>
 
-[variable name:greeting]
-Hello, world!
-[/variable]
+  <meta:variable name="greeting">
+    Hello, world!
+  </meta:variable>
 
-[secret name:api-key]
-API_KEY_ENV_VAR
-[/secret]
+  <meta:secret name="api-key">
+    API_KEY_ENV_VAR
+  </meta:secret>
 
-[filename name:data-file]
-data/input.csv
-[/filename]
+  <meta:filename name="data-file">
+    data/input.csv
+  </meta:filename>
 
-[memory name:conversation-history]
-Previous conversation content stored across sessions
-[/memory]
+  <meta:memory name="conversation-history">
+    Previous conversation content stored across sessions
+  </meta:memory>
+</meta:document>
 ```
 
 ### Control Blocks
-```markdown
-[section:introduction name:intro-section]
-Section content and nested blocks
-[/section:introduction]
+```xml
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:section type="introduction" name="intro-section">
+    Section content and nested blocks
+  </meta:section>
 
-[conditional if:data.rows > 100]
-Conditional content that only appears when the condition is true
-[/conditional]
+  <meta:conditional if="data.rows > 100">
+    Conditional content that only appears when the condition is true
+  </meta:conditional>
 
-[template name:data-processor]
-Template with ${placeholder} substitution
-[/template]
+  <meta:template name="data-processor">
+    Template with ${placeholder} substitution
+  </meta:template>
 
-[template_invocation name:process-dataset template:data-processor]
-Parameter substitution for the template
-[/template_invocation]
+  <meta:template-invocation name="process-dataset" template="data-processor">
+    <meta:param name="placeholder">Value</meta:param>
+  </meta:template-invocation>
+</meta:document>
 ```
 
 ### Results & Debug Blocks
-```markdown
-[results for:data-analysis format:markdown]
-Analysis output content
-[/results]
+```xml
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:results for="data-analysis" format="markdown">
+    Analysis output content
+  </meta:results>
 
-[error_results for:failed-block]
-Error message details
-[/error_results]
+  <meta:error-results for="failed-block">
+    Error message details
+  </meta:error-results>
 
-[visualization name:prompt-preview]
-Preview of constructed AI context
-[/visualization]
+  <meta:visualization name="prompt-preview">
+    Preview of constructed AI context
+  </meta:visualization>
 
-[preview for:visualization-block]
-Content preview
-[/preview]
+  <meta:preview for="visualization-block">
+    Content preview
+  </meta:preview>
+</meta:document>
 ```
 
-## Block Modifiers
+## Attributes (formerly Modifiers)
 
-Blocks can include a variety of modifiers that control their behavior:
+Blocks can include a variety of attributes that control their behavior:
 
 ### Execution Control
-- `cache_result:true|false` - Enable/disable result caching
-- `timeout:30` - Set execution timeout in seconds
-- `retry:3` - Number of retry attempts on failure
-- `fallback:fallback-block` - Fallback block to use on failure
-- `depends:other-block` - Define execution dependencies
-- `async:true|false` - Enable asynchronous execution
+- `cache_result="true|false"` - Enable/disable result caching
+- `timeout="30"` - Set execution timeout in seconds
+- `retry="3"` - Number of retry attempts on failure
+- `fallback="fallback-block"` - Fallback block to use on failure
+- `depends="other-block"` - Define execution dependencies
+- `async="true|false"` - Enable asynchronous execution
 
 ### Display & Formatting
-- `format:json|markdown|csv|plain` - Output format
-- `display:inline|block|none` - Display mode for results
-- `trim:true|false` - Trim whitespace from results
-- `max_lines:100` - Limit displayed lines
+- `format="json|markdown|csv|plain"` - Output format
+- `display="inline|block|none"` - Display mode for results
+- `trim="true|false"` - Trim whitespace from results
+- `max_lines="100"` - Limit displayed lines
 
 ### Context Control
-- `order:0.5` - Control block ordering (0.0-1.0)
-- `priority:8` - Set inclusion priority (1-10)
-- `weight:0.7` - Weighting for token budget allocation
+- `order="0.5"` - Control block ordering (0.0-1.0)
+- `priority="8"` - Set inclusion priority (1-10)
+- `weight="0.7"` - Weighting for token budget allocation
 
-## Parsing Robustness
+## XML Parsing Features
 
-The parser is designed to handle a wide variety of edge cases:
+The XML parser offers several advantages:
 
-- **Whitespace Variations**: Handles different indentation styles, line endings, and spacing
-- **Block Nesting**: Supports hierarchical block structures
-- **Tag Variations**: Processes different closing tag formats and variations
-- **Character Escaping**: Correctly handles quoted strings and escape sequences
-- **Error Recovery**: Attempts to recover from parsing errors when possible
-- **Language Flexibility**: Supports multiple code languages with appropriate syntax
+- **Standard Compliance**: Uses standard XML parsing libraries for robustness
+- **CDATA Support**: Properly handles code blocks with special characters using CDATA sections
+- **Attribute Processing**: Cleanly processes modifiers as XML attributes
+- **Namespace Support**: Uses XML namespaces to avoid conflicts
+- **Validation**: Can leverage XML schema validation for structure checking
+- **Nested Elements**: Natural handling of hierarchical block structures
+- **Tooling Integration**: Works with standard XML tooling for editing and validation
 
 ## Usage Example
 
@@ -168,17 +187,23 @@ use yet_another_llm_project_but_better::parser::parse_document;
 use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
 
 fn main() {
-    // Parse a document with embedded blocks
+    // Parse a document with embedded blocks in XML format
     let content = r#"
-    [data name:user-info format:json]
-    {"name": "Alice", "role": "Developer"}
-    [/data]
+    <meta:document xmlns:meta="https://example.com/meta-language">
+      <meta:data name="user-info" format="json">
+      <![CDATA[
+      {"name": "Alice", "role": "Developer"}
+      ]]>
+      </meta:data>
 
-    [code:python name:greet-user depends:user-info]
-    import json
-    user = json.loads('${user-info}')
-    print(f"Hello, {user['name']}! You are a {user['role']}.")
-    [/code:python]
+      <meta:code language="python" name="greet-user" depends="user-info">
+      <![CDATA[
+      import json
+      user = json.loads('${user-info}')
+      print(f"Hello, {user['name']}! You are a {user['role']}.")
+      ]]>
+      </meta:code>
+    </meta:document>
     "#;
     
     let blocks = parse_document(content).expect("Failed to parse document");
@@ -206,10 +231,11 @@ fn main() {
 
 The implementation prioritizes:
 
-1. **Robustness**: Graceful handling of edge cases and malformed inputs
-2. **Flexibility**: Support for varied syntax styles and whitespace patterns
-3. **Error Recovery**: Intelligent fallback mechanisms when parsing fails
-4. **Dependency Management**: Careful resolution of block dependencies
-5. **Extensibility**: Modular design for adding new block types and features
+1. **Standard Compatibility**: Uses standard XML parsing for better interoperability
+2. **Robustness**: Graceful handling of edge cases and malformed inputs
+3. **Flexibility**: Support for varied syntax styles through XML attributes
+4. **Error Recovery**: Intelligent fallback mechanisms when parsing fails
+5. **Dependency Management**: Careful resolution of block dependencies
+6. **Extensibility**: Modular design for adding new block types and features
 
-This implementation provides a complete system for parsing and executing embedded code within Meta Language documents, enabling powerful document-based programming and AI-augmented workflows.
+This implementation provides a complete system for parsing and executing embedded code within Meta Language documents using XML format, enabling powerful document-based programming and AI-augmented workflows while maintaining compatibility with standard XML tooling.
