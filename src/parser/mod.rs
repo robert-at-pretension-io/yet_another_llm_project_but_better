@@ -48,7 +48,7 @@ pub fn is_valid_block_type(block_type: &str) -> bool {
         "code", "data", "shell", "visualization", "template", "variable", 
         "secret", "filename", "memory", "api", "question", "response", 
         "results", "error_results", "error", "preview", "conditional", 
-        "section", "template_invocation"
+        "section", "template_invocation", "error-response"
     ];
     
     // For block types with subtypes (like code:python or section:intro)

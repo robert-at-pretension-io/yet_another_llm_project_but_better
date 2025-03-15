@@ -137,6 +137,24 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                         }
                     }
                     
+                    // Validate that block has a name attribute (now required)
+                    if block_name.is_none() {
+                        println!("ERROR: Block of type '{}' is missing required name attribute", final_block_type);
+                        return Err(ParserError::InvalidBlockStructure(
+                            format!("Block of type '{}' is missing required name attribute", final_block_type)
+                        ));
+                    }
+                    
+                    // Validate that response and results blocks have a "for" attribute
+                    if (final_block_type == "response" || final_block_type == "results" || 
+                        final_block_type == "error_results" || final_block_type == "error-response") && 
+                       !modifiers.iter().any(|(k, _)| k == "for") {
+                        println!("ERROR: {} block is missing required 'for' attribute", final_block_type);
+                        return Err(ParserError::InvalidBlockStructure(
+                            format!("{} block is missing required 'for' attribute", final_block_type)
+                        ));
+                    }
+                    
                     // Create a new block
                     let mut block = Block::new(&final_block_type, block_name.as_deref(), "");
                     
