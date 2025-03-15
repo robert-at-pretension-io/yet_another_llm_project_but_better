@@ -34,7 +34,7 @@ python script.py
         assert_eq!(blocks.len(), 3, "Expected 3 blocks, found {}", blocks.len());
         
         assert_eq!(blocks[0].block_type, "data");
-        assert_eq!(blocks[1].block_type, "code");
+        assert_eq!(blocks[1].block_type, "code:python");
         assert_eq!(blocks[2].block_type, "shell");
     }
     
@@ -129,7 +129,7 @@ bar-chart
         
         // Check the code block
         let code_block = &blocks[1];
-        assert_eq!(code_block.block_type, "code");
+        assert_eq!(code_block.block_type, "code:python");
         assert_eq!(code_block.name, Some("analyze-data".to_string()));
         assert_eq!(code_block.get_modifier("depends"), Some(&"dataset".to_string()));
         
@@ -193,26 +193,34 @@ The analysis of the data shows interesting patterns.
             }
         }
         
-        // The XML parser flattens the structure differently than the bracket parser
-        // Instead of having nested blocks, it creates top-level blocks
-        assert_eq!(blocks.len(), 3, "Expected 3 top-level blocks, found {}", blocks.len());
+        // The XML parser properly handles nested blocks
+        assert_eq!(blocks.len(), 1, "Expected 1 top-level block, found {}", blocks.len());
         
-        // Check the data block
-        let dataset_block = &blocks[0];
+        // Check the top-level section block
+        let section_block = &blocks[0];
+        assert_eq!(section_block.name, Some("analysis-report".to_string()));
+        assert_eq!(section_block.block_type, "section:document");
+        assert!(section_block.content.contains("# Data Analysis Report"));
+        
+        // Check that it has 3 children
+        assert_eq!(section_block.children.len(), 3, "Expected 3 child blocks, found {}", section_block.children.len());
+        
+        // Check the data block (first child)
+        let dataset_block = &section_block.children[0];
         assert_eq!(dataset_block.name, Some("dataset".to_string()));
         assert_eq!(dataset_block.block_type, "data");
         assert!(dataset_block.content.contains("id,value,category"));
         
-        // Check the code block
-        let code_block = &blocks[1];  
+        // Check the code block (second child)
+        let code_block = &section_block.children[1];  
         assert_eq!(code_block.name, Some("analyze-data".to_string()));
-        assert_eq!(code_block.block_type, "code");
+        assert_eq!(code_block.block_type, "code:python");
         assert_eq!(code_block.get_modifier("depends"), Some(&"dataset".to_string()));
         
-        // Check the section block
-        let results_section = &blocks[2];
+        // Check the section block (third child)
+        let results_section = &section_block.children[2];
         assert_eq!(results_section.name, Some("data-results".to_string()));
-        assert_eq!(results_section.block_type, "section");
+        assert_eq!(results_section.block_type, "section:results");
         assert!(results_section.content.contains("## Results"));
         assert!(results_section.content.contains("interesting patterns"));
     }
