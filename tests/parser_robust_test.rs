@@ -1136,13 +1136,13 @@ Visualization: ${visualization_path}
 ${summary}
 [/template]
 
-[template_invocation:report_template name:final_report 
+[template_invocation name:final_report template:report_template
   title:"Analysis Report"
   data_processed:"Yes"
   visualization_path:"visualization.png"
   summary:"This is a summary of the analysis."
 ]
-[/template_invocation:report_template]
+[/template_invocation]
 
 [conditional if:config.max_rows>500]
 This section only appears if max_rows is greater than 500.
@@ -1184,7 +1184,7 @@ Error: Block not found
     
     // Check template invocation
     let final_report = intro_section.children.iter()
-        .find(|b| b.block_type == "template_invocation:report_template" || 
+        .find(|b| b.block_type == "template_invocation" && 
               b.name.as_deref() == Some("final_report"))
         .expect("Final report not found");
     assert!(has_modifier(final_report, "title", "\"Analysis Report\""));
