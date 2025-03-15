@@ -711,7 +711,7 @@ impl MetaLanguageExecutor {
         
         // Execute the LLM request using the synchronous client
         let result = match llm_client.send_prompt(&prompt) {
-            Ok(response) => Ok(response),
+            Ok(response) => Ok(response.to_string()),
             Err(e) => Err(ExecutorError::LlmApiError(e.to_string())),
         };
         
