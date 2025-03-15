@@ -1054,7 +1054,49 @@ impl MetaLanguageExecutor {
             }
         }
         
-        Ok(updated_doc)
+        // Handle question blocks by adding response blocks after them
+        let mut result = String::new();
+        let mut lines = updated_doc.lines().peekable();
+        
+        while let Some(line) = lines.next() {
+            result.push_str(line);
+            result.push('\n');
+            
+            // Check if this is the end of a question block
+            if line.trim() == "[/question]" {
+                // Find the question content to determine which response to use
+                let mut question_content = String::new();
+                let mut found_question = false;
+                
+                // Look back through the previous lines to find the question content
+                for prev_line in updated_doc.lines() {
+                    if prev_line.trim() == "[/question]" {
+                        break;
+                    }
+                    if found_question {
+                        question_content.push_str(prev_line);
+                        question_content.push('\n');
+                    }
+                    if prev_line.trim().starts_with("[question") {
+                        found_question = true;
+                    }
+                }
+                
+                // Trim the question content
+                let question_content = question_content.trim();
+                
+                // Look for a response to this question
+                for (_, output) in &self.outputs {
+                    // Insert the response block after the question block
+                    result.push_str("[response]\n");
+                    result.push_str(output);
+                    result.push_str("\n[/response]\n\n");
+                    break;
+                }
+            }
+        }
+        
+        Ok(result)
     }
 }
 // Implement Default for MetaLanguageExecutor

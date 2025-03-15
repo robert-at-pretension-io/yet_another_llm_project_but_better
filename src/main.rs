@@ -75,10 +75,21 @@ fn execute_block(block: &Block) -> Result<String, String> {
             
             // Add test_mode modifier to avoid actual API calls during testing
             let mut question_block = block.clone();
-            // question_block.add_modifier("test_mode", "true");
+            question_block.add_modifier("test_mode", "true");
             
             match executor.execute_question(&question_block, &block.content) {
-                Ok(response) => Ok(response),
+                Ok(response) => {
+                    // Store the response in the global executor
+                    if let Some(name) = &block.name {
+                        let response_name = format!("{}_response", name);
+                        executor.outputs.insert(response_name, response.clone());
+                    } else {
+                        // For unnamed blocks, use a generic key
+                        executor.outputs.insert("question_response".to_string(), response.clone());
+                    }
+                    
+                    Ok(response)
+                },
                 Err(e) => Err(format!("Failed to execute question: {}", e))
             }
         },
@@ -128,6 +139,9 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
     executor.process_document(&content)
         .map_err(|e| anyhow!("Executor error: {}", e))?;
     
+    // Track if we need to update the file
+    let mut file_updated = false;
+    
     // Print detailed information about each block
     for (i, block) in blocks.iter().enumerate() {
         println!("\nDEBUG: Block #{} details:", i + 1);
@@ -157,6 +171,11 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
                              block.name.as_ref().unwrap_or(&block.block_type));
                     println!("{}", output);
                     println!("=== End of output ===");
+                    
+                    // For question blocks, update the file with the response
+                    if block.block_type == "question" {
+                        file_updated = true;
+                    }
                 },
                 Err(e) => {
                     eprintln!("Error executing block: {}", e);
@@ -167,6 +186,19 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
                 }
             }
         }
+    }
+    
+    // If we executed any blocks that require file updates, update the file
+    if file_updated {
+        // Get the updated document content from the executor
+        let updated_content = executor.update_document()
+            .map_err(|e| anyhow!("Failed to update document: {}", e))?;
+        
+        // Write the updated content back to the file
+        fs::write(file_path, updated_content)
+            .context("Failed to write updated file")?;
+        
+        println!("Updated file with execution results");
     }
     
     Ok(())
