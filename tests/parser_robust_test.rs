@@ -997,8 +997,8 @@ print("This is another valid block")
 print("This is a valid block")
 [/code:python]
 
-[code:python name=invalid-equals-not-colon]
-print("This block has an invalid modifier format using = instead of :")
+[code:python name=invalid-equals-not-colon invalid*characters^in@modifier]
+print("This block has an invalid modifier format using = instead of : and invalid characters")
 [/code:python]
 
 [code:python name:last_valid]
