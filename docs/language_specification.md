@@ -1,165 +1,66 @@
-# Meta Programming Language: Technical Documentation
+# Meta Programming Language: XML Format Specification
 
 ## Overview
 
-The Meta Programming Language is designed for embedding executable code, structured data, and AI interactions within documents. This document explains the technical implementation of the parser, executor, and associated components.
+The Meta Programming Language now supports two syntaxes: the original bracket-based syntax and an XML-based syntax. This document specifies the XML format, which provides the same functionality with the benefits of standard XML tooling, validation, and parsing.
 
-## Core Components
+## Core Concepts
 
-### 1. Parser
+### Document Structure
 
-The parser is responsible for converting text documents into structured blocks that can be executed or used to construct AI prompts.
+An XML Meta document follows this structure:
 
-#### Block Structure
-
-A block follows this general syntax:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Blocks go here -->
+  <meta:code language="python" name="example">
+  <![CDATA[
+  print("Hello, world!")
+  ]]>
+  </meta:code>
+  
+  <meta:data name="user-info" format="json">
+  <![CDATA[
+  {"name": "Alice", "role": "Developer"}
+  ]]>
+  </meta:data>
+</meta:document>
 ```
-[block_type:subtype name:block_name modifier1:value1 modifier2:value2]
-block content
-[/block_type:subtype]
-```
+
+Every document:
+- Uses the `meta` namespace prefix
+- Includes blocks as child elements of the root `meta:document` element
+- Represents block attributes as XML attributes
+- Contains block content as element text or CDATA sections
+
+### Block Structure
 
 Each block consists of:
-- **Block Type**: Primary categorization (e.g., `code`, `data`, `shell`)
-- **Subtype** (optional): Further specification (e.g., `code:python`, `section:intro`)
-- **Name**: Unique identifier for referencing the block
-- **Modifiers**: Key-value pairs controlling behavior or execution
-- **Content**: Main content contained within the block
+- **Element Name**: Corresponds to the block type (e.g., `meta:code`, `meta:data`)
+- **Attributes**: Block name and modifiers as XML attributes
+- **Content**: Main content contained within the element
+- **Children**: For blocks that can contain other blocks
 
-#### Parsing Approach
+### Namespaces
 
-The parser uses a multi-stage approach for flexibility and robustness:
-
-1. **Grammar Parser**: First attempts to parse using formal grammar rules
-2. **Block Parser**: Attempts block-by-block parsing
-3. **Manual Parser**: Falls back to manual string extraction techniques
-4. **Recovery Parsing**: Attempts to recover from errors and extract as much content as possible
-
-This tiered approach allows the parser to handle a wide variety of syntax variations, whitespace patterns, and even certain malformed structures.
-
-#### Block Type Detection
-
-Block types are detected using these mechanisms:
-- Primary block type extraction from opening tag
-- Subtype detection after colon (e.g., `code:python`)
-- Validation against list of known block types
-- Flexible handling of whitespace around type declarations
-
-#### Modifier Handling
-
-Modifiers are parsed from the opening tag with special handling for:
-- Basic `key:value` pairs
-- Quoted modifiers (e.g., `name:"User Data"`)
-- Boolean modifiers (e.g., `cache_result:true`)
-- Numerical modifiers (e.g., `timeout:30`, `priority:8`)
-
-#### Whitespace & Indentation
-
-The parser handles various whitespace patterns:
-- Diverse indentation styles (spaces, tabs)
-- Variable line endings (LF, CRLF)
-- Multiline modifier declarations
-- Preservation of whitespace in content when meaningful
-- Normalization of whitespace when appropriate
-
-#### Character Escaping
-
-Special handling exists for:
-- Quoted strings in modifiers
-- Escaped characters in content
-- JSON embedded within blocks
-- HTML and other markup in content
-
-#### Error Recovery
-
-The parser includes mechanisms for:
-- Recovering from mismatched closing tags
-- Handling malformed block declarations
-- Dealing with invalid modifiers
-- Parsing blocks with missing attributes
-- Capturing syntax errors for debugging
-
-### 2. Block Structure
-
-The `Block` structure is the core data representation:
-
-```rust
-pub struct Block {
-    // Core attributes
-    pub block_type: String,
-    pub name: Option<String>,
-    pub content: String,
-    
-    // Additional attributes
-    pub modifiers: HashMap<String, String>,
-    pub children: Vec<Block>,
-    pub parent: Option<Box<Block>>,
-}
+All elements use the `meta` namespace to avoid conflicts with other XML vocabularies:
+```
+xmlns:meta="https://example.com/meta-language"
 ```
 
-Blocks can be nested hierarchically, forming a tree structure. Parent-child relationships are maintained and can be traversed bidirectionally.
+### CDATA Sections
 
-### 3. Executor
+For blocks containing code or structured data that might include special characters, CDATA sections are used:
 
-The executor is responsible for running executable blocks, resolving dependencies, and managing execution results.
-
-#### Block Execution
-
-The following block types are executable:
-- `code:<language>`: Executes code in specified language
-- `shell`: Runs shell commands
-- `api`: Makes HTTP requests
-
-Execution process:
-1. Check block dependencies
-2. Resolve variable references
-3. Execute content based on block type
-4. Capture output in results block
-5. Handle errors and fallbacks
-
-#### Dependency Resolution
-
-Dependencies are managed through:
-- Explicit `depends` modifiers
-- Implicit dependencies via `${block-name}` references
-- Topological sorting to determine execution order
-- Circular dependency detection
-- Fallback mechanisms for dependency failures
-
-#### Variable Substitution
-
-The executor processes variable references:
-- Basic substitution: `${block-name}`
-- Nested substitution: `${parent.child}`
-- Result references: `${block-name.results}`
-- Environment variables: `${ENV_VAR}`
-
-#### Caching
-
-Results caching is controlled by:
-- `cache_result:true|false` modifier
-- Optional time-based expiration
-- Cache invalidation on dependency changes
-- Context-aware cache key generation
-
-#### Error Handling
-
-Robust error handling includes:
-- Execution timeouts based on `timeout` modifier
-- Automatic retries based on `retry` modifier
-- Fallback to alternative blocks on failure
-- Detailed error reporting
-- Creation of error results blocks
-
-### 4. File Watcher
-
-The file watcher monitors document changes and triggers re-parsing and execution:
-
-- Uses platform-native file system notifications
-- Debounces rapid changes to prevent excessive processing
-- Detects file creation, modification, and deletion
-- Maintains a list of watched files and directories
-- Provides event notifications via channels
+```xml
+<meta:code language="python" name="example">
+<![CDATA[
+if x < 10:
+    print(f"Value is {x}")
+]]>
+</meta:code>
+```
 
 ## Block Types in Detail
 
@@ -167,346 +68,322 @@ The file watcher monitors document changes and triggers re-parsing and execution
 
 #### Question Block
 Represents queries to AI systems:
-```markdown
-[question name:user-query model:gpt-4 temperature:0.7]
+```xml
+<meta:question name="user-query" model="gpt-4" temperature="0.7">
 What insights can you provide based on this data?
-[/question]
+</meta:question>
 ```
 
 #### Response Block
 Contains AI-generated responses:
-```markdown
-[response name:ai-response]
+```xml
+<meta:response name="ai-response">
 Based on the data, the key trends are...
-[/response]
+</meta:response>
 ```
 
 ### Executable Blocks
 
 #### Code Block
 Executes code in various languages:
-```markdown
-[code:python name:data-analysis cache_result:true]
+```xml
+<meta:code language="python" name="data-analysis" cache_result="true">
+<![CDATA[
 import pandas as pd
 data = pd.read_csv('${data-file}')
 print(data.describe())
-[/code:python]
+]]>
+</meta:code>
 ```
 
 Supported languages include Python, JavaScript, Bash, and more.
 
 #### Shell Block
 Executes system commands:
-```markdown
-[shell name:list-files timeout:5]
+```xml
+<meta:shell name="list-files" timeout="5">
+<![CDATA[
 ls -la ${directory}
-[/shell]
+]]>
+</meta:shell>
 ```
 
 #### API Block
 Makes HTTP requests:
-```markdown
-[api name:get-weather method:GET headers:"Content-Type: application/json"]
+```xml
+<meta:api name="get-weather" method="GET" headers="Content-Type: application/json">
 https://api.weather.com/forecast?location=${location}
-[/api]
+</meta:api>
 ```
 
 ### Data Management Blocks
 
 #### Data Block
 Stores structured data:
-```markdown
-[data name:config format:json]
+```xml
+<meta:data name="config" format="json">
+<![CDATA[
 {
   "api_key": "abcd1234",
   "endpoint": "https://api.example.com"
 }
-[/data]
+]]>
+</meta:data>
 ```
 
 #### Variable Block
 Defines simple variables:
-```markdown
-[variable name:greeting]
+```xml
+<meta:variable name="greeting">
 Hello, ${user-name}!
-[/variable]
+</meta:variable>
 ```
 
 #### Secret Block
 References sensitive data from environment:
-```markdown
-[secret name:api-key]
+```xml
+<meta:secret name="api-key">
 API_KEY_ENV_VAR
-[/secret]
+</meta:secret>
 ```
 
 #### Filename Block
 References external files:
-```markdown
-[filename name:data-file]
+```xml
+<meta:filename name="data-file">
 data/input.csv
-[/filename]
+</meta:filename>
 ```
 
 #### Memory Block
 Persists data across sessions:
-```markdown
-[memory name:conversation-history]
+```xml
+<meta:memory name="conversation-history">
 Previous interactions stored across sessions
-[/memory]
+</meta:memory>
 ```
 
 ### Control Blocks
 
 #### Section Block
 Groups related blocks:
-```markdown
-[section:introduction name:intro-section]
-Content and nested blocks
-[/section:introduction]
+```xml
+<meta:section type="introduction" name="intro-section">
+  <meta:data name="section-data" format="json">
+  <![CDATA[
+  {"title": "Introduction"}
+  ]]>
+  </meta:data>
+  
+  <meta:code language="python" name="intro-code">
+  <![CDATA[
+  print("Welcome to the introduction")
+  ]]>
+  </meta:code>
+</meta:section>
 ```
 
 #### Conditional Block
 Conditionally includes content:
-```markdown
-[conditional if:data.rows > 100]
-This appears only when condition is true
-[/conditional]
+```xml
+<meta:conditional if="data.rows > 100">
+  <meta:code language="python" name="large-data-processing">
+  <![CDATA[
+  process_large_dataset(data)
+  ]]>
+  </meta:code>
+</meta:conditional>
 ```
 
 #### Template Block
 Defines reusable patterns:
-```markdown
-[template name:data-processor]
-[code:python name:process-${dataset-name}]
-import pandas as pd
-data = pd.read_csv('${dataset-path}')
-[/code:python]
-[/template]
+```xml
+<meta:template name="data-processor">
+  <meta:code language="python" name="process-${dataset-name}">
+  <![CDATA[
+  import pandas as pd
+  data = pd.read_csv('${dataset-path}')
+  ]]>
+  </meta:code>
+</meta:template>
 ```
 
 #### Template Invocation
 Uses templates with parameter substitution:
-```markdown
-[template_invocation name:process-sales template:data-processor]
-dataset-name:sales
-dataset-path:sales.csv
-[/template_invocation]
+```xml
+<meta:template-invocation name="process-sales" template="data-processor">
+  <meta:param name="dataset-name">sales</meta:param>
+  <meta:param name="dataset-path">sales.csv</meta:param>
+</meta:template-invocation>
 ```
 
 ### Results Blocks
 
 #### Results Block
 Contains execution output:
-```markdown
-[results for:data-analysis format:markdown display:block]
+```xml
+<meta:results for="data-analysis" format="markdown" display="block">
 Execution output content
-[/results]
+</meta:results>
 ```
 
 #### Error Results Block
 Contains execution errors:
-```markdown
-[error_results for:failed-block]
+```xml
+<meta:error-results for="failed-block">
 Error message and stack trace
-[/error_results]
+</meta:error-results>
 ```
 
 ### Debugging Blocks
 
 #### Visualization Block
 Previews context construction:
-```markdown
-[visualization name:prompt-preview]
-Preview of what will be sent to AI
-[/visualization]
+```xml
+<meta:visualization name="prompt-preview">
+  <meta:question model="gpt-4" name="sample-query">
+  How would you summarize this data?
+  </meta:question>
+</meta:visualization>
 ```
 
 #### Preview Block
 Shows block content previews:
-```markdown
-[preview for:visualization-block]
+```xml
+<meta:preview for="visualization-block">
 Content preview
-[/preview]
+</meta:preview>
 ```
 
-## Modifiers in Detail
+## Attributes in Detail
 
-### Execution Control Modifiers
+### Common Attributes
 
-| Modifier | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `cache_result` | Enable/disable result caching | `false` | `cache_result:true` |
-| `timeout` | Execution timeout in seconds | None | `timeout:30` |
-| `retry` | Number of retry attempts | `0` | `retry:3` |
-| `fallback` | Fallback block on failure | None | `fallback:error-handler` |
-| `depends` | Execution dependencies | None | `depends:data-block` |
-| `async` | Asynchronous execution | `false` | `async:true` |
+All blocks can have these attributes:
 
-### Display & Formatting Modifiers
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `name` | Block identifier | `name="data-loader"` |
+| `cache_result` | Enable/disable result caching | `cache_result="true"` |
+| `timeout` | Execution timeout in seconds | `timeout="30"` |
+| `retry` | Number of retry attempts | `retry="3"` |
+| `fallback` | Fallback block on failure | `fallback="error-handler"` |
+| `depends` | Execution dependencies | `depends="data-block"` |
+| `async` | Asynchronous execution | `async="true"` |
 
-| Modifier | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `format` | Output format | Auto-detected | `format:json` |
-| `display` | Display mode | `block` | `display:inline` |
-| `trim` | Trim whitespace | `true` | `trim:false` |
-| `max_lines` | Line limit | `0` (unlimited) | `max_lines:100` |
+### Display & Formatting Attributes
 
-### Context Control Modifiers
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `format` | Output format | `format="json"` |
+| `display` | Display mode | `display="inline"` |
+| `trim` | Trim whitespace | `trim="false"` |
+| `max_lines` | Line limit | `max_lines="100"` |
 
-| Modifier | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `order` | Block ordering | Document order | `order:0.5` |
-| `priority` | Inclusion priority | `5` | `priority:8` |
-| `weight` | Token budget weight | `1.0` | `weight:0.7` |
+### Context Control Attributes
 
-### Debugging Modifiers
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `order` | Block ordering | `order="0.5"` |
+| `priority` | Inclusion priority | `priority="8"` |
+| `weight` | Token budget weight | `weight="0.7"` |
 
-| Modifier | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `debug` | Enable debug info | `false` | `debug:true` |
-| `verbosity` | Debug verbosity | `medium` | `verbosity:high` |
+### Debugging Attributes
 
-## Implementation Insights
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `debug` | Enable debug info | `debug="true"` |
+| `verbosity` | Debug verbosity | `verbosity="high"` |
 
-### Parsing Robustness
+## Variable References
 
-The parser is designed to handle various edge cases:
+Variable references follow the same syntax as in the bracket-based format:
 
-1. **Whitespace Tolerance**: The parser handles different whitespace patterns including:
-   - Tabs vs. spaces
-   - Inconsistent indentation
-   - Trailing/leading whitespace
-   - Empty lines between blocks
+```xml
+<meta:code language="python" name="process-data">
+<![CDATA[
+import json
+user_data = json.loads('${user-info}')
+print(f"Hello, {user_data['name']}!")
+]]>
+</meta:code>
+```
 
-2. **Closing Tag Flexibility**: Various closing tag formats are supported:
-   - Full tags: `[/code:python]`
-   - Base tags: `[/code]`
-   - Type-only tags: `[/block_type]`
+References can point to:
+- Block content: `${block-name}`
+- Results: `${block-name.results}`
+- Environment variables: `${ENV_VAR}`
 
-3. **Special Character Handling**: The parser correctly processes:
-   - Escaped quotes in strings
-   - JSON content with nested quotes and brackets
-   - Backslashes and escape sequences
-   - Special characters in block names and content
+## XML Schema
 
-4. **Error Recovery**: When encountering parsing errors, the system:
-   - Attempts to salvage as much content as possible
-   - Provides detailed error information
-   - Falls back to simpler parsing strategies
-   - Allows the document to be partially processed
+An XML Schema Definition (XSD) is available for validation:
 
-### Executor Implementation
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+           xmlns:meta="https://example.com/meta-language"
+           targetNamespace="https://example.com/meta-language"
+           elementFormDefault="qualified">
+  <!-- Schema elements here -->
+</xs:schema>
+```
 
-The executor contains specialized logic for:
+The complete schema is available in the `meta-language.xsd` file.
 
-1. **Block Type Execution**:
-   - Language-specific execution for code blocks
-   - Safe shell command execution
-   - HTTP client implementation for API blocks
+## Implementation Notes
 
-2. **Dependency Management**:
-   - Graph-based dependency resolution
-   - Automatic ordering of execution
-   - Circular dependency detection
-   - Nested dependency handling
+### Parsing and Validation
 
-3. **Variable Substitution**:
-   - Regex-based reference extraction
-   - Recursive reference resolution
-   - Context-aware substitution
-   - Special variable handling
+The Meta Processing Environment supports both formats transparently:
+- Automatic format detection
+- Format-specific parsing
+- Schema validation for XML format
+- Equivalent execution regardless of format
 
-4. **Result Formatting**:
-   - Content-type detection
-   - Format conversion (JSON, Markdown, etc.)
-   - Custom display options
-   - Line limiting and trimming
+### Performance Considerations
 
-## Testing Strategy
+XML parsing uses the high-performance `quick-xml` library, providing:
+- Fast parsing and serialization
+- Low memory usage
+- Streaming capabilities for large documents
 
-The test suite comprehensively covers:
+### Special Character Handling
 
-1. **Parser Tests**:
-   - Basic block parsing
-   - Complex nested structures
-   - Edge cases and error conditions
-   - Whitespace and indentation variations
-   - Character escaping and special handling
+The XML format handles special characters through:
+- CDATA sections for code and structured data
+- XML entity encoding for text content
+- XML namespaces to avoid conflicts
 
-2. **Executor Tests**:
-   - Block execution for different types
-   - Dependency resolution
-   - Variable substitution
-   - Error handling and recovery
-   - Results generation and formatting
+### Format Conversion
 
-3. **Integration Tests**:
-   - Complete document processing
-   - Complex workflows with multiple block types
-   - Error recovery in full documents
-   - Realistic usage scenarios
+Bidirectional conversion between formats is supported:
+- Convert bracket format to XML: `meta-convert to-xml input.meta output.xml`
+- Convert XML format to brackets: `meta-convert to-meta input.xml output.meta`
 
-4. **Robustness Tests**:
-   - Malformed input handling
-   - Parser recovery mechanisms
-   - Edge case detection
-   - Stress testing with complex documents
+## Best Practices
 
-## Usage Guidelines
+### Document Organization
 
-### Document Structure
+1. **Structure**:
+   - Use sections to group related blocks
+   - Place dependencies before dependent blocks
+   - Use meaningful element names and attributes
 
-1. **Organization**:
-   - Group related blocks in sections
-   - Use consistent naming conventions
-   - Organize dependencies logically
-   - Include appropriate fallbacks
+2. **Naming Conventions**:
+   - Use kebab-case for `name` attributes
+   - Use descriptive names that indicate purpose
+   - Maintain consistent naming patterns
 
-2. **Naming**:
-   - Use descriptive, unique block names
-   - Prefer kebab-case for consistency 
-   - Include block type in name when helpful
-   - Avoid special characters in names
-
-3. **Modifiers**:
-   - Use modifiers consistently
-   - Include only necessary modifiers
-   - Set appropriate timeouts for long-running blocks
-   - Use meaningful priority values
-
-4. **Dependencies**:
-   - Explicitly declare dependencies with `depends`
-   - Avoid circular dependencies
-   - Use variable references carefully
-   - Include fallbacks for critical dependencies
-
-### Best Practices
-
-1. **Error Handling**:
-   - Always include fallback blocks
-   - Check for error conditions
-   - Use conditional blocks for error branches
-   - Provide meaningful error messages
-
-2. **Performance**:
-   - Use caching for expensive operations
-   - Minimize unnecessary dependencies
-   - Avoid redundant execution
-   - Control context size with priorities
-
-3. **Maintainability**:
-   - Use templates for repeated patterns
+3. **Content Management**:
+   - Use CDATA for code, JSON, and special characters
    - Keep blocks focused and single-purpose
-   - Document complex blocks with comments
-   - Use sections to organize large documents
+   - Use templates for repeated patterns
 
-4. **Security**:
-   - Use secret blocks for sensitive data
-   - Validate inputs in executable blocks
-   - Limit shell command execution
-   - Control API access carefully
+4. **Error Handling**:
+   - Always specify fallback blocks
+   - Provide descriptive error messages
+   - Use conditional blocks for error branches
 
 ## Conclusion
 
-The Meta Programming Language implementation provides a robust system for embedding executable code, structured data, and AI interactions within documents. Through its flexible parser, powerful executor, and comprehensive block types, it enables complex workflows while maintaining readability and maintainability.
+The XML format for the Meta Programming Language provides all the functionality of the original bracket-based syntax with added benefits of standard tooling, improved validation, and better error reporting. Both formats are fully supported, allowing seamless migration and interoperability.
