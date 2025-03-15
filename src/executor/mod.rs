@@ -36,6 +36,12 @@ pub enum ExecutorError {
     
     #[error("Missing API key: {0}")]
     MissingApiKey(String),
+    
+    #[error("LLM API error: {0}")]
+    LlmApiError(String),
+    
+    #[error("Missing API key: {0}")]
+    MissingApiKey(String),
 }
 
 // Executor for processing blocks
