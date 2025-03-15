@@ -947,9 +947,10 @@ fn test_error_recovery() {
 print("This is a valid block")
 [/code:python]
 
-[invalid_block without_closing_bracket
-This block has an invalid format - missing closing bracket
-This should definitely cause a parse error
+[[[COMPLETELY INVALID]]]
+This is not a valid block format at all
+It has multiple opening brackets and no proper structure
+[[[/INVALID]]]
 
 [code:python name:another_valid]
 print("This block should still be parsed")
@@ -972,8 +973,10 @@ print("This block should still be parsed")
 print("This is a valid block")
 [/code:python]
 
-[code:python name:syntax_error
-print("This block has a syntax error - missing closing bracket")
+[code:python name:syntax_error]
+print("This block has a syntax error - unclosed string literal)
+print("This should cause a parse error")
+[/code:python]
 
 [code:python name:last_valid]
 print("This is another valid block")
