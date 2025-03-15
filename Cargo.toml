@@ -17,7 +17,7 @@ rand = "=0.8.5"
 half = "=1.8.2"  # Pin to exactly version 1.8.2
 num-traits = "=0.2.15"
 indexmap = "=1.9.3"
-reqwest = { version = "0.11.18", features = ["json"] }
+reqwest = { version = "0.11.17", features = ["json", "rustls-tls"], default-features = false }
 async-trait = "0.1.73"
 tokio = { version = "1.28.2", features = ["full"] }
 
