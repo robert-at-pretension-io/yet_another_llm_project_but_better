@@ -5,14 +5,8 @@
   print("Hello, world!!")
   ]]>
   </meta:code>
-</meta:document>
-<?xml version="1.0" encoding="UTF-8"?>
-<document>
-  <code language="python">
-    print("Hello, world!")
-  </code>
   
-  <question>
+  <meta:question name="meaning">
     What is the meaning of life?
-  </question>
-</document>
+  </meta:question>
+</meta:document>
