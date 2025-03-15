@@ -9,11 +9,12 @@ fn main() {
     let file_path = temp_dir.path().join("test_question.md");
     
     // Create a file with a question block that uses test_mode
-    let initial_content = r#"# Test Question Block
-    
-[question name:test-question test_mode:true]
-What is the capital of France?
-[/question]
+    let initial_content = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="test-question" test_mode="true">
+  What is the capital of France?
+  </meta:question>
+</meta:document>
 "#;
     
     fs::write(&file_path, initial_content).expect("Failed to write test file");
