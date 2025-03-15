@@ -90,9 +90,17 @@ fn process_file(file_path: &str) -> Result<()> {
     
     // Process the document
     log_debug("Beginning document processing");
+    println!("Processing document content: {} bytes", content.len());
+    
     match executor.process_document(&content) {
         Ok(_) => {
             log_debug(&format!("Document processed successfully, found {} blocks", executor.blocks.len()));
+            println!("Successfully parsed document, found {} blocks", executor.blocks.len());
+            
+            // Debug: Print all blocks found
+            for (name, block) in &executor.blocks {
+                println!("Found block: '{}' of type '{}'", name, block.block_type);
+            }
         },
         Err(e) => {
             // Print the error but continue execution

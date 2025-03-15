@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<meta:document xmlns:meta="https://example.com/meta-language">
-  <meta:code language="python" name="hello" auto_execute="true">
+<document>
+  <code language="python" name="hello" auto_execute="true">
   <![CDATA[
   print("Hello, world!!")
   ]]>
-  </meta:code>
+  </code>
   
-  <meta:question name="meaning">
+  <question name="meaning">
     What is the meaning of life?
-  </meta:question>
-</meta:document>
+  </question>
+</document>
