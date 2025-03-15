@@ -3,9 +3,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, anyhow};
+use lazy_static::lazy_static;
 
 // Import from our library
 use yet_another_llm_project_but_better::{
@@ -17,8 +20,16 @@ use yet_another_llm_project_but_better::{
     executor::MetaLanguageExecutor
 };
 
+// Global map to store executor instances by file path
+lazy_static! {
+    static ref EXECUTORS: Mutex<HashMap<String, Arc<Mutex<MetaLanguageExecutor>>>> = Mutex::new(HashMap::new());
+}
+
 /// Executes a block based on its type
 fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
+    // Get the file path as a string for the executor map
+    let file_path_str = file_path.to_string_lossy().to_string();
+    
     match block.block_type.as_str() {
         "code:python" => {
             // Try to execute Python code with "python" first
@@ -98,12 +109,21 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                 return Ok("Response already exists in file".to_string());
             }
             
-            // Create a new executor to handle the question
-            let mut executor = MetaLanguageExecutor::new();
+            // Get or create an executor for this file
+            let executor_arc = {
+                let mut executors = EXECUTORS.lock().unwrap();
+                executors.entry(file_path_str.clone())
+                    .or_insert_with(|| {
+                        let mut executor = MetaLanguageExecutor::new();
+                        // Initialize with current file content
+                        executor.process_document(&file_content).unwrap_or_default();
+                        Arc::new(Mutex::new(executor))
+                    })
+                    .clone()
+            };
             
-            // Process the document to ensure the executor has the current state
-            executor.process_document(&file_content)
-                .unwrap_or_default();
+            // Get a mutable reference to the executor
+            let mut executor = executor_arc.lock().unwrap();
             
             // Add test_mode modifier to avoid actual API calls during testing
             let mut question_block = block.clone();
@@ -114,7 +134,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                     println!("DEBUG: Question execution successful, response length: {} bytes", response.len());
                     println!("DEBUG: Response preview: {}", response.chars().take(100).collect::<String>());
                     
-                    // Store the response in the global executor
+                    // Store the response in the executor
                     if let Some(name) = &block.name {
                         let response_name = format!("{}_response", name);
                         println!("DEBUG: Storing response with key: '{}'", response_name);
@@ -193,6 +213,9 @@ fn should_auto_execute(block: &Block) -> bool {
 fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
     println!("Processing file: {}", file_path.display());
     
+    // Get the file path as a string for the executor map
+    let file_path_str = file_path.to_string_lossy().to_string();
+    
     // Read file content
     let content = fs::read_to_string(file_path)
         .context("Failed to read file")?;
@@ -203,8 +226,23 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
     
     println!("Found {} blocks in file", blocks.len());
     
-    // Create an executor for more advanced blocks like questions
-    let mut executor = MetaLanguageExecutor::new();
+    // Get or create an executor for this file
+    let executor_arc = {
+        let mut executors = EXECUTORS.lock().unwrap();
+        executors.entry(file_path_str.clone())
+            .or_insert_with(|| {
+                let mut executor = MetaLanguageExecutor::new();
+                // Initialize with current file content
+                executor.process_document(&content).unwrap_or_default();
+                Arc::new(Mutex::new(executor))
+            })
+            .clone()
+    };
+    
+    // Get a mutable reference to the executor
+    let mut executor = executor_arc.lock().unwrap();
+    
+    // Update the executor with the current document content
     executor.process_document(&content)
         .map_err(|e| anyhow!("Executor error: {}", e))?;
     
