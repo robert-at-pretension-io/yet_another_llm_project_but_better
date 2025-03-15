@@ -6,7 +6,9 @@ mod tests {
     fn test_code_block_python() {
         // Since we modified the implementation to be more structured in smaller files,
         // we'll just check for the basic structure instead of specific modifiers
-        let input = r#"[code:python name:fetch-data fallback:fetch-data-fallback]
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:code language="python" name="fetch-data" fallback="fetch-data-fallback">
+  <![CDATA[
 import requests
 import pandas as pd
 
@@ -17,7 +19,9 @@ def fetch_data(url):
     
 df = fetch_data("https://api.example.com/data")
 print(df.head())
-[/code:python]"#;
+  ]]>
+  </meta:code>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
@@ -34,7 +38,9 @@ print(df.head())
     
     #[test]
     fn test_code_block_javascript() {
-        let input = r#"[code:javascript name:process-json]
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:code language="javascript" name="process-json">
+  <![CDATA[
 const data = JSON.parse('${input-data}');
 const results = data.map(item => {
     return {
@@ -44,7 +50,9 @@ const results = data.map(item => {
     };
 });
 console.log(JSON.stringify(results, null, 2));
-[/code:javascript]"#;
+  ]]>
+  </meta:code>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
@@ -62,14 +70,18 @@ console.log(JSON.stringify(results, null, 2));
     #[test]
     fn test_shell_block() {
         // For the shell block, we'll simplify the test
-        let input = r#"[shell name:system-info timeout:10]
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:shell name="system-info" timeout="10">
+  <![CDATA[
 echo "System Information:"
 uname -a
 echo "Memory Usage:"
 free -h
 echo "Disk Usage:"
 df -h
-[/shell]"#;
+  ]]>
+  </meta:shell>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
@@ -118,18 +130,24 @@ df -h
     #[test]
     fn test_code_with_fallback() {
         // For the fallback test, we'll simplify as well
-        let input = r#"[code:python name:risky-operation fallback:fallback-handler]
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:code language="python" name="risky-operation" fallback="fallback-handler">
+  <![CDATA[
 try:
     result = dangerous_operation()
     print(f"Success: {result}")
 except Exception as e:
     raise RuntimeError(f"Operation failed: {e}")
-[/code:python]
+  ]]>
+  </meta:code>
 
-[code:python name:fallback-handler]
+  <meta:code language="python" name="fallback-handler">
+  <![CDATA[
 print("Fallback operation executed")
 result = {"status": "fallback", "data": None}
-[/code:python]"#;
+  ]]>
+  </meta:code>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
