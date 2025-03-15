@@ -78,9 +78,12 @@ fn test_file_watcher_detects_new_blocks() {
     
     // Now modify the file to add a new block
     let updated_content = format!("{}\n\
-        [code:python name:test-python-block]\n\
-        print('Hello from Python!')\n\
-        [/code]\n", initial_content);
+        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+        <meta:document xmlns:meta=\"https://example.com/meta-language\">\n\
+          <meta:code language=\"python\" name=\"test-python-block\">\n\
+          print('Hello from Python!')\n\
+          </meta:code>\n\
+        </meta:document>\n", initial_content);
     
     // Write the updated content
     fs::write(&file_path, updated_content).expect("Failed to write updated content");
@@ -117,9 +120,12 @@ fn test_file_watcher_detects_modified_blocks() {
     
     // Create initial file with a block
     let initial_content = "# Test Document\n\n\
-        [code:python name:modify-me]\n\
-        print('Initial content')\n\
-        [/code]\n";
+        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+        <meta:document xmlns:meta=\"https://example.com/meta-language\">\n\
+          <meta:code language=\"python\" name=\"modify-me\">\n\
+          print('Initial content')\n\
+          </meta:code>\n\
+        </meta:document>\n";
     fs::write(&file_path, initial_content).expect("Failed to write initial content");
     
     // Create a channel to receive file events
@@ -188,9 +194,12 @@ fn test_file_watcher_detects_modified_blocks() {
     
     // Now modify the file to change the block
     let updated_content = "# Test Document\n\n\
-        [code:python name:modify-me]\n\
-        print('Modified content')\n\
-        [/code]\n";
+        <?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+        <meta:document xmlns:meta=\"https://example.com/meta-language\">\n\
+          <meta:code language=\"python\" name=\"modify-me\">\n\
+          print('Modified content')\n\
+          </meta:code>\n\
+        </meta:document>\n";
     
     // Write the updated content
     fs::write(&file_path, updated_content).expect("Failed to write updated content");
