@@ -89,6 +89,13 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             let value = str::from_utf8(&attr.value)
                                 .unwrap_or_default()
                                 .to_string();
+                                
+                            // Check if this is a name attribute in the format name:value
+                            if raw_key == "name" && !value.is_empty() {
+                                println!("DEBUG:   Found name attribute with value: {}", value);
+                                block_name = Some(value.clone());
+                                continue;
+                            }
                             
                             // Handle special case for attributes with format "name:value"
                             // This is now our primary way to detect name:value format
@@ -108,6 +115,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             }
                             
                             if key == "name" {
+                                println!("DEBUG:   Setting block name to: {}", actual_value);
                                 block_name = Some(actual_value);
                             } else if key == "type" && block_type == "section" {
                                 // For sections, store type as a modifier
@@ -129,6 +137,11 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     
                     println!("DEBUG: Created new block: type={}, name={:?}", 
                              final_block_type, block_name);
+                    
+                    // Double check that name was properly set
+                    if let Some(name) = &block_name {
+                        println!("DEBUG:   Block name confirmed: {}", name);
+                    }
                     
                     // Special debug for question blocks
                     if final_block_type == "question" {
