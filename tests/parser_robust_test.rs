@@ -1620,12 +1620,17 @@ fn test_different_languages() {
         assert!(block.is_some(), "Block {} not found ", name);
         
         let block = block.unwrap();
+        println!("DEBUG: Block {}: type={}, modifiers={:?}", 
+                 name, block.block_type, block.modifiers);
+                 
         assert_eq!(block.block_type, expected_type, 
-                  "Block {} has incorrect type: {} ", name, block.block_type);
+                  "Block {} has incorrect type. Expected: '{}', Found: '{}' ", 
+                  name, expected_type, block.block_type);
         
         // Check language modifier
         assert_eq!(block.get_modifier("language").map(|s| s.as_str()), Some(expected_language),
-                  "Block {} has incorrect language: {:?} ", name, block.get_modifier("language"));
+                  "Block {} has incorrect language. Expected: '{}', Found: '{:?}' ", 
+                  name, expected_language, block.get_modifier("language"));
         
         println!("DEBUG: {} content: {}", name, block.content);
     }
