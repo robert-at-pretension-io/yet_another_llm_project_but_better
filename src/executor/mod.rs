@@ -1034,21 +1034,37 @@ impl MetaLanguageExecutor {
         // This is a simplified version - a real implementation would be more sophisticated
         // to properly handle block updates without losing formatting
         
+        println!("DEBUG: update_document called");
+        println!("DEBUG: Current document length: {}", self.current_document.len());
+        println!("DEBUG: Number of outputs: {}", self.outputs.len());
+        
         let mut updated_doc = self.current_document.clone();
         
         // Replace response blocks with execution results
         for (name, output) in &self.outputs {
+            println!("DEBUG: Processing output for '{}' (length: {})", name, output.len());
+            
             // Very simple replacement - in a real implementation, this would be more robust
             let response_marker = format!("[response for:{}]", name);
             let response_replacement = format!("[response for:{}]\n{}\n[/response]", name, output);
+            
+            println!("DEBUG: Looking for marker: '{}'", response_marker);
+            let marker_count = updated_doc.matches(&response_marker).count();
+            println!("DEBUG: Found {} instances of marker", marker_count);
             
             updated_doc = updated_doc.replace(&response_marker, &response_replacement);
             
             // Also handle question-response pairs
             if name.ends_with("_response") {
                 let question_name = name.trim_end_matches("_response");
+                println!("DEBUG: Found response for question: '{}'", question_name);
+                
                 let question_response_marker = format!("[response for:{}]", question_name);
                 let question_response_replacement = format!("[response for:{}]\n{}\n[/response]", question_name, output);
+                
+                println!("DEBUG: Looking for question marker: '{}'", question_response_marker);
+                let q_marker_count = updated_doc.matches(&question_response_marker).count();
+                println!("DEBUG: Found {} instances of question marker", q_marker_count);
                 
                 updated_doc = updated_doc.replace(&question_response_marker, &question_response_replacement);
             }
@@ -1056,16 +1072,22 @@ impl MetaLanguageExecutor {
         
         // Check if the document already contains response blocks
         let has_response_block = updated_doc.contains("[response]") || updated_doc.contains("[/response]");
+        println!("DEBUG: Document already contains response blocks: {}", has_response_block);
         
         // If there are already response blocks, don't add new ones
         if has_response_block {
+            println!("DEBUG: Returning document with existing response blocks");
             return Ok(updated_doc);
         }
         
         // Handle question blocks by adding response blocks after them
+        println!("DEBUG: Adding response blocks after question blocks");
         let mut result = String::new();
         let mut lines = updated_doc.lines().collect::<Vec<_>>();
+        println!("DEBUG: Document has {} lines", lines.len());
         let mut i = 0;
+        let mut question_blocks_found = 0;
+        let mut response_blocks_added = 0;
         
         while i < lines.len() {
             let line = lines[i];
@@ -1074,17 +1096,25 @@ impl MetaLanguageExecutor {
             
             // Check if this is the end of a question block
             if line.trim() == "[/question]" {
+                question_blocks_found += 1;
+                println!("DEBUG: Found end of question block #{}", question_blocks_found);
+                
                 // Check if the next line is already a response block
                 let next_is_response = i + 1 < lines.len() && lines[i + 1].trim().starts_with("[response");
+                println!("DEBUG: Next line is already a response block: {}", next_is_response);
                 
                 // If there's no response block following, add one
                 if !next_is_response {
+                    println!("DEBUG: Looking for a response to add");
                     // Look for a response to this question in the outputs
-                    for (_, output) in &self.outputs {
+                    for (output_name, output) in &self.outputs {
+                        println!("DEBUG: Considering output '{}' for insertion", output_name);
                         // Insert the response block after the question block
                         result.push_str("[response]\n");
                         result.push_str(output);
                         result.push_str("\n[/response]\n\n");
+                        response_blocks_added += 1;
+                        println!("DEBUG: Added response block #{}", response_blocks_added);
                         break;
                     }
                 }
@@ -1092,6 +1122,10 @@ impl MetaLanguageExecutor {
             
             i += 1;
         }
+        
+        println!("DEBUG: Found {} question blocks, added {} response blocks", 
+                 question_blocks_found, response_blocks_added);
+        println!("DEBUG: Final document length: {}", result.len());
         
         Ok(result)
     }
