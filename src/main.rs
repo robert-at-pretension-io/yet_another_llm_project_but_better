@@ -71,8 +71,23 @@ fn process_file(file_path: &str) -> Result<()> {
     log_debug(&format!("Starting process_file for: '{}'", file_path));
     let start_time = Instant::now();
     
-    // Check file extension
+    // Get detailed path information
     let path = Path::new(file_path);
+    let absolute_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        env::current_dir()?.join(path)
+    };
+    
+    // Print detailed path information for debugging
+    log_debug(&format!("Path details:"));
+    log_debug(&format!("  Original path: '{}'", file_path));
+    log_debug(&format!("  Is absolute: {}", path.is_absolute()));
+    log_debug(&format!("  Absolute path: '{}'", absolute_path.display()));
+    log_debug(&format!("  Path exists (original): {}", path.exists()));
+    log_debug(&format!("  Path exists (absolute): {}", absolute_path.exists()));
+    
+    // Check file extension
     if let Some(ext) = path.extension() {
         let ext_str = format!(".{}", ext.to_string_lossy());
         log_debug(&format!("File extension: '{}' for file: '{}'", ext_str, file_path));
@@ -86,9 +101,21 @@ fn process_file(file_path: &str) -> Result<()> {
         println!("[{}] Processing file: {}", Local::now().format("%H:%M:%S"), file_path);
     }
     
+    // Determine which path to use for reading
+    let path_to_use = if path.exists() {
+        log_debug("Using original path for file operations");
+        file_path.to_string()
+    } else if absolute_path.exists() {
+        log_debug("Using absolute path for file operations");
+        absolute_path.to_string_lossy().to_string()
+    } else {
+        log_debug(&format!("Neither original nor absolute path exists for '{}'", file_path));
+        return Err(anyhow!("File not found: {}", file_path));
+    };
+    
     // Read the file
-    log_debug(&format!("Reading file content from: '{}'", file_path));
-    let content = match fs::read_to_string(file_path) {
+    log_debug(&format!("Reading file content from: '{}'", path_to_use));
+    let content = match fs::read_to_string(&path_to_use) {
         Ok(content) => {
             log_debug(&format!("File read successfully, content length: {} bytes", content.len()));
             log_debug(&format!("First 100 chars of content: '{}'", 
@@ -96,12 +123,14 @@ fn process_file(file_path: &str) -> Result<()> {
             content
         },
         Err(e) => {
-            log_debug(&format!("Failed to read file '{}': {}", file_path, e));
-            return Err(anyhow!("Failed to read file: {}: {}", file_path, e));
+            log_debug(&format!("Failed to read file '{}': {}", path_to_use, e));
+            return Err(anyhow!("Failed to read file: {}: {}", path_to_use, e));
         }
     };
     
     // Get or create an executor for this file
+    // Use the original file_path as the key for the executor map
+    // This ensures consistency when the same file is processed multiple times
     log_debug(&format!("Getting executor for file: '{}'", file_path));
     let executor = get_or_create_executor(file_path);
     let mut executor = executor.lock().unwrap();
@@ -150,7 +179,16 @@ fn process_file(file_path: &str) -> Result<()> {
     // Update the file with results if configured
     if config.update_files {
         log_debug(&format!("Update files enabled, updating: {}", file_path));
-        update_file_with_results(file_path, &mut executor)?;
+        // Use the same path that was used for reading
+        let path_to_use = if path.exists() {
+            file_path.to_string()
+        } else if absolute_path.exists() {
+            absolute_path.to_string_lossy().to_string()
+        } else {
+            file_path.to_string() // Fallback to original path
+        };
+        log_debug(&format!("Using path for update: '{}'", path_to_use));
+        update_file_with_results(&path_to_use, &mut executor)?;
     } else {
         log_debug("Update files disabled, skipping");
     }
@@ -263,6 +301,12 @@ fn answer_questions(executor: &mut MetaLanguageExecutor) -> Result<()> {
 // Update the original file with execution results
 fn update_file_with_results(file_path: &str, executor: &mut MetaLanguageExecutor) -> Result<()> {
     log_debug(&format!("Entering update_file_with_results for: {}", file_path));
+    
+    // Verify file exists before attempting to update
+    let path = Path::new(file_path);
+    if !path.exists() {
+        return Err(anyhow!("Cannot update file that doesn't exist: {}", file_path));
+    }
     
     // Generate updated document content
     log_debug("Generating updated document content");
