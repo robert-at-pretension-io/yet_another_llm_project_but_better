@@ -416,6 +416,11 @@ print(result)
         
         // Set up environment variable to enable test mode
         std::env::set_var("LLM_TEST_MODE", "1");
+        println!("Test mode enabled: {}", std::env::var("LLM_TEST_MODE").unwrap_or_default());
+        
+        // Make sure test mode is enabled
+        std::env::set_var("LLM_TEST_MODE", "1");
+        println!("Test mode enabled: {}", std::env::var("LLM_TEST_MODE").unwrap_or_default());
         
         // Execute the process-data block
         println!("Executing process-data block...");
@@ -423,7 +428,7 @@ print(result)
         // In a real execution, the Python code would run and produce "15"
         // Since we're in test mode, we need to mock the execution result
         // First, store the expected output in the results key
-        executor.outputs.insert("process-data.results".to_string(), "15".to_string());
+        executor.outputs.insert("process-data".to_string(), "15".to_string());
         
         let result = executor.execute_block("process-data");
         assert!(result.is_ok(), "Process data execution failed: {:?}", result.err());
