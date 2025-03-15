@@ -148,7 +148,7 @@ This section contains a data block.
 <meta:section type="code-example" name="python-example">
 # Python Example
 
-<meta:code type="python" name="hello-world">
+<meta:code language="python" name="hello-world">
 def hello():
     print("Hello, World!")
 
@@ -177,7 +177,7 @@ This section demonstrates a Python code block.
         // Check the code block
         let code_block = &section.children[0];
         assert_eq!(code_block.block_type, "code");
-        assert!(code_block.modifiers.iter().any(|(k, v)| k == "type" && v == "python"));
+        assert!(code_block.modifiers.iter().any(|(k, v)| k == "language" && v == "python"));
         assert_eq!(code_block.name, Some("hello-world".to_string()));
         assert!(code_block.content.contains("def hello():"));
         assert!(code_block.content.contains("print(\"Hello, World!\")"));
@@ -254,7 +254,7 @@ Document conclusion.
 
 ## Analysis
 
-<meta:code type="python" name="analysis-script">
+<meta:code language="python" name="analysis-script">
 import json
 data = json.loads(metrics)
 conversion_rate = data["conversions"] / data["users"] * 100
