@@ -673,50 +673,15 @@ impl MetaLanguageExecutor {
         }
     }
     
-    pub fn execute_question_block(&self, content: &str, block: &Block) -> Result<String, ExecutorError> {
-        println!("DEBUG: Executing question block with content: '{}'", content);
+    
+    // Execute a question block by sending it to an LLM API
+    pub fn execute_question(&self, block: &Block, question: &str) -> Result<String, ExecutorError> {
+        println!("Executing question block: {}", question);
         
         // Check if we're in test mode
         if block.is_modifier_true("test_mode") {
             return Ok("This is a simulated response for testing purposes.".to_string());
         }
-        
-        // Create LLM client from block modifiers
-        let llm_client = LlmClient::from_block_modifiers(&block.modifiers);
-        
-        // Check if we have an API key
-        if llm_client.config.api_key.is_empty() {
-            return Err(ExecutorError::MissingApiKey(
-                "No API key provided for LLM. Set via block modifier or environment variable.".to_string()
-            ));
-        }
-        
-        // Get any additional context from modifiers
-        let context = block.get_modifier("context")
-            .map(|s| s.as_str())
-            .unwrap_or("");
-            
-        // Prepare the full prompt with context if available
-        let full_prompt = if context.is_empty() {
-            content.to_string()
-        } else {
-            format!("Context:\n{}\n\nQuestion:\n{}", context, content)
-        };
-        
-        // Execute the LLM request in the runtime
-        let result = self.runtime.block_on(async {
-            match llm_client.send_prompt(&full_prompt).await {
-                Ok(response) => Ok(response),
-                Err(e) => Err(ExecutorError::LlmApiError(e.to_string())),
-            }
-        });
-        
-        result
-    }
-    
-    // Execute a question block by sending it to an LLM API
-    pub fn execute_question(&self, block: &Block, question: &str) -> Result<String, ExecutorError> {
-        println!("Executing question block: {}", question);
         
         // Create LLM client from block modifiers
         let llm_client = LlmClient::from_block_modifiers(&block.modifiers);
@@ -742,6 +707,10 @@ impl MetaLanguageExecutor {
             if let Some(context_content) = self.outputs.get(context_block) {
                 prompt = format!("Context:\n{}\n\nQuestion:\n{}", context_content, prompt);
             }
+        }
+        // Get any additional context from direct context modifier
+        else if let Some(context) = block.get_modifier("context") {
+            prompt = format!("Context:\n{}\n\nQuestion:\n{}", context, prompt);
         }
         
         // Execute the LLM request in the runtime
