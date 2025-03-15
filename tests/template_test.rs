@@ -10,9 +10,12 @@ mod tests {
         
         // Create a template block
         let mut template = Block::new("template", Some("data-processor"), 
-            r#"[question model:${model} temperature:${temperature}]
-Analyze this data: ${data_content}
-[/question]"#);
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question model="${model}" temperature="${temperature}">
+  Analyze this data: ${data_content}
+  </meta:question>
+</meta:document>"#);
         
         template.add_modifier("model", "gpt-4");
         template.add_modifier("temperature", "0.7");
