@@ -227,15 +227,25 @@ impl MetaLanguageExecutor {
     
     // Execute a block by name
     pub fn execute_block(&mut self, name: &str) -> Result<String, ExecutorError> {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Executing block: '{}'", name);
+        }
+        
         // Check for circular dependencies
         if self.processing_blocks.contains(&name.to_string()) {
+            println!("ERROR: Circular dependency detected for block: '{}'", name);
             return Err(ExecutorError::CircularDependency(name.to_string()));
         }
         
         // Check if block exists
         let block = match self.blocks.get(name) {
             Some(b) => b.clone(),
-            None => return Err(ExecutorError::BlockNotFound(name.to_string())),
+            None => {
+                println!("ERROR: Block not found: '{}'", name);
+                return Err(ExecutorError::BlockNotFound(name.to_string()));
+            }
         };
         
         // Check if result is cached
@@ -244,9 +254,19 @@ impl MetaLanguageExecutor {
                 // Check if cache is still valid (e.g., within timeout)
                 let now = Instant::now();
                 let timeout = self.get_timeout(&block);
+                let elapsed = now.duration_since(*timestamp);
                 
-                if now.duration_since(*timestamp) < timeout {
+                let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+                
+                if elapsed < timeout {
+                    if debug_enabled {
+                        println!("DEBUG: Using cached result for '{}' (age: {:.2}s, timeout: {}s)", 
+                                 name, elapsed.as_secs_f64(), timeout.as_secs());
+                    }
                     return Ok(result.clone());
+                } else if debug_enabled {
+                    println!("DEBUG: Cache expired for '{}' (age: {:.2}s, timeout: {}s)", 
+                             name, elapsed.as_secs_f64(), timeout.as_secs());
                 }
             }
         }
@@ -257,7 +277,17 @@ impl MetaLanguageExecutor {
         // Execute dependencies first
         for (key, value) in &block.modifiers {
             if key == "depends" || key == "requires" {
+                let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+                
+                if debug_enabled {
+                    println!("DEBUG: Block '{}' depends on '{}', executing dependency first", name, value);
+                }
+                
                 self.execute_block(value)?;
+                
+                if debug_enabled {
+                    println!("DEBUG: Dependency '{}' executed successfully, continuing with '{}'", value, name);
+                }
             }
         }
         
@@ -288,6 +318,8 @@ impl MetaLanguageExecutor {
         // Handle execution result
         match result {
             Ok(output) => {
+                let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+                
                 // Store output with the block name
                 self.outputs.insert(name.to_string(), output.clone());
                 
@@ -295,19 +327,48 @@ impl MetaLanguageExecutor {
                 let results_key = format!("{}.results", name);
                 self.outputs.insert(results_key, output.clone());
                 
+                // Also store with block_name_results format for compatibility
+                let results_key = format!("{}_results", name);
+                self.outputs.insert(results_key, output.clone());
+                
+                if debug_enabled {
+                    println!("DEBUG: Block '{}' executed successfully, output length: {}", 
+                             name, output.len());
+                }
+                
                 // Cache if needed
                 if self.is_cacheable(&block) {
+                    if debug_enabled {
+                        println!("DEBUG: Caching result for block '{}'", name);
+                    }
                     self.cache.insert(name.to_string(), (output.clone(), Instant::now()));
                 }
+                
                 Ok(output)
             },
             Err(e) => {
+                let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+                
+                // Store error with block_name_error format
+                let error_key = format!("{}_error", name);
+                self.outputs.insert(error_key, e.to_string());
+                
                 // Use fallback
                 if let Some(fallback_name) = self.fallbacks.get(name) {
-                    println!("Block '{}' failed, using fallback: {}", name, fallback_name);
+                    if debug_enabled {
+                        println!("DEBUG: Block '{}' failed with error: {}", name, e);
+                        println!("DEBUG: Using fallback: {}", fallback_name);
+                    } else {
+                        println!("Block '{}' failed, using fallback: {}", name, fallback_name);
+                    }
+                    
                     let fallback_name_clone = fallback_name.clone();
                     self.execute_block(&fallback_name_clone)
                 } else {
+                    if debug_enabled {
+                        println!("DEBUG: Block '{}' failed with error: {}", name, e);
+                        println!("DEBUG: No fallback available");
+                    }
                     Err(e)
                 }
             }
@@ -316,79 +377,165 @@ impl MetaLanguageExecutor {
     
     // Check if a block's result should be cached
     pub fn is_cacheable(&self, block: &Block) -> bool {
-        block.modifiers.iter().any(|(key, value)| key == "cache_result" && value == "true")
+        // First check if caching is globally disabled via environment variable
+        if let Ok(cache_disabled) = std::env::var("LLM_NO_CACHE") {
+            if cache_disabled == "1" || cache_disabled.to_lowercase() == "true" {
+                return false;
+            }
+        }
+        
+        // Then check block modifiers
+        block.modifiers.iter().any(|(key, value)| 
+            key == "cache_result" && 
+            (value == "true" || value == "yes" || value == "1" || value == "on")
+        )
     }
     
     // Get timeout duration for a block
     pub fn get_timeout(&self, block: &Block) -> Duration {
+        // First check block modifiers
         for (key, value) in &block.modifiers {
             if key == "timeout" {
                 if let Ok(seconds) = value.parse::<u64>() {
+                    println!("DEBUG: Using block timeout: {} seconds", seconds);
                     return Duration::from_secs(seconds);
                 }
             }
         }
+        
+        // Then check environment variable
+        if let Ok(timeout_str) = std::env::var("LLM_TIMEOUT") {
+            if let Ok(seconds) = timeout_str.parse::<u64>() {
+                println!("DEBUG: Using environment timeout: {} seconds", seconds);
+                return Duration::from_secs(seconds);
+            }
+        }
+        
         // Default timeout (10 minutes)
+        println!("DEBUG: Using default timeout: 600 seconds");
         Duration::from_secs(600)
     }
     
     // Process variable references like ${block_name} or ${block_name:fallback_value}
     pub fn process_variable_references(&self, content: &str) -> String {
-        self.process_variable_references_internal(content, &mut Vec::new())
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Processing variable references in: '{}'", 
+                     if content.len() > 100 { &content[..100] } else { content });
+        }
+        
+        let result = self.process_variable_references_internal(content, &mut Vec::new());
+        
+        if debug_enabled && result != content {
+            println!("DEBUG: Variable references resolved. Result: '{}'", 
+                     if result.len() > 100 { &result[..100] } else { &result });
+        }
+        
+        result
     }
     
     // Helper function to look up a variable value, handling dotted names
     fn lookup_variable(&self, var_name: &str) -> Option<String> {
-        println!("lookup_variable called with: '{}'", var_name);
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("lookup_variable called with: '{}'", var_name);
+        }
         
         // First try direct lookup
         if let Some(value) = self.outputs.get(var_name) {
-            println!("  Direct lookup succeeded for '{}'", var_name);
+            if debug_enabled {
+                println!("  Direct lookup succeeded for '{}'", var_name);
+            }
             return Some(value.clone());
         }
         
         // If the name contains dots, it might be a reference to a result
         // Format could be: block_name.results
         if var_name.contains('.') {
-            println!("  Variable contains dots: '{}'", var_name);
+            let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                               std::env::var("LLM_DEBUG_VARS").is_ok();
+            
+            if debug_enabled {
+                println!("  Variable contains dots: '{}'", var_name);
+                let parts: Vec<&str> = var_name.split('.').collect();
+                println!("  Split into parts: {:?}", parts);
+            }
+            
             let parts: Vec<&str> = var_name.split('.').collect();
-            println!("  Split into parts: {:?}", parts);
             
             if parts.len() == 2 {
                 let block_name = parts[0];
                 let suffix = parts[1];
                 
-                println!("  Checking block_name: '{}', suffix: '{}'", block_name, suffix);
+                let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                                   std::env::var("LLM_DEBUG_VARS").is_ok();
+                
+                if debug_enabled {
+                    println!("  Checking block_name: '{}', suffix: '{}'", block_name, suffix);
+                }
                 
                 // Handle common suffixes
                 if suffix == "results" {
                     let results_key = format!("{}_results", block_name);
-                    println!("  Looking up results_key: '{}'", results_key);
+                    
+                    let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                                       std::env::var("LLM_DEBUG_VARS").is_ok();
+                    
+                    if debug_enabled {
+                        println!("  Looking up results_key: '{}'", results_key);
+                    }
                     
                     if let Some(value) = self.outputs.get(&results_key) {
-                        println!("  Found value for '{}': '{}'", results_key, value);
+                        if debug_enabled {
+                            println!("  Found value for '{}': '{}'", results_key, 
+                                     if value.len() > 50 { &value[..50] } else { value });
+                        }
                         return Some(value.clone());
                     }
                 } else if suffix == "error" {
                     let error_key = format!("{}_error", block_name);
-                    println!("  Looking up error_key: '{}'", error_key);
+                    
+                    let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                                       std::env::var("LLM_DEBUG_VARS").is_ok();
+                    
+                    if debug_enabled {
+                        println!("  Looking up error_key: '{}'", error_key);
+                    }
                     
                     if let Some(value) = self.outputs.get(&error_key) {
-                        println!("  Found value for '{}': '{}'", error_key, value);
+                        if debug_enabled {
+                            println!("  Found value for '{}': '{}'", error_key, 
+                                     if value.len() > 50 { &value[..50] } else { value });
+                        }
                         return Some(value.clone());
                     }
                 }
             }
         }
         
-        println!("  No value found for '{}'", var_name);
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("  No value found for '{}'", var_name);
+        }
         None
     }
     
     // Internal implementation that tracks processing variables to detect circular references
     fn process_variable_references_internal(&self, content: &str, processing_vars: &mut Vec<String>) -> String {
-        println!("process_variable_references_internal called with: '{}'", content);
-        println!("Current processing_vars: {:?}", processing_vars);
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("process_variable_references_internal called with: '{}'", 
+                     if content.len() > 100 { &content[..100] } else { content });
+            println!("Current processing_vars: {:?}", processing_vars);
+        }
         
         let mut result = content.to_string();
         
@@ -734,9 +881,15 @@ impl MetaLanguageExecutor {
         println!("DEBUG: Block modifiers: {:?}", block.modifiers);
         
         // Check if we're in test mode
-        if block.is_modifier_true("test_mode") {
-            println!("DEBUG: Using test mode response");
-            return Ok("This is a simulated response for testing purposes.".to_string());
+        if block.is_modifier_true("test_mode") || std::env::var("LLM_TEST_MODE").is_ok() {
+            let test_response = if let Some(test_response) = block.get_modifier("test_response") {
+                println!("DEBUG: Using custom test response from modifier");
+                test_response.clone()
+            } else {
+                println!("DEBUG: Using default test mode response");
+                "This is a simulated response for testing purposes.".to_string()
+            };
+            return Ok(test_response);
         }
         
         // Create LLM client from block modifiers

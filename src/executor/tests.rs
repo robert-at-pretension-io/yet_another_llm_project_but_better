@@ -2,6 +2,7 @@
 mod tests {
     use crate::executor::MetaLanguageExecutor;
     use crate::parser::Block;
+    use std::time::{Duration, Instant};
     
     /// Test variable references to results blocks
     #[test]
@@ -68,5 +69,84 @@ mod tests {
         } else if let Err(err) = &result {
             println!("Error details: {:?}", err);
         }
+    }
+    
+    /// Test test mode via modifier
+    #[test]
+    fn test_test_mode_via_modifier() {
+        // Mock executor outputs directly
+        let mut executor = MetaLanguageExecutor::new();
+        
+        // Create a test block with test_mode:true
+        let mut block = Block::new("question", Some("test_question"), "What is the meaning of life?");
+        block.add_modifier("test_mode", "true");
+        
+        // Execute the block
+        let result = executor.execute_question(&block, &block.content);
+        
+        // Verify we get the test response
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "This is a simulated response for testing purposes.");
+    }
+    
+    /// Test custom test response
+    #[test]
+    fn test_custom_test_response() {
+        // Mock executor outputs directly
+        let mut executor = MetaLanguageExecutor::new();
+        
+        // Create a test block with test_mode:true and custom test_response
+        let mut block = Block::new("question", Some("test_question"), "What is the meaning of life?");
+        block.add_modifier("test_mode", "true");
+        block.add_modifier("test_response", "The answer is 42.");
+        
+        // Execute the block
+        let result = executor.execute_question(&block, &block.content);
+        
+        // Verify we get the custom test response
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "The answer is 42.");
+    }
+    
+    /// Test timeout from modifier
+    #[test]
+    fn test_timeout_from_modifier() {
+        let executor = MetaLanguageExecutor::new();
+        
+        // Create a block with a timeout modifier
+        let mut block = Block::new("code:python", Some("test_timeout"), "print('Hello')");
+        block.add_modifier("timeout", "30");
+        
+        // Get the timeout
+        let timeout = executor.get_timeout(&block);
+        
+        // Verify the timeout is set correctly
+        assert_eq!(timeout, Duration::from_secs(30));
+    }
+    
+    /// Test caching
+    #[test]
+    fn test_caching() {
+        let mut executor = MetaLanguageExecutor::new();
+        
+        // Create a block with caching enabled
+        let mut block = Block::new("code:python", Some("cached_block"), "print('Hello')");
+        block.add_modifier("cache_result", "true");
+        
+        // Add the block to the executor
+        executor.blocks.insert("cached_block".to_string(), block);
+        
+        // Simulate a cached result
+        executor.cache.insert(
+            "cached_block".to_string(), 
+            ("Cached result".to_string(), Instant::now())
+        );
+        
+        // Execute the block
+        let result = executor.execute_block("cached_block");
+        
+        // Verify we get the cached result
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "Cached result");
     }
 }
