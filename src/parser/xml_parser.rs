@@ -83,6 +83,12 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             
                             println!("DEBUG:   Attribute: {}=\"{}\"", key, value);
                             
+                            // Special debug for auto_execute and question blocks
+                            if key == "auto_execute" {
+                                println!("DEBUG:   Found auto_execute attribute with value: {}", value);
+                                println!("DEBUG:   For block type: {}", block_type);
+                            }
+                            
                             if key == "name" {
                                 block_name = Some(value);
                             } else if key == "type" && block_type == "section" {
@@ -106,10 +112,22 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     println!("DEBUG: Created new block: type={}, name={:?}", 
                              final_block_type, block_name);
                     
+                    // Special debug for question blocks
+                    if final_block_type == "question" {
+                        println!("DEBUG:   Created question block with name: {:?}", block_name);
+                    }
+                    
                     // Add modifiers
                     for (key, value) in modifiers {
                         block.add_modifier(&key, &value);
                         println!("DEBUG:   Added modifier: {}=\"{}\"", key, value);
+                        
+                        // Special debug for auto_execute modifier
+                        if key == "auto_execute" {
+                            println!("DEBUG:   Added auto_execute modifier with value: {} to block: {:?}", 
+                                    value, block_name);
+                            println!("DEBUG:   Block type: {}", final_block_type);
+                        }
                     }
                     
                     // Push to the stack

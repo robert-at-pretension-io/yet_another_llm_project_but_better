@@ -253,13 +253,34 @@ fn auto_execute_blocks(executor: &mut MetaLanguageExecutor) -> Result<()> {
     log_debug("Entering auto_execute_blocks");
     let mut executed_blocks = HashSet::new();
     
+    // Debug: Print all blocks and their modifiers
+    log_debug("Listing all blocks and their modifiers:");
+    for (name, block) in &executor.blocks {
+        log_debug(&format!("Block: '{}' of type '{}'", name, block.block_type));
+        log_debug(&format!("  Modifiers: {:?}", block.modifiers));
+        
+        // Specifically check auto_execute modifier
+        let has_auto_execute = block.is_modifier_true("auto_execute");
+        log_debug(&format!("  Has auto_execute: {} (value: {:?})", 
+                          has_auto_execute, 
+                          block.get_modifier("auto_execute")));
+    }
+    
     // First collect the names of blocks to execute
     let blocks_to_execute: Vec<String> = executor.blocks.iter()
-        .filter(|(_, block)| block.is_modifier_true("auto_execute"))
+        .filter(|(_, block)| {
+            let is_auto = block.is_modifier_true("auto_execute");
+            log_debug(&format!("Checking block '{}' for auto_execute: {}", 
+                              block.name.as_deref().unwrap_or("unnamed"), is_auto));
+            is_auto
+        })
         .map(|(name, _)| name.clone())
         .collect();
     
     log_debug(&format!("Found {} blocks with auto_execute modifier", blocks_to_execute.len()));
+    if !blocks_to_execute.is_empty() {
+        log_debug(&format!("Auto-execute blocks: {:?}", blocks_to_execute));
+    }
     
     // Then execute each block
     for name in blocks_to_execute {
@@ -287,18 +308,48 @@ fn answer_questions(executor: &mut MetaLanguageExecutor) -> Result<()> {
     log_debug("Entering answer_questions");
     let mut questions_answered = 0;
     
+    // Debug: Print all blocks to see what we're working with
+    log_debug("Listing all blocks to check for questions:");
+    for (name, block) in &executor.blocks {
+        log_debug(&format!("Block: '{}' of type '{}'", name, block.block_type));
+        
+        // Check if this is a question block
+        if block.block_type == "question" {
+            log_debug(&format!("  Found question block: '{}'", name));
+            
+            // Check if there's a response for this question
+            let response_name = format!("{}_response", name);
+            let has_response = executor.blocks.contains_key(&response_name);
+            log_debug(&format!("  Has response '{}': {}", response_name, has_response));
+        }
+    }
+    
     // Identify question blocks
     let question_blocks: Vec<(String, Block)> = executor.blocks.iter()
-        .filter(|(_, block)| block.block_type == "question")
+        .filter(|(_, block)| {
+            let is_question = block.block_type == "question";
+            if is_question {
+                log_debug(&format!("Found question block: '{}'", 
+                                  block.name.as_deref().unwrap_or("unnamed")));
+            }
+            is_question
+        })
         .filter(|(name, _)| {
             // Check if there's no response for this question
             let response_name = format!("{}_response", name);
-            !executor.blocks.contains_key(&response_name)
+            let needs_response = !executor.blocks.contains_key(&response_name);
+            log_debug(&format!("Question '{}' needs response: {}", name, needs_response));
+            needs_response
         })
         .map(|(name, block)| (name.clone(), block.clone()))
         .collect();
     
     log_debug(&format!("Found {} question blocks without responses", question_blocks.len()));
+    if !question_blocks.is_empty() {
+        for (name, _) in &question_blocks {
+            log_debug(&format!("Question without response: '{}'", name));
+        }
+    }
     
     // Process each question block
     for (name, block) in question_blocks {
