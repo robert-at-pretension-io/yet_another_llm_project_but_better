@@ -1057,42 +1057,60 @@ impl MetaLanguageExecutor {
         // Handle question blocks by adding response blocks after them
         let mut result = String::new();
         let mut lines = updated_doc.lines().peekable();
+        let mut in_question_block = false;
+        let mut in_response_block = false;
+        let mut current_question_content = String::new();
         
         while let Some(line) = lines.next() {
             result.push_str(line);
             result.push('\n');
             
+            // Track if we're in a question block
+            if line.trim().starts_with("[question") {
+                in_question_block = true;
+                current_question_content.clear();
+                continue;
+            }
+            
+            // Collect question content
+            if in_question_block && !line.trim().starts_with("[") && !line.trim().starts_with("[/") {
+                current_question_content.push_str(line);
+                current_question_content.push('\n');
+            }
+            
             // Check if this is the end of a question block
             if line.trim() == "[/question]" {
-                // Find the question content to determine which response to use
-                let mut question_content = String::new();
-                let mut found_question = false;
+                in_question_block = false;
                 
-                // Look back through the previous lines to find the question content
-                for prev_line in updated_doc.lines() {
-                    if prev_line.trim() == "[/question]" {
+                // Check if the next line is already a response block
+                if let Some(next_line) = lines.peek() {
+                    if next_line.trim().starts_with("[response") {
+                        in_response_block = true;
+                        continue;
+                    }
+                }
+                
+                // If there's no response block following, add one
+                if !in_response_block {
+                    // Look for a response to this question in the outputs
+                    for (_, output) in &self.outputs {
+                        // Insert the response block after the question block
+                        result.push_str("[response]\n");
+                        result.push_str(output);
+                        result.push_str("\n[/response]\n\n");
                         break;
                     }
-                    if found_question {
-                        question_content.push_str(prev_line);
-                        question_content.push('\n');
-                    }
-                    if prev_line.trim().starts_with("[question") {
-                        found_question = true;
-                    }
                 }
-                
-                // Trim the question content
-                let question_content = question_content.trim();
-                
-                // Look for a response to this question
-                for (_, output) in &self.outputs {
-                    // Insert the response block after the question block
-                    result.push_str("[response]\n");
-                    result.push_str(output);
-                    result.push_str("\n[/response]\n\n");
-                    break;
-                }
+            }
+            
+            // Track if we're in a response block
+            if line.trim().starts_with("[response") {
+                in_response_block = true;
+            }
+            
+            // Check if this is the end of a response block
+            if line.trim() == "[/response]" {
+                in_response_block = false;
             }
         }
         

@@ -18,7 +18,7 @@ use yet_another_llm_project_but_better::{
 };
 
 /// Executes a block based on its type
-fn execute_block(block: &Block) -> Result<String, String> {
+fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
     match block.block_type.as_str() {
         "code:python" => {
             // Try to execute Python code with "python" first
@@ -73,9 +73,13 @@ fn execute_block(block: &Block) -> Result<String, String> {
             // Create a new executor to handle the question
             let mut executor = MetaLanguageExecutor::new();
             
+            // Process the document to ensure the executor has the current state
+            executor.process_document(&fs::read_to_string(file_path).unwrap_or_default())
+                .unwrap_or_default();
+            
             // Add test_mode modifier to avoid actual API calls during testing
             let mut question_block = block.clone();
-            // question_block.add_modifier("test_mode", "true");
+            question_block.add_modifier("test_mode", "true");
             
             match executor.execute_question(&question_block, &block.content) {
                 Ok(response) => {
@@ -86,6 +90,15 @@ fn execute_block(block: &Block) -> Result<String, String> {
                     } else {
                         // For unnamed blocks, use a generic key
                         executor.outputs.insert("question_response".to_string(), response.clone());
+                    }
+                    
+                    // Update the file with the response
+                    let updated_content = executor.update_document()
+                        .unwrap_or_else(|_| response.clone());
+                    
+                    // Write the updated content back to the file
+                    if let Ok(path) = std::env::current_dir().map(|p| p.join(file_path)) {
+                        let _ = fs::write(&path, updated_content);
                     }
                     
                     Ok(response)
@@ -165,7 +178,7 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
                      block.block_type, 
                      block.name.as_ref().map_or(String::new(), |n| format!(" ({})", n)));
             
-            match execute_block(block) {
+            match execute_block(block, file_path) {
                 Ok(output) => {
                     println!("=== Output from block {} ===", 
                              block.name.as_ref().unwrap_or(&block.block_type));
