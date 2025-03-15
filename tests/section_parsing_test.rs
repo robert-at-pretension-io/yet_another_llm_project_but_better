@@ -4,9 +4,9 @@ mod tests {
     
     #[test]
     fn test_simple_section() {
-        let input = r#"[section:test name:simple-section]
+        let input = r#"<section:test name="simple-section">
 This is a simple section with no child blocks.
-[/section:test]"#;
+</section:test>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse simple section: {:?}", result.err());
@@ -23,15 +23,15 @@ This is a simple section with no child blocks.
     
     #[test]
     fn test_section_with_one_child() {
-        let input = r#"[section:test name:parent]
+        let input = r#"<section:test name="parent">
 Some content before the child.
 
-[data name:child-data]
+<data name="child-data">
 test data
-[/data]
+</data>
 
 Some content after the child.
-[/section:test]"#;
+</section:test>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse section with child: {:?}", result.err());
@@ -57,22 +57,22 @@ Some content after the child.
     
     #[test]
     fn test_section_with_multiple_children() {
-        let input = r#"[section:document name:multi-child]
+        let input = r#"<section:document name="multi-child">
 # Header
 
-[data name:first-child]
+<data name="first-child">
 data content
-[/data]
+</data>
 
-[code:python name:second-child]
+<code:python name="second-child">
 print("Hello")
-[/code:python]
+</code:python>
 
-[shell name:third-child]
+<shell name="third-child">
 echo "Test"
-[/shell]
+</shell>
 
-[/section:document]"#;
+</section:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse section with multiple children: {:?}", result.err());
@@ -106,15 +106,15 @@ echo "Test"
     
     #[test]
     fn test_nested_sections() {
-        let input = r#"[section:outer name:parent]
+        let input = r#"<section:outer name="parent">
 Outer content
 
-[section:inner name:child]
+<section:inner name="child">
 Inner content
-[/section:inner]
+</section:inner>
 
 More outer content
-[/section:outer]"#;
+</section:outer>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse nested sections: {:?}", result.err());
