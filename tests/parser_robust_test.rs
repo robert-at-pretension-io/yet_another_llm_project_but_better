@@ -1092,13 +1092,13 @@ Visualization: ${visualization_path}
 ${summary}
 [/template]
 
-[template:report_template name:final_report 
+[template_invocation:report_template name:final_report 
   title:"Analysis Report"
   data_processed:"Yes"
   visualization_path:"visualization.png"
   summary:"This is a summary of the analysis."
 ]
-[/template:report_template]
+[/template_invocation:report_template]
 
 [conditional if:config.max_rows>500]
 This section only appears if max_rows is greater than 500.
@@ -1139,7 +1139,8 @@ Error: Block not found
     assert!(has_modifier(create_viz, "depends", "process_data"));
     
     // Check template invocation
-    let final_report = find_block_by_name(&blocks, "final_report").expect("Final report not found");
+    let final_report = find_child_by_name(intro_section, "final_report").expect("Final report not found");
+    assert_eq!(final_report.block_type, "template_invocation:report_template");
     assert!(has_modifier(final_report, "title", "Analysis Report"));
     assert!(has_modifier(final_report, "data_processed", "Yes"));
     assert!(has_modifier(final_report, "visualization_path", "visualization.png"));
