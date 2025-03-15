@@ -3,12 +3,33 @@
 //! This file contains comprehensive tests for the Meta Language parser,
 //! focusing on edge cases, complex structures, and error handling.
 
-use yet_another_llm_project_but_better::parser::{parse_document, Block, ParserError};
+use yet_another_llm_project_but_better::parser::{parse_document, Block, ParserError, utils::extractors::extract_variable_references};
 use std::collections::HashSet;
 
-/// Test basic block parsing for each block type
+/// Helper function to find a block by name in a list of blocks
+fn find_block_by_name<'a>(blocks: &'a [Block], name: &str) -> Option<&'a Block> {
+    blocks.iter().find(|b| b.name.as_ref().map_or(false, |n| n == name))
+}
+
+/// Helper function to find blocks by type in a list of blocks
+fn find_blocks_by_type<'a>(blocks: &'a [Block], block_type: &str) -> Vec<&'a Block> {
+    blocks.iter().filter(|b| b.block_type == block_type).collect()
+}
+
+/// Helper function to check if a block has a specific modifier
+fn has_modifier(block: &Block, key: &str, value: &str) -> bool {
+    block.modifiers.iter().any(|(k, v)| k == key && v == value)
+}
+
+/// Helper function to find a child block by name
+fn find_child_by_name<'a>(block: &'a Block, name: &str) -> Option<&'a Block> {
+    block.children.iter().find(|b| b.name.as_ref().map_or(false, |n| n == name))
+}
+
+/// Test all block types defined in the language specification
 #[test]
-fn test_basic_block_types() {
+fn test_all_block_types() {
+    // Create a document with every block type
     let input = r#"
     [question name:test-question]
     What is the meaning of life?
@@ -18,45 +39,108 @@ fn test_basic_block_types() {
     The meaning of life is 42.
     [/response]
     
-    [code:python name:test-code]
-    print("Hello, world!")
+    [code:python name:test-code-python]
+    print("Hello from Python!")
     [/code:python]
     
     [shell name:test-shell]
-    echo "Hello from shell"
+    echo "Hello from the shell!"
     [/shell]
     
-    [api name:test-api]
-    https://api.example.com/data
+    [api name:test-api method:GET]
+    https://jsonplaceholder.typicode.com/todos/1
     [/api]
     
-    [data name:test-data]
-    {"key": "value"}
+    [data name:test-data format:json]
+    {"key": "value", "number": 42}
     [/data]
     
     [variable name:test-variable]
-    test-value
+    sample value
     [/variable]
     
     [secret name:test-secret]
     API_KEY
     [/secret]
     
-    [template name:test-template]
-    Template content
-    [/template]
+    [filename name:test-filename]
+    test_file.txt
+    [/filename]
+    
+    [results name:test-results for:test-code-python]
+    Hello from Python!
+    [/results]
+    
+    [error_results name:test-error-results for:test-code-python]
+    Error: Command failed
+    [/error_results]
     
     [error name:test-error]
-    Error message
+    This is an error message
     [/error]
-    
-    [visualization name:test-visualization]
-    Visualization content
-    [/visualization]
     
     [preview name:test-preview]
     Preview content
     [/preview]
+    
+    [memory name:test-memory]
+    Memory content
+    [/memory]
+    
+    [visualization name:test-viz type:bar]
+    // Visualization content
+    [/visualization]
+    
+    [conditional name:test-conditional if:test-variable]
+    Conditional content
+    [/conditional]
+    
+    [section:intro name:test-section]
+    Section content
+    [/section:intro]
+    
+    [template name:test-template]
+    Template content with ${param}
+    [/template]
+    
+    [template:test-template name:test-template-usage param:"value"]
+    [/template:test-template]
+    "#;
+
+    let blocks = parse_document(input).expect("Failed to parse document with all block types");
+    
+    // Verify we have the expected number of blocks
+    assert!(blocks.len() >= 20, "Expected at least 20 blocks, got {}", blocks.len());
+    
+    // Check each block type exists
+    let block_types = [
+        "question", "response", "code:python", "shell", "api", 
+        "data", "variable", "secret", "filename", "results", 
+        "error_results", "error", "preview", "memory", "visualization", 
+        "conditional", "section:intro", "template"
+    ];
+    
+    for block_type in block_types.iter() {
+        assert!(
+            blocks.iter().any(|b| b.block_type == *block_type || 
+                             (b.block_type.starts_with("template_invocation") && block_type == &"template")),
+            "Missing block type: {}", block_type
+        );
+    }
+    
+    // Verify specific block content
+    let python_block = find_block_by_name(&blocks, "test-code-python").expect("Python block not found");
+    assert_eq!(python_block.content.trim(), "print(\"Hello from Python!\")");
+    
+    let data_block = find_block_by_name(&blocks, "test-data").expect("Data block not found");
+    assert_eq!(data_block.content.trim(), "{\"key\": \"value\", \"number\": 42}");
+    
+    // Verify template invocation has the correct parameter
+    let template_usage = find_block_by_name(&blocks, "test-template-usage");
+    if let Some(usage) = template_usage {
+        assert!(has_modifier(usage, "param", "value"));
+    }
+}
     
     [filename name:test-filename]
     /path/to/file.txt
