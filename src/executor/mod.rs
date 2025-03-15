@@ -978,7 +978,7 @@ impl MetaLanguageExecutor {
                 // Determine format from block modifiers or content
                 let format = block.get_modifier("format")
                     .map(|f| f.as_str())
-                    .or_else(|| Some(self.determine_format_from_content(&output)));
+                    .or_else(|| Some(self.determine_format_from_content(&output.as_str())));
                 
                 // Create a results block
                 let results_block = self.generate_results_block(&block, &output, format);
