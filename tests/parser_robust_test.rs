@@ -2079,3 +2079,471 @@ Error: Block not found
         .expect("Conditional block not found");
     assert!(has_modifier(conditional, "if", "config.max_rows>500"));
 }
+
+/// Test error cases with malformed blocks
+#[test]
+fn test_malformed_blocks() {
+    // Missing closing tag
+    let input1 = r#"
+    [code:python name:missing-close]
+    print("Hello, world!")
+    "#;
+    
+    let result1 = parse_document(input1);
+    assert!(result1.is_err(), "Parser should fail on missing closing tag");
+    println!("DEBUG: Error for missing closing tag: {:?}", result1.err());
+    
+    // Mismatched closing tag
+    let input2 = r#"
+    [code:python name:mismatched-close]
+    print("Hello, world!")
+    [/shell]
+    "#;
+    
+    let result2 = parse_document(input2);
+    assert!(result2.is_err(), "Parser should fail on mismatched closing tag");
+    println!("DEBUG: Error for mismatched closing tag: {:?}", result2.err());
+    
+    // Malformed opening tag (missing bracket)
+    let input3 = r#"
+    code:python name:malformed-open]
+    print("Hello, world!")
+    [/code:python]
+    "#;
+    
+    let result3 = parse_document(input3);
+    assert!(result3.is_err(), "Parser should fail on malformed opening tag");
+    println!("DEBUG: Error for malformed opening tag: {:?}", result3.err());
+    
+    // Missing required name attribute
+    let input4 = r#"
+    [variable]
+    value without name
+    [/variable]
+    "#;
+    
+    let result4 = parse_document(input4);
+    assert!(result4.is_err(), "Parser should fail on variable block without name");
+    println!("DEBUG: Error for missing required name: {:?}", result4.err());
+    
+    // Invalid modifier format
+    let input5 = r#"
+    [code:python name:invalid-modifier-format cache_result:notboolean]
+    print("Hello, world!")
+    [/code:python]
+    "#;
+    
+    // This might parse successfully as modifiers are not validated during parsing
+    let result5 = parse_document(input5);
+    if let Ok(blocks) = result5 {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("invalid-modifier-format"));
+        assert!(block.is_some(), "Block with invalid modifier format not found");
+        
+        // The modifier should be present even if the value is invalid
+        let block = block.unwrap();
+        assert!(block.has_modifier("cache_result"), "cache_result modifier not found");
+        println!("DEBUG: cache_result value: {:?}", block.get_modifier("cache_result"));
+    } else {
+        println!("DEBUG: Parser rejected invalid modifier format: {:?}", result5.err());
+    }
+}
+
+/// Test different closing tag variants
+#[test]
+fn test_closing_tag_variants() {
+    // Code block with language in closing tag
+    let input1 = r#"
+    [code:python name:with-language-close]
+    print("Hello, world!")
+    [/code:python]
+    "#;
+    
+    let result1 = parse_document(input1);
+    assert!(result1.is_ok(), "Failed to parse code block with language in closing tag: {:?}", result1.err());
+    
+    // Code block without language in closing tag
+    let input2 = r#"
+    [code:python name:without-language-close]
+    print("Hello, world!")
+    [/code]
+    "#;
+    
+    let result2 = parse_document(input2);
+    assert!(result2.is_ok(), "Failed to parse code block without language in closing tag: {:?}", result2.err());
+    
+    // Section block with type in closing tag
+    let input3 = r#"
+    [section:intro name:with-type-close]
+    Introduction content
+    [/section:intro]
+    "#;
+    
+    let result3 = parse_document(input3);
+    assert!(result3.is_ok(), "Failed to parse section block with type in closing tag: {:?}", result3.err());
+    
+    // Section block without type in closing tag
+    let input4 = r#"
+    [section:summary name:without-type-close]
+    Summary content
+    [/section]
+    "#;
+    
+    let result4 = parse_document(input4);
+    assert!(result4.is_ok(), "Failed to parse section block without type in closing tag: {:?}", result4.err());
+    
+    // Verify blocks were parsed correctly
+    if let Ok(blocks) = result1 {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("with-language-close"));
+        assert!(block.is_some(), "Block with language in closing tag not found");
+        assert_eq!(block.unwrap().block_type, "code:python", "Block type incorrect");
+    }
+    
+    if let Ok(blocks) = result2 {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("without-language-close"));
+        assert!(block.is_some(), "Block without language in closing tag not found");
+        assert_eq!(block.unwrap().block_type, "code:python", "Block type incorrect");
+    }
+    
+    if let Ok(blocks) = result3 {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("with-type-close"));
+        assert!(block.is_some(), "Block with type in closing tag not found");
+        assert_eq!(block.unwrap().block_type, "section:intro", "Block type incorrect");
+    }
+    
+    if let Ok(blocks) = result4 {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("without-type-close"));
+        assert!(block.is_some(), "Block without type in closing tag not found");
+        assert_eq!(block.unwrap().block_type, "section:summary", "Block type incorrect");
+    }
+}
+
+/// Test line ending differences (CRLF vs LF)
+#[test]
+fn test_line_ending_differences() {
+    // LF line endings
+    let input_lf = "[code:python name:lf-endings]\nprint(\"Hello, LF!\")\n[/code:python]";
+    
+    // CRLF line endings
+    let input_crlf = "[code:python name:crlf-endings]\r\nprint(\"Hello, CRLF!\")\r\n[/code:python]";
+    
+    // Mixed line endings
+    let input_mixed = "[code:python name:mixed-endings]\nprint(\"Line 1\")\r\nprint(\"Line 2\")\n[/code:python]";
+    
+    let result_lf = parse_document(input_lf);
+    let result_crlf = parse_document(input_crlf);
+    let result_mixed = parse_document(input_mixed);
+    
+    assert!(result_lf.is_ok(), "Failed to parse document with LF line endings: {:?}", result_lf.err());
+    assert!(result_crlf.is_ok(), "Failed to parse document with CRLF line endings: {:?}", result_crlf.err());
+    assert!(result_mixed.is_ok(), "Failed to parse document with mixed line endings: {:?}", result_mixed.err());
+    
+    // Verify content is preserved correctly
+    if let Ok(blocks) = result_lf {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("lf-endings")).unwrap();
+        assert_eq!(block.content.trim(), "print(\"Hello, LF!\")", "Content with LF endings not preserved");
+    }
+    
+    if let Ok(blocks) = result_crlf {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("crlf-endings")).unwrap();
+        assert_eq!(block.content.trim(), "print(\"Hello, CRLF!\")", "Content with CRLF endings not preserved");
+    }
+    
+    if let Ok(blocks) = result_mixed {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("mixed-endings")).unwrap();
+        let content = block.content.trim();
+        assert!(content.contains("Line 1") && content.contains("Line 2"), 
+                "Content with mixed line endings not preserved");
+    }
+}
+
+/// Test different language types in code blocks
+#[test]
+fn test_different_languages() {
+    let input = r#"
+    [code:python name:python-code]
+    def hello():
+        print("Hello, Python!")
+    [/code:python]
+    
+    [code:javascript name:javascript-code]
+    function hello() {
+        console.log("Hello, JavaScript!");
+    }
+    [/code:javascript]
+    
+    [code:rust name:rust-code]
+    fn hello() {
+        println!("Hello, Rust!");
+    }
+    [/code:rust]
+    
+    [code:sql name:sql-code]
+    SELECT * FROM users WHERE name = 'Test';
+    [/code:sql]
+    
+    [code:html name:html-code]
+    <div class="greeting">
+        <h1>Hello, HTML!</h1>
+    </div>
+    [/code:html]
+    
+    [code:css name:css-code]
+    .greeting {
+        color: blue;
+        font-weight: bold;
+    }
+    [/code:css]
+    
+    [code:c name:c-code]
+    #include <stdio.h>
+    
+    int main() {
+        printf("Hello, C!\n");
+        return 0;
+    }
+    [/code:c]
+    "#;
+    
+    let result = parse_document(input);
+    assert!(result.is_ok(), "Failed to parse document with different languages: {:?}", result.err());
+    
+    let blocks = result.unwrap();
+    
+    // Verify each language block
+    let languages = [
+        ("python-code", "code:python"),
+        ("javascript-code", "code:javascript"),
+        ("rust-code", "code:rust"),
+        ("sql-code", "code:sql"),
+        ("html-code", "code:html"),
+        ("css-code", "code:css"),
+        ("c-code", "code:c")
+    ];
+    
+    for (name, expected_type) in languages {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some(name));
+        assert!(block.is_some(), "Block {} not found", name);
+        
+        let block = block.unwrap();
+        assert_eq!(block.block_type, expected_type, 
+                  "Block {} has incorrect type: {}", name, block.block_type);
+        
+        println!("DEBUG: {} content: {}", name, block.content);
+    }
+}
+
+/// Test character escaping in content
+#[test]
+fn test_character_escaping() {
+    let input = r#"
+    [code:python name:code-with-brackets]
+    # Code with square brackets
+    data = [1, 2, 3, 4]
+    nested = [[1, 2], [3, 4]]
+    print(f"Data: {data}")
+    [/code:python]
+    
+    [data name:json-with-escaped-quotes format:json]
+    {
+      "string": "This has \"quoted\" text",
+      "path": "C:\\Users\\test\\file.txt"
+    }
+    [/data]
+    
+    [shell name:shell-with-redirects]
+    grep "pattern" file.txt > results.txt
+    cat file1.txt | grep "test" | sort > sorted.txt
+    [/shell]
+    
+    [variable name:special-chars]
+    Line with backslash: \
+    Line with escaped chars: \n \t \r
+    Line with percent: 100%
+    Line with dollar: $PATH
+    [/variable]
+    
+    [code:html name:html-with-entities]
+    <p>This is an HTML paragraph with &lt;tags&gt; and &amp; symbol</p>
+    <script>
+      if (x < 10 && y > 20) {
+        console.log("test");
+      }
+    </script>
+    [/code:html]
+    "#;
+    
+    let result = parse_document(input);
+    assert!(result.is_ok(), "Failed to parse document with escaped characters: {:?}", result.err());
+    
+    let blocks = result.unwrap();
+    
+    // Check code with brackets
+    let brackets_block = blocks.iter().find(|b| b.name.as_deref() == Some("code-with-brackets"));
+    assert!(brackets_block.is_some(), "Block with brackets not found");
+    assert!(brackets_block.unwrap().content.contains("[1, 2, 3, 4]"), 
+           "Block content with brackets not preserved");
+    
+    // Check JSON with escaped quotes
+    let json_block = blocks.iter().find(|b| b.name.as_deref() == Some("json-with-escaped-quotes"));
+    assert!(json_block.is_some(), "JSON block with escaped quotes not found");
+    let json_content = &json_block.unwrap().content;
+    assert!(json_content.contains("\"quoted\""), "JSON escaped quotes not preserved");
+    assert!(json_content.contains("C:\\\\Users"), "JSON escaped backslashes not preserved");
+    
+    // Check shell with redirects
+    let shell_block = blocks.iter().find(|b| b.name.as_deref() == Some("shell-with-redirects"));
+    assert!(shell_block.is_some(), "Shell block with redirects not found");
+    let shell_content = &shell_block.unwrap().content;
+    assert!(shell_content.contains(">"), "Shell redirects not preserved");
+    assert!(shell_content.contains("|"), "Shell pipes not preserved");
+    
+    // Check variable with special chars
+    let var_block = blocks.iter().find(|b| b.name.as_deref() == Some("special-chars"));
+    assert!(var_block.is_some(), "Variable block with special chars not found");
+    let var_content = &var_block.unwrap().content;
+    assert!(var_content.contains("\\"), "Backslash not preserved");
+    assert!(var_content.contains("\\n"), "Escaped newline not preserved");
+    assert!(var_content.contains("$PATH"), "Dollar sign not preserved");
+    
+    // Check HTML with entities
+    let html_block = blocks.iter().find(|b| b.name.as_deref() == Some("html-with-entities"));
+    assert!(html_block.is_some(), "HTML block with entities not found");
+    let html_content = &html_block.unwrap().content;
+    assert!(html_content.contains("&lt;"), "HTML entities not preserved");
+    assert!(html_content.contains("x < 10"), "Less than sign not preserved");
+    assert!(html_content.contains("y > 20"), "Greater than sign not preserved");
+    
+    println!("DEBUG: All blocks with escaped characters parsed correctly");
+}
+
+/// Test very large blocks
+#[test]
+fn test_large_blocks() {
+    // Create a large block with repeated content
+    let large_content = "print(\"This is line {}\")".repeat(1000);
+    let large_block = format!("[code:python name:large-code-block]\n{}\n[/code:python]", large_content);
+    
+    // Create a large block with lots of nested brackets
+    let nested_brackets = (0..100).map(|i| format!("{}{}{}", "[".repeat(i), "content", "]".repeat(i))).collect::<Vec<_>>().join("\n");
+    let brackets_block = format!("[data name:nested-brackets]\n{}\n[/data]", nested_brackets);
+    
+    // Create a large document with many small blocks
+    let many_blocks = (0..100).map(|i| format!("[variable name:var{}]\nvalue{}\n[/variable]", i, i)).collect::<Vec<_>>().join("\n\n");
+    
+    // Test each large input
+    let result1 = parse_document(&large_block);
+    assert!(result1.is_ok(), "Failed to parse large code block: {:?}", result1.err());
+    if let Ok(blocks) = result1 {
+        assert_eq!(blocks.len(), 1, "Should have exactly one block");
+        assert_eq!(blocks[0].name.as_deref(), Some("large-code-block"), "Block name incorrect");
+        println!("DEBUG: Large code block parsed successfully, content length: {}", blocks[0].content.len());
+    }
+    
+    let result2 = parse_document(&brackets_block);
+    assert!(result2.is_ok(), "Failed to parse block with nested brackets: {:?}", result2.err());
+    if let Ok(blocks) = result2 {
+        assert_eq!(blocks.len(), 1, "Should have exactly one block");
+        assert_eq!(blocks[0].name.as_deref(), Some("nested-brackets"), "Block name incorrect");
+        println!("DEBUG: Nested brackets block parsed successfully, content length: {}", blocks[0].content.len());
+    }
+    
+    let result3 = parse_document(&many_blocks);
+    assert!(result3.is_ok(), "Failed to parse document with many blocks: {:?}", result3.err());
+    if let Ok(blocks) = result3 {
+        assert_eq!(blocks.len(), 100, "Should have exactly 100 blocks");
+        println!("DEBUG: Document with many blocks parsed successfully, block count: {}", blocks.len());
+    }
+}
+
+/// Test blocks with complicated indentation patterns
+#[test]
+fn test_indentation_patterns() {
+    let input = r#"
+    [code:python name:python-indentation]
+    def complex_function():
+        # First level
+        if True:
+            # Second level
+            for i in range(10):
+                # Third level
+                if i % 2 == 0:
+                    # Fourth level
+                    print(f"Even: {i}")
+                else:
+                    # Also fourth level
+                    print(f"Odd: {i}")
+            # Back to second level
+        # Back to first level
+        return "Done"
+    [/code:python]
+    
+    [code:javascript name:js-indentation]
+    function complexFunction() {
+      // First level
+      if (true) {
+        // Second level
+        for (let i = 0; i < 10; i++) {
+          // Third level
+          if (i % 2 === 0) {
+            // Fourth level
+            console.log(`Even: ${i}`);
+          } else {
+            // Also fourth level
+            console.log(`Odd: ${i}`);
+          }
+        }
+        // Back to second level
+      }
+      // Back to first level
+      return "Done";
+    }
+    [/code:javascript]
+    
+    [data name:json-indentation format:json]
+    {
+      "level1": {
+        "level2": {
+          "level3": {
+            "level4": {
+              "value": "Deeply nested value"
+            },
+            "array": [
+              {
+                "item": 1
+              },
+              {
+                "item": 2
+              }
+            ]
+          }
+        }
+      }
+    }
+    [/data]
+    "#;
+    
+    let result = parse_document(input);
+    assert!(result.is_ok(), "Failed to parse document with complex indentation: {:?}", result.err());
+    
+    let blocks = result.unwrap();
+    
+    // Verify Python indentation
+    let python_block = blocks.iter().find(|b| b.name.as_deref() == Some("python-indentation"));
+    assert!(python_block.is_some(), "Python indentation block not found");
+    let python_content = &python_block.unwrap().content;
+    
+    // Check if indentation levels are preserved
+    assert!(python_content.contains("def complex_function():"), "First level indentation not preserved");
+    assert!(python_content.contains("    # First level"), "First level comment indentation not preserved");
+    assert!(python_content.contains("        # Second level"), "Second level comment indentation not preserved");
+    assert!(python_content.contains("            # Third level"), "Third level comment indentation not preserved");
+    assert!(python_content.contains("                # Fourth level"), "Fourth level comment indentation not preserved");
+    
+    // Verify JavaScript indentation
+    let js_block = blocks.iter().find(|b| b.name.as_deref() == Some("js-indentation"));
+    assert!(js_block.is_some(), "JavaScript indentation block not found");
+    let js_content = &js_block.unwrap().content;
+    
+    // Check if indentation levels are preserved
+    assert!(js_content.contains("function complexFunction() {"), "First level indentation not preserved");
+    assert!(js_content.contains("  // First level"), "First level comment indentation
