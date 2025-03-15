@@ -38,12 +38,18 @@ fn convert_to_xml(input: &str) -> String {
             let attributes = captures.get(2).map_or("", |m| m.as_str());
             
             // Parse block type (handle code:language and section:type formats)
-            let (tag_name, language_attr) = if block_type.starts_with("code:") {
+            let (tag_name, type_attr) = if block_type.contains(':') {
                 let parts: Vec<&str> = block_type.split(':').collect();
-                ("code", format!(" language=\"{}\"", parts[1]))
-            } else if block_type.starts_with("section:") {
-                let parts: Vec<&str> = block_type.split(':').collect();
-                ("section", format!(" type=\"{}\"", parts[1]))
+                let base_type = parts[0];
+                let subtype = parts[1];
+                
+                if base_type == "code" {
+                    (base_type, format!(" language=\"{}\"", subtype))
+                } else if base_type == "section" {
+                    (base_type, format!(" type=\"{}\"", subtype))
+                } else {
+                    (base_type, format!(" subtype=\"{}\"", subtype))
+                }
             } else {
                 (block_type, String::new())
             };
@@ -73,7 +79,7 @@ fn convert_to_xml(input: &str) -> String {
                 .join("");
             
             // Create XML opening tag
-            result.push_str(&format!("<meta:{}{}{}>", tag_name, language_attr, xml_attrs));
+            result.push_str(&format!("<meta:{}{}{}>", tag_name, type_attr, xml_attrs));
             
             in_block = true;
             current_block_type = tag_name.to_string();
@@ -137,6 +143,17 @@ fn find_blocks_by_type<'a>(blocks: &'a [Block], block_type: &str) -> Vec<&'a Blo
 /// Helper function to check if a block has a specific modifier
 fn has_modifier(block: &Block, key: &str, value: &str) -> bool {
     block.modifiers.iter().any(|(k, v)| k == key && v == value)
+}
+
+/// Helper function to check if a block has the expected language
+fn check_language(block: &Block, expected_language: &str) -> bool {
+    block.get_modifier("language").map_or(false, |lang| lang == expected_language)
+}
+
+/// Helper function to check if a section has the expected type
+fn check_section_type(block: &Block, expected_type: &str) -> bool {
+    block.block_type == "section" && 
+    block.get_modifier("type").map_or(false, |t| t == expected_type)
 }
 
 /// Helper function to find a child block by name
@@ -474,22 +491,25 @@ fn test_nested_blocks() {
     assert_eq!(blocks.len(), 1, "Expected 1 top-level block ");
     
     let outer_section = &blocks[0];
-    assert_eq!(outer_section.block_type, "section:h1");
+    assert_eq!(outer_section.block_type, "section");
     assert_eq!(outer_section.name, Some("outer-section".to_string()));
+    assert_eq!(outer_section.get_modifier("type").map(|s| s.as_str()), Some("h1"));
     
     // The outer section should have 2 children: a code block and an inner section
     assert_eq!(outer_section.children.len(), 2, "Expected 2 child blocks in outer section ");
     
     // Check the nested code block
     let nested_code = &outer_section.children[0];
-    assert_eq!(nested_code.block_type, "code:python");
+    assert_eq!(nested_code.block_type, "code");
     assert_eq!(nested_code.name, Some("nested-code".to_string()));
+    assert_eq!(nested_code.get_modifier("language").map(|s| s.as_str()), Some("python"));
     assert_eq!(nested_code.content.trim(), "print(\"I'm nested inside a section\")");
     
     // Check the inner section
     let inner_section = &outer_section.children[1];
-    assert_eq!(inner_section.block_type, "section:h2");
+    assert_eq!(inner_section.block_type, "section");
     assert_eq!(inner_section.name, Some("inner-section".to_string()));
+    assert_eq!(inner_section.get_modifier("type").map(|s| s.as_str()), Some("h2"));
     
     // The inner section should have 1 child: a variable block
     assert_eq!(inner_section.children.len(), 1, "Expected 1 child block in inner section ");
@@ -1320,18 +1340,21 @@ Error: Block not found
     
     // Find the main section
     let intro_section = find_block_by_name(&blocks, "document_intro").expect("Intro section not found");
-    assert_eq!(intro_section.block_type, "section:intro");
+    assert_eq!(intro_section.block_type, "section");
+    assert_eq!(intro_section.get_modifier("type").map(|s| s.as_str()), Some("intro"));
     
     // Check that the section has the expected number of child blocks
     assert!(intro_section.children.len() >= 5, "Expected at least 5 child blocks, got {}", intro_section.children.len());
     
     // Check nested sections
     let data_section = find_child_by_name(intro_section, "data_section").expect("Data section not found");
-    assert_eq!(data_section.block_type, "section:data_processing");
+    assert_eq!(data_section.block_type, "section");
+    assert_eq!(data_section.get_modifier("type").map(|s| s.as_str()), Some("data_processing"));
     assert_eq!(data_section.children.len(), 4, "Expected 4 child blocks in data section, got {}", data_section.children.len());
     
     let viz_section = find_child_by_name(intro_section, "viz_section").expect("Visualization section not found");
-    assert_eq!(viz_section.block_type, "section:visualization");
+    assert_eq!(viz_section.block_type, "section");
+    assert_eq!(viz_section.get_modifier("type").map(|s| s.as_str()), Some("visualization"));
     assert_eq!(viz_section.children.len(), 3, "Expected 3 child blocks in viz section, got {}", viz_section.children.len());
     
     // Check variable references
@@ -1449,25 +1472,29 @@ fn test_closing_tag_variants() {
     if let Ok(blocks) = result1 {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("with-language-close"));
         assert!(block.is_some(), "Block with language in closing tag not found");
-        assert_eq!(block.unwrap().block_type, "code:python", "Block type incorrect");
+        assert_eq!(block.unwrap().block_type, "code", "Block type incorrect");
+        // In XML format, language is an attribute, not part of the block type
     }
     
     if let Ok(blocks) = result2 {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("without-language-close"));
         assert!(block.is_some(), "Block without language in closing tag not found");
-        assert_eq!(block.unwrap().block_type, "code:python", "Block type incorrect");
+        assert_eq!(block.unwrap().block_type, "code", "Block type incorrect");
+        // In XML format, language is an attribute, not part of the block type
     }
     
     if let Ok(blocks) = result3 {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("with-type-close"));
         assert!(block.is_some(), "Block with type in closing tag not found");
-        assert_eq!(block.unwrap().block_type, "section:intro", "Block type incorrect");
+        assert_eq!(block.unwrap().block_type, "section", "Block type incorrect");
+        // In XML format, type is an attribute, not part of the block type
     }
     
     if let Ok(blocks) = result4 {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("without-type-close"));
         assert!(block.is_some(), "Block without type in closing tag not found");
-        assert_eq!(block.unwrap().block_type, "section:summary", "Block type incorrect");
+        assert_eq!(block.unwrap().block_type, "section", "Block type incorrect");
+        // In XML format, type is an attribute, not part of the block type
     }
 }
 
@@ -1565,13 +1592,13 @@ fn test_different_languages() {
     
     // Verify each language block
     let languages = [
-        ("python-code", "code:python"),
-        ("javascript-code", "code:javascript"),
-        ("rust-code", "code:rust"),
-        ("sql-code", "code:sql"),
-        ("html-code", "code:html"),
-        ("css-code", "code:css"),
-        ("c-code", "code:c")
+        ("python-code", "code"),
+        ("javascript-code", "code"),
+        ("rust-code", "code"),
+        ("sql-code", "code"),
+        ("html-code", "code"),
+        ("css-code", "code"),
+        ("c-code", "code")
     ];
     
     // Print all block names for debugging
@@ -1712,7 +1739,9 @@ fn test_convert_to_xml() {
     
     let code_block = find_block_by_name(&blocks, "test-code");
     assert!(code_block.is_some(), "Code block not found after conversion");
-    assert_eq!(code_block.unwrap().block_type, "code:python");
+    let code_block = code_block.unwrap();
+    assert_eq!(code_block.block_type, "code");
+    assert!(check_language(code_block, "python"), "Code block should have python language modifier");
     
     let var_block = find_block_by_name(&blocks, "test-var");
     assert!(var_block.is_some(), "Variable block not found after conversion");
@@ -1740,14 +1769,16 @@ fn test_convert_to_xml() {
     assert_eq!(nested_blocks.len(), 1, "Expected 1 top-level block after conversion");
     
     let outer_section = &nested_blocks[0];
-    assert_eq!(outer_section.block_type, "section:intro");
+    assert_eq!(outer_section.block_type, "section");
+    assert!(check_section_type(outer_section, "intro"), "Section should have intro type");
     assert_eq!(outer_section.name, Some("outer-section".to_string()));
     
     // The outer section should have 1 child: a code block
     assert_eq!(outer_section.children.len(), 1, "Expected 1 child block in outer section after conversion");
     
     let nested_code = &outer_section.children[0];
-    assert_eq!(nested_code.block_type, "code:python");
+    assert_eq!(nested_code.block_type, "code");
+    assert!(check_language(nested_code, "python"), "Code block should have python language modifier");
     assert_eq!(nested_code.name, Some("nested-code".to_string()));
 }
 
