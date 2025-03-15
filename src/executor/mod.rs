@@ -1179,6 +1179,9 @@ impl MetaLanguageExecutor {
                      if v.len() > 30 { &v[..30] } else { v }, v.len());
         }
         
+        // Debug: Print the current state of outputs after processing
+        self.debug_print_outputs("AFTER PROCESSING");
+        
         let mut updated_doc = self.current_document.clone();
         
         // Replace response blocks with execution results
