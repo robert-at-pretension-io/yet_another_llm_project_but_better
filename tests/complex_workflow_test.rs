@@ -92,112 +92,30 @@ Based on the security analysis, what are the key vulnerabilities that need addre
         println!("{}", input);
         println!("==== END RAW INPUT ====\n");
         
-        // Instead of parsing the entire document at once, we'll split it into individual blocks
-        // and parse each one separately
-        println!("Parsing blocks individually...");
+        // Parse the entire document at once
+        println!("Parsing full document...");
         
-        // Define the block patterns we need to extract
-        let block_patterns = [
-            r#"<meta:data name="target-app" format="json" always_include="true">
-<![CDATA[
-{
-  "url": "https://example-app.com",
-  "tech_stack": ["Python", "Django", "PostgreSQL"],
-  "authentication": true
-}
-]]>
-</meta:data>"#,
-            r#"<meta:api name="security-headers" method="GET" cache_result="true" retry="2" timeout="10" fallback="security-headers-fallback">
-<![CDATA[
-https://securityheaders.com/?url=${target-app.url}&format=json
-]]>
-</meta:api>"#,
-            r#"<meta:data name="security-headers-fallback" format="json">
-<![CDATA[
-{
-  "headers": [],
-  "grade": "unknown"
-}
-]]>
-</meta:data>"#,
-            r#"<meta:shell name="nmap-scan" cache_result="true" timeout="20" fallback="nmap-scan-fallback">
-<![CDATA[
-nmap -Pn -p 1-1000 ${target-app.url}
-]]>
-</meta:shell>"#,
-            r#"<meta:data name="nmap-scan-fallback" format="text">
-<![CDATA[
-Failed to scan ports. Using fallback data.
-PORT   STATE  SERVICE
-22/tcp open   ssh
-80/tcp open   http
-443/tcp open   https
-]]>
-</meta:data>"#,
-            r#"<meta:code:python name="security-analysis" depends="security-headers" fallback="analysis-fallback">
-<![CDATA[
-import json
-
-headers = json.loads('''${security-headers}''')
-scan_results = '''${nmap-scan}'''
-
-vulnerabilities = []
-if headers.get("grade") != "A+":
-    vulnerabilities.append("Insufficient security headers")
-
-if "443/tcp" not in scan_results:
-    vulnerabilities.append("HTTPS not detected")
-
-print(f"Found {len(vulnerabilities)} potential issues")
-for vuln in vulnerabilities:
-    print(f"- {vuln}")
-]]>
-</meta:code:python>"#,
-            r#"<meta:code:python name="analysis-fallback">
-<![CDATA[
-print("Security analysis could not be completed")
-print("- Using fallback data")
-print("- Recommend manual review")
-]]>
-</meta:code:python>"#,
-            r#"<meta:question name="security-review" depends="security-analysis">
-<![CDATA[
-Based on the security analysis, what are the key vulnerabilities that need addressing?
-]]>
-</meta:question>"#
-        ];
-        
-        // Parse each block individually and collect the results
-        let mut all_blocks = Vec::new();
-        
-        for (i, block_text) in block_patterns.iter().enumerate() {
-            println!("\n--- Parsing Block {} ---", i+1);
-            match parse_document(block_text) {
-                Ok(mut blocks) => {
-                    println!("✅ Block parsed successfully");
-                    if !blocks.is_empty() {
-                        let block = blocks.remove(0); // Take the first block
-                        println!("Block type: {}, name: {:?}", block.block_type, block.name);
-                        all_blocks.push(block);
-                    }
-                },
-                Err(err) => {
-                    println!("❌ Failed to parse block: {:?}", err);
-                    println!("Block content:\n{}", block_text);
-                    // Continue with other blocks even if one fails
-                }
+        let all_blocks = match parse_document(input) {
+            Ok(blocks) => {
+                println!("✅ Document parsed successfully");
+                println!("Found {} blocks", blocks.len());
+                blocks
+            },
+            Err(err) => {
+                panic!("Failed to parse document: {:?}", err);
             }
-        }
+        };
         
+        // Print summary of parsed blocks
         println!("\n==== PARSING SUMMARY ====");
-        println!("Successfully parsed {} out of {} blocks", all_blocks.len(), block_patterns.len());
-        
-        // Verify we have the expected number of blocks
-        assert!(!all_blocks.is_empty(), "Should have parsed at least some blocks");
+        for (i, block) in all_blocks.iter().enumerate() {
+            println!("Block {}: type={}, name={:?}", i, block.block_type, block.name);
+            println!("  Modifiers: {:?}", block.modifiers);
+        }
         
         // Find the security analysis block
         let analysis_block = all_blocks.iter()
-            .find(|b| b.name == Some("security-analysis".to_string()))
+            .find(|b| b.name.as_ref().map_or(false, |name| name == "security-analysis"))
             .expect("Security analysis block should be present");
         
         // Check the dependency resolution in the security analysis block
@@ -211,7 +129,7 @@ Based on the security analysis, what are the key vulnerabilities that need addre
         
         // Find the question block
         if let Some(question_block) = all_blocks.iter()
-            .find(|b| b.name == Some("security-review".to_string())) {
+            .find(|b| b.name.as_ref().map_or(false, |name| name == "security-review")) {
             // Check that the question block depends on the analysis
             assert_eq!(question_block.get_modifier("depends"), Some(&"security-analysis".to_string()));
         } else {
