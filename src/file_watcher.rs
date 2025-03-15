@@ -9,6 +9,10 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 use std::collections::HashSet;
 use std::time::Duration;
 use std::thread;
+use std::fs;
+
+use crate::parser::{parse_document, Block};
+use crate::executor::MetaLanguageExecutor;
 
 /// Types of file events that can be detected
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,7 +29,7 @@ pub enum FileEventType {
 #[derive(Debug, Clone)]
 pub struct FileEvent {
     /// Path of the file that triggered the event
-    pub path: PathBuf,
+    pub path: String,
     /// Type of event that occurred
     pub event_type: FileEventType,
 }
@@ -33,11 +37,11 @@ pub struct FileEvent {
 /// File watcher that monitors specified files for changes
 pub struct FileWatcher {
     // Internal notify watcher
-    _watcher: notify::RecommendedWatcher,
+    watcher: notify::RecommendedWatcher,
     // Set of files being watched
     watched_files: HashSet<PathBuf>,
-    // Channel for receiving events from the watcher thread
-    _event_thread: thread::JoinHandle<()>,
+    // Sender for file events
+    sender: Sender<FileEvent>,
 }
 
 impl FileWatcher {
@@ -49,111 +53,54 @@ impl FileWatcher {
     ///
     /// # Returns
     ///
-    /// A new FileWatcher instance or an error if the watcher couldn't be created
-    pub fn new(sender: Sender<FileEvent>) -> NotifyResult<Self> {
-        let (tx, rx) = channel();
+    /// A new FileWatcher instance
+    pub fn new(sender: Sender<FileEvent>) -> Self {
+        let tx_clone = sender.clone();
         
         // Create the notify watcher
-        let mut watcher = notify::recommended_watcher(tx)?;
+        let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+            match res {
+                Ok(event) => {
+                    // Convert notify events to our FileEvent type
+                    if let Some(file_event) = Self::convert_event(event) {
+                        // Send the event
+                        if tx_clone.send(file_event).is_err() {
+                            eprintln!("Error sending file event: receiver may have been dropped");
+                        }
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Watch error: {:?}", e);
+                }
+            }
+        }).expect("Failed to create file watcher");
         
-        // Create a thread to process events
-        let event_thread = thread::spawn(move || {
-            Self::process_events(rx, sender);
-        });
-        
-        Ok(FileWatcher {
-            _watcher: watcher,
+        FileWatcher {
+            watcher,
             watched_files: HashSet::new(),
-            _event_thread: event_thread,
-        })
+            sender,
+        }
     }
     
-    /// Watch a specific file for changes
+    /// Watch a file or directory for changes
     ///
     /// # Arguments
     ///
-    /// * `path` - Path to the file to watch
+    /// * `path` - Path to watch
     ///
     /// # Returns
     ///
     /// Result indicating success or failure
-    pub fn watch_file<P: AsRef<Path>>(&mut self, path: P) -> NotifyResult<()> {
-        let path_buf = path.as_ref().to_path_buf();
+    pub fn watch(&mut self, path: String) -> Result<(), String> {
+        let path_buf = PathBuf::from(&path);
         
         // Add to our internal set of watched files
         self.watched_files.insert(path_buf.clone());
         
         // Start watching the file with notify
-        // We use non-recursive mode since we're watching specific files
-        self._watcher.watch(path.as_ref(), RecursiveMode::NonRecursive)?;
-        
-        Ok(())
-    }
-    
-    /// Stop watching a specific file
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - Path to the file to stop watching
-    ///
-    /// # Returns
-    ///
-    /// Result indicating success or failure
-    pub fn unwatch_file<P: AsRef<Path>>(&mut self, path: P) -> NotifyResult<()> {
-        let path_buf = path.as_ref().to_path_buf();
-        
-        // Remove from our internal set
-        self.watched_files.remove(&path_buf);
-        
-        // Stop watching the file with notify
-        self._watcher.unwatch(path.as_ref())?;
-        
-        Ok(())
-    }
-    
-    /// Check if a file is currently being watched
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - Path to check
-    ///
-    /// # Returns
-    ///
-    /// true if the file is being watched, false otherwise
-    pub fn is_watching<P: AsRef<Path>>(&self, path: P) -> bool {
-        self.watched_files.contains(&path.as_ref().to_path_buf())
-    }
-    
-    /// Get a list of all files currently being watched
-    ///
-    /// # Returns
-    ///
-    /// A vector of paths being watched
-    pub fn watched_files(&self) -> Vec<PathBuf> {
-        self.watched_files.iter().cloned().collect()
-    }
-    
-    // Process events from notify and convert them to our FileEvent type
-    fn process_events(rx: Receiver<notify::Result<Event>>, sender: Sender<FileEvent>) {
-        loop {
-            match rx.recv() {
-                Ok(Ok(event)) => {
-                    // Convert notify events to our FileEvent type
-                    if let Some(file_event) = Self::convert_event(event) {
-                        // If sender is closed (receiver dropped), exit the thread
-                        if sender.send(file_event).is_err() {
-                            break;
-                        }
-                    }
-                }
-                Ok(Err(e)) => {
-                    eprintln!("Watch error: {:?}", e);
-                }
-                Err(_) => {
-                    // Channel closed, exit the thread
-                    break;
-                }
-            }
+        match self.watcher.watch(&path_buf, RecursiveMode::NonRecursive) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to watch path: {}", e)),
         }
     }
     
@@ -168,9 +115,11 @@ impl FileWatcher {
         
         // Get the path from the event
         // We only care about the first path in the event
-        event.paths.first().map(|path| FileEvent {
-            path: path.clone(),
-            event_type,
+        event.paths.first().and_then(|path| {
+            path.to_str().map(|p| FileEvent {
+                path: p.to_string(),
+                event_type,
+            })
         })
     }
 }
@@ -179,7 +128,6 @@ impl FileWatcher {
 impl Drop for FileWatcher {
     fn drop(&mut self) {
         // The watcher will be dropped automatically
-        // The thread will exit when the channel is closed
     }
 }
 
@@ -190,16 +138,17 @@ mod tests {
     use std::io::Write;
     use std::sync::mpsc::channel;
     use tempfile::tempdir;
+    use std::sync::{Arc, Mutex};
     
     #[test]
     fn test_file_watcher_creation() {
         let (tx, _rx) = channel();
         let watcher = FileWatcher::new(tx);
-        assert!(watcher.is_ok());
+        // Just check that creation doesn't panic
     }
     
     #[test]
-    fn test_watch_file() {
+    fn test_watch_file_modification() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.txt");
         
@@ -207,37 +156,24 @@ mod tests {
         let mut file = File::create(&file_path).unwrap();
         writeln!(file, "Initial content").unwrap();
         
-        let (tx, _rx) = channel();
-        let mut watcher = FileWatcher::new(tx).unwrap();
+        let (tx, rx) = channel();
+        let mut watcher = FileWatcher::new(tx);
         
         // Watch the file
-        assert!(watcher.watch_file(&file_path).is_ok());
-        assert!(watcher.is_watching(&file_path));
+        assert!(watcher.watch(file_path.to_str().unwrap().to_string()).is_ok());
         
-        // Check watched files list
-        let watched = watcher.watched_files();
-        assert_eq!(watched.len(), 1);
-        assert_eq!(watched[0], file_path);
-    }
-    
-    #[test]
-    fn test_unwatch_file() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test.txt");
+        // Modify the file
+        let mut file = OpenOptions::new().write(true).open(&file_path).unwrap();
+        writeln!(file, "Modified content").unwrap();
+        file.flush().unwrap();
         
-        // Create the file
-        let mut file = File::create(&file_path).unwrap();
-        writeln!(file, "Initial content").unwrap();
+        // Wait for the event
+        let timeout = Duration::from_secs(5);
+        let event = rx.recv_timeout(timeout);
         
-        let (tx, _rx) = channel();
-        let mut watcher = FileWatcher::new(tx).unwrap();
-        
-        // Watch and then unwatch the file
-        watcher.watch_file(&file_path).unwrap();
-        assert!(watcher.is_watching(&file_path));
-        
-        watcher.unwatch_file(&file_path).unwrap();
-        assert!(!watcher.is_watching(&file_path));
-        assert_eq!(watcher.watched_files().len(), 0);
+        assert!(event.is_ok(), "Did not receive file event within timeout");
+        let event = event.unwrap();
+        assert_eq!(event.path, file_path.to_str().unwrap());
+        assert_eq!(event.event_type, FileEventType::Modified);
     }
 }
