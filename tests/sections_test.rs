@@ -4,7 +4,7 @@ mod tests {
     
     #[test]
     fn test_basic_section() {
-        let input = r#"<meta:document>
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:section type="chapter" name="introduction">
 This is an introduction chapter.
 </meta:section>
@@ -24,7 +24,7 @@ This is an introduction chapter.
     
     #[test]
     fn test_multiple_sections() {
-        let input = r#"<meta:document>
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:section type="chapter" name="introduction">
 This is an introduction chapter.
 </meta:section>
@@ -59,7 +59,7 @@ This is the conclusion chapter.
     
     #[test]
     fn test_nested_sections() {
-        let input = r#"<meta:document>
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:section type="document" name="research-paper">
 # Research Paper
 
@@ -107,7 +107,7 @@ This is the conclusion chapter.
     
     #[test]
     fn test_section_with_data_block() {
-        let input = r#"<meta:document>
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:section type="data-container" name="sample-data">
 # Sample Data Section
 
@@ -144,7 +144,7 @@ This section contains a data block.
     
     #[test]
     fn test_section_with_code_block() {
-        let input = r#"<meta:document>
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:section type="code-example" name="python-example">
 # Python Example
 
@@ -185,7 +185,7 @@ This section demonstrates a Python code block.
     
     #[test]
     fn test_deeply_nested_sections() {
-        let input = r#"<meta:document>
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:section type="document" name="nested-doc">
 # Deeply Nested Document
 
@@ -244,7 +244,7 @@ Document conclusion.
     
     #[test]
     fn test_sections_with_mixed_blocks() {
-        let input = r#"<meta:document>
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:section type="report" name="mixed-content">
 # Mixed Content Report
 

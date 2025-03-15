@@ -11,7 +11,7 @@ mod tests {
     #[test]
     fn test_complex_workflow_with_dependencies() {
         // Test parsing a complex document with dependencies
-        let input = r#"<meta:document>
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:data name="target-app" format="json" always_include="true">
 <![CDATA[
 {
@@ -349,7 +349,7 @@ Based on the security analysis, what are the key vulnerabilities that need addre
     #[test]
     fn test_simple_workflow() {
         // Create a test document with just a few blocks for testing
-        let test_document = r#"<meta:document>
+        let test_document = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:data name="simple-data" format="json">
 <![CDATA[
 [1, 2, 3, 4, 5]

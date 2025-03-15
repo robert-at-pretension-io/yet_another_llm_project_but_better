@@ -15,13 +15,15 @@ mod tests {
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with variable references
-        let content = r#"[data name:test-var]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="test-var">
 Hello, world!
-[/data]
+</meta:data>
 
-[data name:reference-test]
+<meta:data name="reference-test">
 Value: ${test-var}
-[/data]"#;
+</meta:data>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         
@@ -36,17 +38,19 @@ Value: ${test-var}
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with nested variable references
-        let content = r#"[data name:name]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="name">
 Alice
-[/data]
+</meta:data>
 
-[data name:greeting]
+<meta:data name="greeting">
 Hello, ${name}!
-[/data]
+</meta:data>
 
-[data name:message]
+<meta:data name="message">
 ${greeting} How are you today?
-[/data]"#;
+</meta:data>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         
@@ -61,20 +65,22 @@ ${greeting} How are you today?
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with variable references in code blocks
-        let content = r#"[data name:numbers format:json]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="numbers" format="json">
 [1, 2, 3, 4, 5]
-[/data]
+</meta:data>
 
-[data name:process-numbers-fallback]
+<meta:data name="process-numbers-fallback">
 Fallback content for process-numbers
-[/data]
+</meta:data>
 
-[code:python name:process-numbers fallback:process-numbers-fallback]
+<meta:code language="python" name="process-numbers" fallback="process-numbers-fallback">
 import json
 numbers = json.loads('''${numbers}''')
 result = sum(numbers)
 print(f"Sum: {result}")
-[/code:python]"#;
+</meta:code>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         
@@ -94,19 +100,21 @@ print(f"Sum: {result}")
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with variable references and modifiers
-        let content = r#"[data name:long-text]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="long-text">
 This is a very long text.
 It has multiple lines.
 And should be trimmed in some contexts.
-[/data]
+</meta:data>
 
-[data name:trimmed-reference trim:true]
+<meta:data name="trimmed-reference" trim="true">
 ${long-text}
-[/data]
+</meta:data>
 
-[data name:max-lines-reference max_lines:1]
+<meta:data name="max-lines-reference" max_lines="1">
 ${long-text}
-[/data]"#;
+</meta:data>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         
@@ -132,22 +140,24 @@ ${long-text}
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with variable references in shell blocks
-        let content = r#"[data name:filename]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="filename">
 test-output.txt
-[/data]
+</meta:data>
 
-[data name:content]
+<meta:data name="content">
 Hello from shell command!
-[/data]
+</meta:data>
 
-[data name:create-file-fallback]
+<meta:data name="create-file-fallback">
 Fallback content for create-file
-[/data]
+</meta:data>
 
-[shell name:create-file fallback:create-file-fallback]
+<meta:shell name="create-file" fallback="create-file-fallback">
 echo "${content}" > ${filename}
 cat ${filename}
-[/shell]"#;
+</meta:shell>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         
@@ -172,17 +182,19 @@ cat ${filename}
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with fallback values
-        let content = r#"[data name:existing-var]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="existing-var">
 I exist
-[/data]
+</meta:data>
 
-[data name:with-existing-fallback fallback:default-value]
+<meta:data name="with-existing-fallback" fallback="default-value">
 ${existing-var}
-[/data]
+</meta:data>
 
-[data name:with-missing-fallback fallback:default-value]
+<meta:data name="with-missing-fallback" fallback="default-value">
 ${non-existent-var}
-[/data]"#;
+</meta:data>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         
@@ -201,13 +213,15 @@ ${non-existent-var}
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with circular references
-        let content = r#"[data name:var1]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="var1">
 ${var2}
-[/data]
+</meta:data>
 
-[data name:var2]
+<meta:data name="var2">
 ${var1}
-[/data]"#;
+</meta:data>
+</meta:document>"#;
         
         // Process the document - the executor should handle circular references
         let result = executor.process_document(content);
@@ -238,30 +252,32 @@ ${var1}
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with complex nested variable references
-        let content = r#"[data name:user]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="user">
 Alice
-[/data]
+</meta:data>
 
-[data name:item]
+<meta:data name="item">
 book
-[/data]
+</meta:data>
 
-[data name:count]
+<meta:data name="count">
 3
-[/data]
+</meta:data>
 
-[data name:template]
+<meta:data name="template">
 ${user} has ${count} ${item}s.
-[/data]
+</meta:data>
 
-[data name:format-message-fallback]
+<meta:data name="format-message-fallback">
 Fallback content for format-message
-[/data]
+</meta:data>
 
-[code:python name:format-message fallback:format-message-fallback]
+<meta:code language="python" name="format-message" fallback="format-message-fallback">
 message = """${template}"""
 print(f"Formatted message: {message}")
-[/code:python]"#;
+</meta:code>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         
@@ -281,7 +297,8 @@ print(f"Formatted message: {message}")
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with JSON data
-        let content = r#"[data name:user-data format:json]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="user-data" format="json">
 {
   "name": "Bob",
   "age": 30,
@@ -290,18 +307,19 @@ print(f"Formatted message: {message}")
     "notifications": true
   }
 }
-[/data]
+</meta:data>
 
-[data name:process-json-fallback]
+<meta:data name="process-json-fallback">
 Fallback content for process-json
-[/data]
+</meta:data>
 
-[code:python name:process-json fallback:process-json-fallback]
+<meta:code language="python" name="process-json" fallback="process-json-fallback">
 import json
 data = json.loads('''${user-data}''')
 print(f"User: {data['name']}, Age: {data['age']}")
 print(f"Theme: {data['preferences']['theme']}")
-[/code:python]"#;
+</meta:code>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         
@@ -323,15 +341,17 @@ print(f"Theme: {data['preferences']['theme']}")
         let mut executor = MetaLanguageExecutor::new();
         
         // Process a document with multiple references to the same variable
-        let content = r#"[data name:repeated-var]
+        let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="repeated-var">
 reusable content
-[/data]
+</meta:data>
 
-[data name:multiple-uses]
+<meta:data name="multiple-uses">
 First use: ${repeated-var}
 Second use: ${repeated-var}
 Third use: ${repeated-var}
-[/data]"#;
+</meta:data>
+</meta:document>"#;
         
         executor.process_document(content).expect("Failed to process document");
         

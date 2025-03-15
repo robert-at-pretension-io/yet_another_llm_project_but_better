@@ -38,29 +38,31 @@ mod tests {
     /// Test basic parsing of blocks with variable references
     #[test]
     fn test_parse_blocks_with_variables() {
-        let input = r#"[variable name:greeting]
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:variable name="greeting">
 Hello, world!
-[/variable]
+</meta:variable>
 
-[variable name:signature]
+<meta:variable name="signature">
 Best regards,
 The Team
-[/variable]
+</meta:variable>
 
-[data name:user-info format:json]
+<meta:data name="user-info" format="json">
 {
   "name": "Jane Doe",
   "email": "jane@example.com"
 }
-[/data]
+</meta:data>
 
-[code:python name:generate-email]
+<meta:code language="python" name="generate-email">
 user_data = '''${user-info}'''
 greeting = '''${greeting}'''
 signature = '''${signature}'''
 
 print(f"Email preview:\n\n{greeting}\n\nDear {user_data['name']},\n\nWelcome to our platform!\n\n{signature}")
-[/code:python]"#;
+</meta:code>
+</meta:document>"#;
 
         let blocks = parse_document(input).unwrap();
         

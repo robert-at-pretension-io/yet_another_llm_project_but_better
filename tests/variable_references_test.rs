@@ -77,7 +77,8 @@ const params = new URLSearchParams({
     
     #[test]
     fn test_extraction_from_code_block() {
-        let input = r#"[code:python name:data-processing]
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:code language="python" name="data-processing">
 import pandas as pd
 
 # Load the data
@@ -94,7 +95,8 @@ stats = {
 }
 
 print(f"Results for ${category}: {stats}")
-[/code:python]"#;
+</meta:code>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
