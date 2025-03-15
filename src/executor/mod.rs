@@ -12,7 +12,6 @@ use tokio::runtime::Runtime;
 
 use crate::parser::{Block, parse_document, extract_variable_references};
 use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
-use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
 
 // Define error type
 #[derive(Error, Debug)]
@@ -37,18 +36,6 @@ pub enum ExecutorError {
     
     #[error("Missing API key: {0}")]
     MissingApiKey(String),
-    
-    #[error("LLM API error: {0}")]
-    LlmApiError(String),
-    
-    #[error("Missing API key: {0}")]
-    MissingApiKey(String),
-    
-    #[error("LLM API error: {0}")]
-    LlmApiError(String),
-    
-    #[error("Missing API key: {0}")]
-    MissingApiKey(String),
 }
 
 // Executor for processing blocks
@@ -63,8 +50,6 @@ pub struct MetaLanguageExecutor {
     pub current_document: String,
     // Track blocks being processed to detect circular dependencies
     processing_blocks: Vec<String>,
-    // Tokio runtime for async operations
-    runtime: Runtime,
     // Tokio runtime for async operations
     runtime: Runtime,
 }
