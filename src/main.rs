@@ -1,12 +1,10 @@
 use std::env;
 use std::fs;
-use std::io::{self, Write};
-use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, Receiver};
+use std::path::Path;
+use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant};
-use std::thread;
+use std::time::Instant;
 use std::process;
 
 use anyhow::{Result, Context, anyhow};
@@ -116,14 +114,18 @@ fn get_or_create_executor(file_path: &str) -> Arc<Mutex<MetaLanguageExecutor>> {
 fn auto_execute_blocks(executor: &mut MetaLanguageExecutor) -> Result<()> {
     let mut executed_blocks = HashSet::new();
     
-    // Find all blocks with auto_execute modifier
-    for (name, block) in &executor.blocks {
-        if block.is_modifier_true("auto_execute") {
-            if let Err(e) = executor.execute_block(name) {
-                eprintln!("Error executing block '{}': {}", name, e);
-            } else {
-                executed_blocks.insert(name.clone());
-            }
+    // First collect the names of blocks to execute
+    let blocks_to_execute: Vec<String> = executor.blocks.iter()
+        .filter(|(_, block)| block.is_modifier_true("auto_execute"))
+        .map(|(name, _)| name.clone())
+        .collect();
+    
+    // Then execute each block
+    for name in blocks_to_execute {
+        if let Err(e) = executor.execute_block(&name) {
+            eprintln!("Error executing block '{}': {}", name, e);
+        } else {
+            executed_blocks.insert(name);
         }
     }
     
