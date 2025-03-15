@@ -146,12 +146,9 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                     }
                     
                     // Create a response block with proper attribution to the question
-                    let mut updated_content = file_content.clone();
-                    
                     // Find the end of the question block
-                    if let Some(pos) = updated_content.find("[/question]") {
-                        let insert_pos = pos + "[/question]".len();
-                        println!("DEBUG: Found [/question] at position {}, insert_pos: {}", pos, insert_pos);
+                    if let Some(pos) = file_content.find("[/question]") {
+                        println!("DEBUG: Found [/question] at position {}", pos);
                         
                         // Create response block with attribution if the question has a name
                         let response_block = if !block_identifier.is_empty() {
@@ -164,15 +161,8 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                         println!("DEBUG: Response block preview: {}", 
                                  response_block.chars().take(100).collect::<String>().replace("\n", "\\n"));
                         
-                        updated_content.insert_str(insert_pos, &response_block);
-                        println!("DEBUG: Updated content length: {} bytes", updated_content.len());
-                        
-                        // Write the updated content back to the file
-                        println!("DEBUG: DIRECT UPDATE: Writing updated content to file: {}", file_path.display());
-                        match fs::write(file_path, &updated_content) {
-                            Ok(_) => println!("DEBUG: DIRECT UPDATE: Successfully wrote updated content to file"),
-                            Err(e) => println!("DEBUG: Failed to write updated file: {}", e)
-                        }
+                        // Set file_updated to true so the executor will update the file
+                        file_updated = true;
                     } else {
                         println!("DEBUG: Could not find [/question] tag in the document");
                     }
@@ -246,9 +236,8 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
     executor.process_document(&content)
         .map_err(|e| anyhow!("Executor error: {}", e))?;
     
-    // Track if we need to update the file and if it was already directly updated
+    // Track if we need to update the file
     let mut file_updated = false;
-    let mut file_directly_updated = false;
     
     // Print detailed information about each block
     for (i, block) in blocks.iter().enumerate() {
@@ -280,11 +269,9 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
                     println!("{}", output);
                     println!("=== End of output ===");
                     
-                    // For question blocks, the file was already directly updated in execute_block
+                    // For question blocks, mark that we need to update the file
                     if block.block_type == "question" {
-                        file_directly_updated = true;
-                        // We don't need to update the file again via executor.update_document()
-                        file_updated = false;
+                        file_updated = true;
                     }
                 },
                 Err(e) => {
@@ -298,9 +285,8 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
         }
     }
     
-    // If we executed any blocks that require file updates and the file wasn't already directly updated,
-    // update the file using the executor
-    if file_updated && !file_directly_updated {
+    // If we executed any blocks that require file updates, update the file using the executor
+    if file_updated {
         println!("DEBUG: File update required, calling executor.update_document()");
         
         // Get the updated document content from the executor
