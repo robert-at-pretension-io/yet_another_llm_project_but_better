@@ -29,6 +29,7 @@ default = []
 # criterion = "=0.5.1"
 proptest = "=1.2.0"
 mockall = "=0.11.4"
+mockito = "=1.1.0"
 
 
 [lib]
