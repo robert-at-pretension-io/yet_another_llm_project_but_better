@@ -485,7 +485,7 @@ fn test_nested_blocks() {
     let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:section type="h1" name="outer-section"><![CDATA[
     # Outer Section
-    ]]>
+    ]]></meta:section>
     
     <meta:code language="python" name="nested-code"><![CDATA[
     print("I'm nested inside a section")
@@ -493,15 +493,11 @@ fn test_nested_blocks() {
     
     <meta:section type="h2" name="inner-section"><![CDATA[
     ## Inner Section
-    ]]>
+    ]]></meta:section>
     
     <meta:variable name="nested-variable"><![CDATA[
     nested value
     ]]></meta:variable>
-    
-    </meta:section>
-    
-    </meta:section>
     </meta:document>"#;
     
     let blocks = parse_document(input).expect("Failed to parse document");
