@@ -71,14 +71,25 @@ fn execute_block(block: &Block) -> Result<String, String> {
 
 /// Checks if a block should be auto-executed
 fn should_auto_execute(block: &Block) -> bool {
+    println!("DEBUG: Checking auto-execute for block: {:?}", block.name);
+    println!("DEBUG: Block type: '{}'", block.block_type);
+    println!("DEBUG: Block modifiers: {:?}", block.modifiers);
+    
     // Check for auto_execute modifier
-    if block.is_modifier_true("auto_execute") {
+    let auto_execute = block.is_modifier_true("auto_execute");
+    println!("DEBUG: auto_execute modifier is {}", auto_execute);
+    
+    if auto_execute {
         return true;
     }
     
     // Check for auto-executable block types
-    matches!(block.block_type.as_str(), 
-             "shell" | "code:python" | "code:javascript" | "code:ruby")
+    let is_auto_executable_type = matches!(block.block_type.as_str(), 
+             "shell" | "code:python" | "code:javascript" | "code:ruby");
+    
+    println!("DEBUG: is auto-executable type: {}", is_auto_executable_type);
+    
+    is_auto_executable_type
 }
 
 /// Process a file, parsing and executing blocks as needed
@@ -95,9 +106,25 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
     
     println!("Found {} blocks in file", blocks.len());
     
+    // Print detailed information about each block
+    for (i, block) in blocks.iter().enumerate() {
+        println!("\nDEBUG: Block #{} details:", i + 1);
+        println!("  Type: '{}'", block.block_type);
+        println!("  Name: {:?}", block.name);
+        println!("  Modifiers: {:?}", block.modifiers);
+        println!("  Content length: {} bytes", block.content.len());
+        println!("  Content preview: '{}'", 
+                 block.content.chars().take(50).collect::<String>().replace("\n", "\\n"));
+        println!("  Children count: {}", block.children.len());
+    }
+    
     // Execute auto-executable blocks
-    for block in &blocks {
-        if should_auto_execute(block) {
+    for (i, block) in blocks.iter().enumerate() {
+        println!("\nDEBUG: Evaluating block #{} for execution:", i + 1);
+        let should_execute = should_auto_execute(block);
+        println!("DEBUG: should_auto_execute result: {}", should_execute);
+        
+        if should_execute {
             println!("Auto-executing block: {}{}", 
                      block.block_type, 
                      block.name.as_ref().map_or(String::new(), |n| format!(" ({})", n)));
