@@ -172,7 +172,13 @@ Based on the security analysis, what are the key vulnerabilities that need addre
         
         for (i, block_text) in block_patterns.iter().enumerate() {
             println!("\n--- Parsing Block {} ---", i+1);
-            match parse_document(block_text) {
+            // Wrap the block in meta:document tags to make it a valid XML document
+            let wrapped_block = format!(
+                r#"<meta:document xmlns:meta="https://example.com/meta-language">
+{}
+</meta:document>"#, block_text);
+            
+            match parse_document(&wrapped_block) {
                 Ok(mut blocks) => {
                     println!("✅ Block parsed successfully");
                     if !blocks.is_empty() {
@@ -414,13 +420,16 @@ print(result)
         // Execute the process-data block
         println!("Executing process-data block...");
         
-        // Mock the execution result since we're in test mode
+        // In a real execution, the Python code would run and produce "15"
+        // Since we're in test mode, we need to mock the execution result
+        // First, store the expected output in the results key
         executor.outputs.insert("process-data.results".to_string(), "15".to_string());
         
         let result = executor.execute_block("process-data");
         assert!(result.is_ok(), "Process data execution failed: {:?}", result.err());
         
         if let Ok(output) = result {
+            // In test mode, the executor should return the mocked result we set above
             assert_eq!(output.trim(), "15", "Sum of [1,2,3,4,5] should be 15");
             println!("Process data output: {}", output);
         }
