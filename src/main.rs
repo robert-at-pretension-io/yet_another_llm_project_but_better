@@ -1,67 +1,183 @@
-// We'll use a simplified version for testing
+use std::env;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::mpsc::{channel, Receiver};
+use std::time::{Duration, Instant};
+use std::thread;
+
 use pest::Parser;
 use pest_derive::Parser;
+use anyhow::{Result, Context, anyhow};
+
+// Import from our library
+use yet_another_llm_project_but_better::{
+    Block, 
+    parse_document, 
+    FileWatcher, 
+    FileEvent, 
+    FileEventType
+};
 
 #[derive(Parser)]
 #[grammar = "parser/meta_language.pest"]
-struct SimpleParser;
+struct MetaLanguageParser;
 
-#[derive(Debug)]
-struct SimpleBlock {
-    block_type: String,
-    name: Option<String>,
-    content: String,
-}
-
-fn main() {
-    println!("Meta Programming Language - Simple Test");
-    
-    let input = r#"[data name:test-data format:json]
-{"value": 42}
-[/data]
-
-[code:python name:process-data]
-import json
-data = json.loads('${test-data}')
-print(data)
-[/code:python]"#;
-
-    match SimpleParser::parse(Rule::document, input) {
-        Ok(pairs) => {
-            println!("Successfully parsed document!");
+/// Executes a block based on its type
+fn execute_block(block: &Block) -> Result<String, String> {
+    match block.block_type.as_str() {
+        "code:python" => {
+            // Execute Python code
+            let output = Command::new("python")
+                .arg("-c")
+                .arg(&block.content)
+                .output()
+                .map_err(|e| format!("Failed to execute Python: {}", e))?;
             
-            let mut blocks = Vec::new();
-            
-            // Simple extraction of blocks
-            for pair in pairs {
-                if pair.as_rule() == Rule::document {
-                    for block_pair in pair.into_inner() {
-                        if block_pair.as_rule() == Rule::block {
-                            // Extract block information
-                            let block_type = block_pair.as_str().lines().next().unwrap();
-                            blocks.push(SimpleBlock {
-                                block_type: block_type.to_string(),
-                                name: None,
-                                content: block_pair.as_str().to_string(),
-                            });
-                        }
-                    }
-                }
-            }
-            
-            println!("Found {} blocks:", blocks.len());
-            for (i, block) in blocks.iter().enumerate() {
-                println!("Block #{}: {}", i+1, block.block_type);
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            } else {
+                Err(String::from_utf8_lossy(&output.stderr).to_string())
             }
         },
-        Err(e) => {
-            println!("Failed to parse: {}", e);
-        }
+        "shell" => {
+            // Execute shell command
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(&block.content)
+                .output()
+                .map_err(|e| format!("Failed to execute shell command: {}", e))?;
+            
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+            } else {
+                Err(String::from_utf8_lossy(&output.stderr).to_string())
+            }
+        },
+        _ => Err(format!("Block type '{}' is not executable", block.block_type))
     }
 }
 
+/// Checks if a block should be auto-executed
+fn should_auto_execute(block: &Block) -> bool {
+    // Check for auto_execute modifier
+    if block.is_modifier_true("auto_execute") {
+        return true;
+    }
+    
+    // Check for auto-executable block types
+    matches!(block.block_type.as_str(), 
+             "shell" | "code:python" | "code:javascript" | "code:ruby")
+}
+
+/// Process a file, parsing and executing blocks as needed
+fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
+    println!("Processing file: {}", file_path.display());
+    
+    // Read file content
+    let content = fs::read_to_string(file_path)
+        .context("Failed to read file")?;
+    
+    // Parse document to find blocks
+    let blocks = parse_document(&content)
+        .map_err(|e| anyhow!("Parser error: {}", e))?;
+    
+    println!("Found {} blocks in file", blocks.len());
+    
+    // Execute auto-executable blocks
+    for block in &blocks {
+        if should_auto_execute(block) {
+            println!("Auto-executing block: {}{}", 
+                     block.block_type, 
+                     block.name.as_ref().map_or(String::new(), |n| format!(" ({})", n)));
+            
+            match execute_block(block) {
+                Ok(output) => {
+                    println!("=== Output from block {} ===", 
+                             block.name.as_ref().unwrap_or(&block.block_type));
+                    println!("{}", output);
+                    println!("=== End of output ===");
+                },
+                Err(e) => {
+                    eprintln!("Error executing block: {}", e);
+                    println!("=== Error in block {} ===", 
+                             block.name.as_ref().unwrap_or(&block.block_type));
+                    println!("{}", e);
+                    println!("=== End of error ===");
+                }
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+fn main() -> Result<(), anyhow::Error> {
+    // Get file path from command line arguments
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: {} <file_path>", args[0]);
+        std::process::exit(1);
+    }
+    
+    let file_path = PathBuf::from(&args[1]);
+    
+    if !file_path.exists() {
+        eprintln!("File does not exist: {}", file_path.display());
+        std::process::exit(1);
+    }
+    
+    // Initial processing of the file
+    process_file(&file_path)?;
+    
+    // Set up file watcher using our library's FileWatcher
+    println!("Watching file for changes: {}", file_path.display());
+    
+    let (tx, rx) = channel();
+    let mut file_watcher = FileWatcher::new(tx);
+    
+    // Start watching the file
+    file_watcher.watch(file_path.to_string_lossy().to_string())
+        .map_err(|e| anyhow!("Failed to watch file: {}", e))?;
+    
+    // Track last modification time to avoid duplicate events
+    let mut last_modified = Instant::now();
+    
+    // Watch for file changes
+    loop {
+        match rx.recv() {
+            Ok(FileEvent { path, event_type: FileEventType::Modified }) => {
+                // Avoid processing the same change multiple times
+                let now = Instant::now();
+                if now.duration_since(last_modified) < Duration::from_millis(100) {
+                    continue;
+                }
+                last_modified = now;
+                
+                println!("File changed: {}", path);
+                if let Err(e) = process_file(&PathBuf::from(&path)) {
+                    eprintln!("Error processing file after change: {:?}", e);
+                }
+            },
+            Ok(FileEvent { event_type: FileEventType::Created, .. }) => {
+                println!("File was created, but we're only watching for modifications");
+            },
+            Ok(FileEvent { event_type: FileEventType::Deleted, .. }) => {
+                println!("File was deleted, exiting watch loop");
+                break;
+            },
+            Err(e) => {
+                eprintln!("Watch channel error: {:?}", e);
+                break;
+            },
+        }
+    }
+    
+    Ok(())
+}
+
 #[allow(non_camel_case_types)]
-enum CustomRule {
+enum Rule {
     document,
     block,
     EOI,

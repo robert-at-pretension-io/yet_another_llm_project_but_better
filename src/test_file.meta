@@ -1,0 +1,14 @@
+[data name:test-data format:json]
+{"value": 42, "message": "Hello, world!"}
+[/data]
+
+[code:python name:process-data auto_execute:true]
+import json
+data = '''{"value": 42, "message": "Hello, world!"}'''
+parsed = json.loads(data)
+print(f"The value is {parsed['value']} and the message is '{parsed['message']}'")
+[/code:python]
+
+[shell name:list-files auto_execute:true]
+ls -la
+[/shell]
