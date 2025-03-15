@@ -618,3 +618,183 @@ fn test_multiple_modifiers() {
         }
     }
 }
+/// Test parsing of nested blocks
+#[test]
+fn test_nested_blocks() {
+    let input = r#"
+    [section:h1 name:outer-section]
+    # Outer Section
+    
+    [code:python name:nested-code]
+    print("I'm nested inside a section")
+    [/code:python]
+    
+    [section:h2 name:inner-section]
+    ## Inner Section
+    
+    [variable name:nested-variable]
+    nested value
+    [/variable]
+    
+    [/section:h2]
+    
+    [/section:h1]
+    "#;
+    
+    let blocks = parse_document(input).expect("Failed to parse document");
+    
+    // We should have one top-level section block
+    assert_eq!(blocks.len(), 1, "Expected 1 top-level block");
+    
+    let outer_section = &blocks[0];
+    assert_eq!(outer_section.block_type, "section:h1");
+    assert_eq!(outer_section.name, Some("outer-section".to_string()));
+    
+    // The outer section should have 2 children: a code block and an inner section
+    assert_eq!(outer_section.children.len(), 2, "Expected 2 child blocks in outer section");
+    
+    // Check the nested code block
+    let nested_code = &outer_section.children[0];
+    assert_eq!(nested_code.block_type, "code:python");
+    assert_eq!(nested_code.name, Some("nested-code".to_string()));
+    assert_eq!(nested_code.content.trim(), "print(\"I'm nested inside a section\")");
+    
+    // Check the inner section
+    let inner_section = &outer_section.children[1];
+    assert_eq!(inner_section.block_type, "section:h2");
+    assert_eq!(inner_section.name, Some("inner-section".to_string()));
+    
+    // The inner section should have 1 child: a variable block
+    assert_eq!(inner_section.children.len(), 1, "Expected 1 child block in inner section");
+    
+    // Check the nested variable block
+    let nested_variable = &inner_section.children[0];
+    assert_eq!(nested_variable.block_type, "variable");
+    assert_eq!(nested_variable.name, Some("nested-variable".to_string()));
+    assert_eq!(nested_variable.content.trim(), "nested value");
+}
+
+/// Test parsing of blocks with complex modifiers
+#[test]
+fn test_complex_modifiers() {
+    let input = r#"
+    [code:python name:complex-modifiers deps:math,numpy,pandas auto_execute:true timeout:30 retries:3 on_error:"log and continue" description:"This is a complex block with many modifiers"]
+    import math
+    import numpy as np
+    import pandas as pd
+    
+    print("Complex modifiers test")
+    [/code:python]
+    "#;
+    
+    let blocks = parse_document(input).expect("Failed to parse document");
+    assert_eq!(blocks.len(), 1, "Expected 1 block");
+    
+    let block = &blocks[0];
+    assert_eq!(block.block_type, "code:python");
+    assert_eq!(block.name, Some("complex-modifiers".to_string()));
+    
+    // Check all the modifiers
+    assert_eq!(block.get_modifier("deps").map(|s| s.as_str()), Some("math,numpy,pandas"));
+    assert_eq!(block.get_modifier("auto_execute").map(|s| s.as_str()), Some("true"));
+    assert_eq!(block.get_modifier("timeout").map(|s| s.as_str()), Some("30"));
+    assert_eq!(block.get_modifier("retries").map(|s| s.as_str()), Some("3"));
+    assert_eq!(block.get_modifier("on_error").map(|s| s.as_str()), Some("log and continue"));
+    assert_eq!(block.get_modifier("description").map(|s| s.as_str()), Some("This is a complex block with many modifiers"));
+    
+    // Test the is_modifier_true helper
+    assert!(block.is_modifier_true("auto_execute"));
+}
+
+/// Test variable references in content
+#[test]
+fn test_variable_references() {
+    // Test extracting variable references from text
+    let text = "This references {{variable1}} and {{variable2}} and {{nested.variable}}";
+    let references = extract_variable_references(text);
+    
+    let expected: HashSet<String> = ["variable1", "variable2", "nested.variable"]
+        .iter().map(|s| s.to_string()).collect();
+    
+    assert_eq!(references, expected);
+    
+    // Test with duplicate references
+    let text_with_duplicates = "{{var}} appears {{var}} multiple {{var}} times";
+    let references = extract_variable_references(text_with_duplicates);
+    
+    let expected: HashSet<String> = ["var"].iter().map(|s| s.to_string()).collect();
+    assert_eq!(references, expected);
+    assert_eq!(references.len(), 1);
+}
+
+/// Test error handling for malformed blocks
+#[test]
+fn test_malformed_blocks() {
+    // Missing closing tag
+    let input = r#"
+    [code:python name:missing-close]
+    print("This block is missing a closing tag")
+    "#;
+    
+    let result = parse_document(input);
+    assert!(result.is_err(), "Expected an error for malformed block");
+    
+    // Mismatched closing tag
+    let input = r#"
+    [code:python name:mismatched-close]
+    print("This block has a mismatched closing tag")
+    [/code:javascript]
+    "#;
+    
+    let result = parse_document(input);
+    assert!(result.is_err(), "Expected an error for mismatched closing tag");
+    
+    // Invalid block type
+    let input = r#"
+    [invalid-block-type name:test]
+    This is an invalid block type
+    [/invalid-block-type]
+    "#;
+    
+    let result = parse_document(input);
+    assert!(result.is_err(), "Expected an error for invalid block type");
+}
+
+/// Test empty blocks and whitespace handling
+#[test]
+fn test_empty_blocks() {
+    let input = r#"
+    [variable name:empty-var]
+    [/variable]
+    
+    [code:python name:whitespace-only]
+    
+    [/code:python]
+    "#;
+    
+    let blocks = parse_document(input).expect("Failed to parse document");
+    assert_eq!(blocks.len(), 2, "Expected 2 blocks");
+    
+    let empty_var = &blocks[0];
+    assert_eq!(empty_var.block_type, "variable");
+    assert_eq!(empty_var.name, Some("empty-var".to_string()));
+    assert_eq!(empty_var.content.trim(), "");
+    
+    let whitespace_only = &blocks[1];
+    assert_eq!(whitespace_only.block_type, "code:python");
+    assert_eq!(whitespace_only.name, Some("whitespace-only".to_string()));
+    assert_eq!(whitespace_only.content.trim(), "");
+}
+
+// Helper functions for the complex document test
+fn find_block_by_name(blocks: &[Block], name: &str) -> Option<&Block> {
+    blocks.iter().find(|b| b.name.as_ref().map_or(false, |n| n == name))
+}
+
+fn find_child_by_name(parent: &Block, name: &str) -> Option<&Block> {
+    parent.children.iter().find(|b| b.name.as_ref().map_or(false, |n| n == name))
+}
+
+fn has_modifier(block: &Block, key: &str, value: &str) -> bool {
+    block.get_modifier(key).map_or(false, |v| v == value)
+}
