@@ -103,6 +103,13 @@ impl MetaLanguageExecutor {
         
         // Parse the document
         let blocks = parse_document(content).map_err(|e| ExecutorError::ExecutionFailed(e.to_string()))?;
+        println!("DEBUG: Parsed {} blocks from document", blocks.len());
+        
+        // Debug: Print summary of parsed blocks
+        for (i, block) in blocks.iter().enumerate() {
+            println!("DEBUG: Block {}: type='{}', name={:?}, content_length={}", 
+                     i, block.block_type, block.name, block.content.len());
+        }
         
         // Store the current outputs before clearing
         let previous_outputs = self.outputs.clone();
@@ -116,14 +123,29 @@ impl MetaLanguageExecutor {
         self.processing_blocks.clear();
         
         // Register all blocks and identify fallbacks
-        for block in &blocks {
+        for (index, block) in blocks.iter().enumerate() {
+            // Generate a name for the block if it doesn't have one
+            let block_key = if let Some(name) = &block.name {
+                name.clone()
+            } else {
+                // Generate a unique name based on block type and index
+                let generated_name = format!("{}_{}", block.block_type, index);
+                println!("DEBUG: Generated name '{}' for unnamed block of type '{}'", 
+                         generated_name, block.block_type);
+                generated_name
+            };
+            
+            println!("DEBUG: Registering block '{}' of type '{}' in executor", 
+                     block_key, block.block_type);
+            self.blocks.insert(block_key.clone(), block.clone());
+            
+            // Check if this is a fallback block
             if let Some(name) = &block.name {
-                self.blocks.insert(name.clone(), block.clone());
-                
-                // Check if this is a fallback block
                 if name.ends_with("-fallback") {
                     let original_name = name.trim_end_matches("-fallback");
                     self.fallbacks.insert(original_name.to_string(), name.clone());
+                    println!("DEBUG: Registered fallback '{}' for block '{}'", 
+                             name, original_name);
                 }
                 
                 // Store content of data blocks directly in outputs
@@ -193,10 +215,23 @@ impl MetaLanguageExecutor {
         
         // Now process executable blocks that don't depend on other blocks
         for block in blocks {
-            if let Some(name) = &block.name {
-                if self.is_executable_block(&block) && !self.has_explicit_dependency(&block) {
-                    self.execute_block(name)?;
-                }
+            // Use the block's name if available, otherwise generate one
+            let block_key = if let Some(name) = &block.name {
+                name.clone()
+            } else {
+                // Look up the generated name in the blocks map
+                let block_type = &block.block_type;
+                self.blocks.iter()
+                    .find(|(_, b)| b.block_type == *block_type && b.content == block.content)
+                    .map(|(k, _)| k.clone())
+                    .unwrap_or_else(|| format!("{}_unknown", block_type))
+            };
+            
+            if self.is_executable_block(&block) && !self.has_explicit_dependency(&block) {
+                println!("DEBUG: Executing independent block: '{}'", block_key);
+                self.execute_block(&block_key)?;
+            } else {
+                println!("DEBUG: Skipping non-executable or dependent block: '{}'", block_key);
             }
         }
         
