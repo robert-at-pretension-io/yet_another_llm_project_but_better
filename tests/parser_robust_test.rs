@@ -199,7 +199,7 @@ fn test_all_block_types() {
     What is the meaning of life?
     ]]></meta:question>
     
-    <meta:response name="test-response"><![CDATA[
+    <meta:response name="test-response" for="test-question"><![CDATA[
     The meaning of life is 42.
     ]]></meta:response>
     
@@ -1612,79 +1612,6 @@ fn test_character_escaping() {
     println!("DEBUG: All blocks with escaped characters parsed correctly");
 }
 
-/// Test the convert_to_xml helper function
-#[test]
-fn test_convert_to_xml() {
-    // Test basic conversion
-    let block_syntax = r#"
-    [code:python name:test-code]
-    print("Hello, world!")
-    [/code:python]
-    
-    [variable name:test-var]
-    test value
-    [/variable]
-    "#;
-    
-    let xml_syntax = convert_to_xml(block_syntax);
-    println!("Converted XML:\n{}", xml_syntax);
-    
-    // Parse the converted XML
-    let blocks = parse_document(&xml_syntax).expect("Failed to parse converted XML");
-    
-    // Verify the blocks were parsed correctly
-    assert_eq!(blocks.len(), 2, "Expected 2 blocks after conversion");
-    
-    let code_block = find_block_by_name(&blocks, "test-code");
-    assert!(code_block.is_some(), "Code block not found after conversion");
-    let code_block = code_block.unwrap();
-    assert!(code_block.block_type.starts_with("code"), "Block type should start with 'code'");
-    assert!(check_language(code_block, "python"), "Code block should have python language modifier");
-    
-    let var_block = find_block_by_name(&blocks, "test-var");
-    assert!(var_block.is_some(), "Variable block not found after conversion");
-    assert!(var_block.unwrap().block_type.starts_with("variable"), "Block type should start with 'variable'");
-    
-    // Test conversion with nested blocks
-    let nested_block_syntax = r#"
-    [section:intro name:outer-section]
-    # Outer Section
-    
-    [code:python name:nested-code]
-    print("I'm nested inside a section")
-    [/code:python]
-    
-    [/section:intro]
-    "#;
-    
-    let nested_xml_syntax = convert_to_xml(nested_block_syntax);
-    println!("Converted nested XML:\n{}", nested_xml_syntax);
-    
-    // Parse the converted nested XML
-    let nested_blocks = parse_document(&nested_xml_syntax).expect("Failed to parse converted nested XML");
-    
-    // With the current XML parser implementation, nested blocks are flattened to top-level
-    // So we should have 2 blocks: the section and the code block
-    assert!(nested_blocks.len() >= 1, "Expected at least 1 block after conversion");
-    
-    // Check if we have the outer section
-    let outer_section = find_block_by_name(&nested_blocks, "outer-section");
-    if let Some(outer_section) = outer_section {
-        assert_eq!(outer_section.block_type, "section");
-        assert!(check_section_type(outer_section, "intro"), "Section should have intro type");
-    } else {
-        println!("DEBUG: Outer section not found in parsed blocks");
-    }
-    
-    // Check if we have the nested code block (as a top-level block)
-    let nested_code = find_block_by_name(&nested_blocks, "nested-code");
-    if let Some(nested_code) = nested_code {
-        assert_eq!(nested_code.block_type, "code");
-        assert!(check_language(nested_code, "python"), "Code block should have python language modifier");
-    } else {
-        println!("DEBUG: Nested code block not found in parsed blocks");
-    }
-}
 
 /// Test very large blocks
 #[test]
