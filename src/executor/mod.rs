@@ -711,7 +711,7 @@ impl MetaLanguageExecutor {
         
         // Execute the LLM request using the synchronous client
         let result = match llm_client.send_prompt(&prompt) {
-            Ok(response) => Ok(response.to_string()),
+            Ok(response) => Ok(response),
             Err(e) => Err(ExecutorError::LlmApiError(e.to_string())),
         };
         
@@ -721,7 +721,8 @@ impl MetaLanguageExecutor {
                 // Create a response block if the question block has a name
                 if let Some(name) = &block.name {
                     let response_block_name = format!("{}_response", name);
-                    let mut response_block = Block::new("response", Some(&response_block_name), &response);
+                    let response_str = response.as_str();
+                    let mut response_block = Block::new("response", Some(&response_block_name), response_str);
                     
                     // Copy relevant modifiers from the question block
                     for (key, value) in &block.modifiers {
@@ -737,7 +738,7 @@ impl MetaLanguageExecutor {
                     self.blocks.insert(response_block_name.clone(), response_block);
                     
                     // Store the response in outputs
-                    self.outputs.insert(response_block_name, response.clone());
+                    self.outputs.insert(response_block_name, response);
                 }
                 
                 Ok(response)
