@@ -134,6 +134,7 @@ fn test_all_block_types() {
     assert!(blocks.iter().any(|b| b.block_type == "conditional"), "Missing conditional block ");
     assert!(blocks.iter().any(|b| b.block_type == "results"), "Missing results block ");
     assert!(blocks.iter().any(|b| b.block_type == "error_results"), "Missing error_results block ");
+    assert!(blocks.iter().any(|b| b.block_type == "template"), "Missing template block ");
 }
 
 
