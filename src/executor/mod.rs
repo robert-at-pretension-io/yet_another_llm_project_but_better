@@ -748,7 +748,7 @@ impl MetaLanguageExecutor {
     }
     
     // Generate a results block for an executed block
-    pub fn generate_results_block(&self, block: &Block, output: &str, format_type: Option<&str>) -> Block {
+    pub fn generate_results_block(&self, block: &Block, output: &str, format_type: Option<String>) -> Block {
         let mut results_block = Block::new("results", None, output);
         
         // Add "for" modifier pointing to the original block
@@ -757,8 +757,8 @@ impl MetaLanguageExecutor {
         }
         
         // Set format if specified or determine automatically
-        let format = format_type.unwrap_or_else(|| self.determine_format_from_content(output).as_str());
-        results_block.add_modifier("format", format);
+        let format = format_type.unwrap_or_else(|| self.determine_format_from_content(output));
+        results_block.add_modifier("format", &format);
         
         // Apply default display setting
         results_block.add_modifier("display", "block");
@@ -977,8 +977,8 @@ impl MetaLanguageExecutor {
                 
                 // Determine format from block modifiers or content
                 let format = block.get_modifier("format")
-                    .map(|f| f.as_str())
-                    .or_else(|| Some(self.determine_format_from_content(&output).as_str()));
+                    .map(|f| f.to_string())
+                    .or_else(|| Some(self.determine_format_from_content(&output)));
                 
                 // Create a results block
                 let results_block = self.generate_results_block(&block, &output, format);
