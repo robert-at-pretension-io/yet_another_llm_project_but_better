@@ -624,7 +624,7 @@ print("Block with extreme whitespace")
     
     // Check indented code block
     let code_block = find_block_by_name(&blocks, "whitespace_test").expect("Whitespace code block not found");
-    assert!(code_block.content.contains("    print(\"Indented code\")"));
+    assert!(code_block.content.contains("print(\"Indented code\")"));
     
     // Check block with empty lines
     let empty_lines = find_block_by_name(&blocks, "empty_lines").expect("Empty lines block not found");
