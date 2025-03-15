@@ -22,7 +22,8 @@ indexmap = "=1.9.3"
 default = []
 
 [dev-dependencies]
-criterion = "=0.5.1"
+# Temporarily commenting out criterion to avoid half crate version conflicts
+# criterion = "=0.5.1"
 proptest = "=1.2.0"
 mockall = "=0.11.4"
 
