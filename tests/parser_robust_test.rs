@@ -20,6 +20,7 @@ fn convert_to_xml(input: &str) -> String {
     let mut in_block = false;
     let mut current_block_type = String::new();
     let mut content_buffer = String::new();
+    let mut open_tags = Vec::new(); // Track open tags for proper nesting
     
     for line in input.lines() {
         // Check for opening tag
@@ -83,6 +84,7 @@ fn convert_to_xml(input: &str) -> String {
             
             in_block = true;
             current_block_type = tag_name.to_string();
+            open_tags.push(tag_name.to_string()); // Track this open tag
         }
         // Check for closing tag
         else if let Some(captures) = closing_tag_regex.captures(line) {
@@ -104,7 +106,16 @@ fn convert_to_xml(input: &str) -> String {
                 };
                 
                 result.push_str(&format!("</meta:{}>", tag_name));
-                in_block = false;
+                
+                // Pop the most recently opened tag
+                if !open_tags.is_empty() {
+                    open_tags.pop();
+                }
+                
+                in_block = !open_tags.is_empty(); // We're still in a block if there are open tags
+                if in_block {
+                    current_block_type = open_tags.last().unwrap().clone();
+                }
             }
         }
         // Regular content line
@@ -121,7 +132,11 @@ fn convert_to_xml(input: &str) -> String {
         result.push_str("<![CDATA[\n");
         result.push_str(&content_buffer);
         result.push_str("\n]]>\n");
-        result.push_str(&format!("</meta:{}>", current_block_type));
+    }
+    
+    // Close any remaining open tags in reverse order
+    for tag in open_tags.iter().rev() {
+        result.push_str(&format!("</meta:{}>", tag));
     }
     
     // Close document
@@ -1298,7 +1313,7 @@ def setup_environment():
 
 <meta:section type="data_processing" name="data_section"><![CDATA[
 ## Data Processing
-]]>
+]]></meta:section>
 
 <meta:code language="python" name="process_data" depends="setup_code"><![CDATA[
 def process_data(source="${config.data_source}"):
@@ -1324,7 +1339,7 @@ python -c "import json; print(json.dumps(${sample_data}))"
 
 <meta:section type="visualization" name="viz_section"><![CDATA[
 ## Visualization
-]]>
+]]></meta:section>
 
 <meta:code language="python" name="create_viz" depends="process_data"><![CDATA[
 def create_visualization(data):
@@ -1366,7 +1381,6 @@ This section only appears if max_rows is greater than 500.
 <meta:error_results for="missing_block"><![CDATA[
 Error: Block not found
 ]]></meta:error_results>
-</meta:section>
 </meta:document>"#;
 
     let blocks = parse_document(input).expect("Failed to parse complex document");
