@@ -73,7 +73,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<(String, bool), Stri
                 .map_err(|e| format!("Failed to execute shell command: {}", e))?;
             
             if output.status.success() {
-                Ok(String::from_utf8_lossy(&output.stdout).to_string())
+                Ok((String::from_utf8_lossy(&output.stdout).to_string(), false))
             } else {
                 Err(String::from_utf8_lossy(&output.stderr).to_string())
             }
@@ -163,7 +163,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<(String, bool), Stri
                                  response_block.chars().take(100).collect::<String>().replace("\n", "\\n"));
                         
                         // File needs to be updated with the response
-                        let needs_update = true;
+                        let mut needs_update = true;
                     } else {
                         println!("DEBUG: Could not find [/question] tag in the document");
                     }
