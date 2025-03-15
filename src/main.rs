@@ -70,10 +70,31 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
             // For question blocks, we need to use the LLM client
             println!("Processing question: {}", block.content);
             
-            // Check if the file already has a response block
+            // Check if the file already has a response block for this specific question
             let file_content = fs::read_to_string(file_path).unwrap_or_default();
-            if file_content.contains("[response]") && file_content.contains("[/response]") {
-                println!("File already has a response block, skipping question execution");
+            
+            // Get the question block name or use a default identifier
+            let block_identifier = block.name.as_ref()
+                .map(|name| format!("for=\"{}\"", name))
+                .unwrap_or_default();
+                
+            // Check for a complete response block that matches this question
+            let has_response = if !block_identifier.is_empty() {
+                // Look for a response block with the specific identifier
+                file_content.contains(&format!("[response {}]", block_identifier)) && 
+                file_content.contains("[/response]")
+            } else {
+                // For unnamed blocks, check if there's any response after this question
+                if let Some(question_end_pos) = file_content.find("[/question]") {
+                    let after_question = &file_content[question_end_pos..];
+                    after_question.contains("[response") && after_question.contains("[/response]")
+                } else {
+                    false
+                }
+            };
+            
+            if has_response {
+                println!("File already has a response block for this question, skipping execution");
                 return Ok("Response already exists in file".to_string());
             }
             
@@ -99,19 +120,25 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                         executor.outputs.insert("question_response".to_string(), response.clone());
                     }
                     
-                    // Create a simple response block directly
+                    // Create a response block with proper attribution to the question
                     let mut updated_content = file_content.clone();
-                    if !updated_content.contains("[response]") {
-                        // Find the end of the question block
-                        if let Some(pos) = updated_content.find("[/question]") {
-                            let insert_pos = pos + "[/question]".len();
-                            let response_block = format!("\n\n[response]\n{}\n[/response]", response);
-                            updated_content.insert_str(insert_pos, &response_block);
-                            
-                            // Write the updated content back to the file
-                            fs::write(file_path, &updated_content)
-                                .unwrap_or_else(|_| println!("Failed to write updated file"));
-                        }
+                    
+                    // Find the end of the question block
+                    if let Some(pos) = updated_content.find("[/question]") {
+                        let insert_pos = pos + "[/question]".len();
+                        
+                        // Create response block with attribution if the question has a name
+                        let response_block = if !block_identifier.is_empty() {
+                            format!("\n\n[response {}]\n{}\n[/response]", block_identifier, response)
+                        } else {
+                            format!("\n\n[response]\n{}\n[/response]", response)
+                        };
+                        
+                        updated_content.insert_str(insert_pos, &response_block);
+                        
+                        // Write the updated content back to the file
+                        fs::write(file_path, &updated_content)
+                            .unwrap_or_else(|_| println!("Failed to write updated file"));
                     }
                     
                     Ok(response)
@@ -302,14 +329,11 @@ fn main() -> Result<(), anyhow::Error> {
                 // Read the current content to check if we need to process it
                 let current_content = fs::read_to_string(&path).unwrap_or_default();
                 
-                // Only process if the file doesn't already have a response block
-                if !current_content.contains("[response]") {
-                    println!("File changed: {}", path);
-                    if let Err(e) = process_file(&PathBuf::from(&path)) {
-                        eprintln!("Error processing file after change: {:?}", e);
-                    }
-                } else {
-                    println!("File already has response blocks, skipping processing");
+                // Process the file regardless of existing response blocks
+                // The execute_block function will handle checking for specific responses
+                println!("File changed: {}", path);
+                if let Err(e) = process_file(&PathBuf::from(&path)) {
+                    eprintln!("Error processing file after change: {:?}", e);
                 }
             },
             Ok(FileEvent { event_type: FileEventType::Created, .. }) => {
