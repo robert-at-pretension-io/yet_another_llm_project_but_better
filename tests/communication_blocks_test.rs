@@ -38,15 +38,14 @@ mod tests {
     }
     
     #[test]
-     // Temporarily ignore test until we fix the block parsing
     fn test_question_response_sequence() {
         let input = r#"<?xml version="1.0" encoding="UTF-8"?>
 <meta:document xmlns:meta="https://example.com/meta-language">
-  <meta:question>
+  <meta:question name="robotics-laws">
   What are the three laws of robotics?
   </meta:question>
 
-  <meta:response>
+  <meta:response name="robotics-laws-response" for="robotics-laws">
   The three laws of robotics are:
   1. A robot may not harm a human.
   2. A robot must obey human orders.
@@ -65,7 +64,7 @@ mod tests {
     fn test_question_with_multiline_content() {
         let input = r#"<?xml version="1.0" encoding="UTF-8"?>
 <meta:document xmlns:meta="https://example.com/meta-language">
-  <meta:question model="gpt-4">
+  <meta:question name="recursion-explanation" model="gpt-4">
   Can you explain:
   1. The concept of recursion
   2. How to implement a recursive function
@@ -86,7 +85,7 @@ mod tests {
     fn test_simple_response_block() {
         let input = r#"<?xml version="1.0" encoding="UTF-8"?>
 <meta:document xmlns:meta="https://example.com/meta-language">
-  <meta:response>
+  <meta:response name="simple-response" for="simple-question">
   This is a simple response.
   </meta:response>
 </meta:document>"#;
