@@ -2,11 +2,14 @@ use std::env;
 use std::process;
 use std::sync::mpsc::channel;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use yet_another_llm_project_but_better::file_watcher::{FileEvent, FileEventType, FileWatcher};
 use yet_another_llm_project_but_better::parser::{parse_document, Block};
 use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
+
+// Try to use chrono if available, otherwise use a simpler timestamp format
+#[cfg(feature = "chrono")]
 use chrono;
 
 fn main() {
@@ -48,7 +51,18 @@ fn main() {
             match event.event_type {
                 FileEventType::Created | FileEventType::Modified => {
                     println!("\n📄 File changed: {}", event.path);
-                    println!("Timestamp: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+                    
+                    // Get timestamp - use chrono if available, otherwise use a simpler format
+                    #[cfg(feature = "chrono")]
+                    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+                    
+                    #[cfg(not(feature = "chrono"))]
+                    let timestamp = {
+                        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+                        format!("{}s since epoch", now.as_secs())
+                    };
+                    
+                    println!("Timestamp: {}", timestamp);
                     
                     // Read the file content
                     match std::fs::read_to_string(&event.path) {

@@ -16,6 +16,10 @@ thiserror = "1.0.50"
 anyhow = "1.0.75"
 tempfile = "3.8.1"
 rand = "0.8.5"
+chrono = { version = "0.4", optional = true }
+
+[features]
+default = ["chrono"]
 
 [dev-dependencies]
 criterion = "0.5.1"
