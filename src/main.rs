@@ -20,17 +20,35 @@ use yet_another_llm_project_but_better::{
 fn execute_block(block: &Block) -> Result<String, String> {
     match block.block_type.as_str() {
         "code:python" => {
-            // Execute Python code
+            // Try to execute Python code with "python" first
             let output = Command::new("python")
                 .arg("-c")
                 .arg(&block.content)
-                .output()
-                .map_err(|e| format!("Failed to execute Python: {}", e))?;
+                .output();
             
-            if output.status.success() {
-                Ok(String::from_utf8_lossy(&output.stdout).to_string())
-            } else {
-                Err(String::from_utf8_lossy(&output.stderr).to_string())
+            match output {
+                Ok(output) => {
+                    if output.status.success() {
+                        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+                    } else {
+                        Err(String::from_utf8_lossy(&output.stderr).to_string())
+                    }
+                },
+                Err(e) => {
+                    // If "python" fails, try "python3"
+                    println!("Python command failed: {}. Trying python3...", e);
+                    let output = Command::new("python3")
+                        .arg("-c")
+                        .arg(&block.content)
+                        .output()
+                        .map_err(|e| format!("Failed to execute Python3: {}", e))?;
+                    
+                    if output.status.success() {
+                        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+                    } else {
+                        Err(String::from_utf8_lossy(&output.stderr).to_string())
+                    }
+                }
             }
         },
         "shell" => {
