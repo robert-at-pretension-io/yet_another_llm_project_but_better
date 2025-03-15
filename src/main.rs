@@ -26,7 +26,8 @@ lazy_static! {
 }
 
 /// Executes a block based on its type
-fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
+/// Returns a tuple with (execution_result, file_needs_update)
+fn execute_block(block: &Block, file_path: &Path) -> Result<(String, bool), String> {
     // Get the file path as a string for the executor map
     let file_path_str = file_path.to_string_lossy().to_string();
     
@@ -41,7 +42,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
             match output {
                 Ok(output) => {
                     if output.status.success() {
-                        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+                        Ok((String::from_utf8_lossy(&output.stdout).to_string(), false))
                     } else {
                         Err(String::from_utf8_lossy(&output.stderr).to_string())
                     }
@@ -56,7 +57,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                         .map_err(|e| format!("Failed to execute Python3: {}", e))?;
                     
                     if output.status.success() {
-                        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+                        Ok((String::from_utf8_lossy(&output.stdout).to_string(), false))
                     } else {
                         Err(String::from_utf8_lossy(&output.stderr).to_string())
                     }
@@ -106,7 +107,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
             
             if has_response {
                 println!("File already has a response block for this question, skipping execution");
-                return Ok("Response already exists in file".to_string());
+                return Ok(("Response already exists in file".to_string(), false));
             }
             
             // Get or create an executor for this file
@@ -161,13 +162,13 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                         println!("DEBUG: Response block preview: {}", 
                                  response_block.chars().take(100).collect::<String>().replace("\n", "\\n"));
                         
-                        // Set file_updated to true so the executor will update the file
-                        file_updated = true;
+                        // File needs to be updated with the response
+                        let needs_update = true;
                     } else {
                         println!("DEBUG: Could not find [/question] tag in the document");
                     }
                     
-                    Ok(response)
+                    Ok((response, needs_update))
                 },
                 Err(e) => Err(format!("Failed to execute question: {}", e))
             }
@@ -263,14 +264,14 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
                      block.name.as_ref().map_or(String::new(), |n| format!(" ({})", n)));
             
             match execute_block(block, file_path) {
-                Ok(output) => {
+                Ok((output, needs_update)) => {
                     println!("=== Output from block {} ===", 
                              block.name.as_ref().unwrap_or(&block.block_type));
                     println!("{}", output);
                     println!("=== End of output ===");
                     
-                    // For question blocks, mark that we need to update the file
-                    if block.block_type == "question" {
+                    // Update the file_updated flag based on the execution result
+                    if needs_update {
                         file_updated = true;
                     }
                 },
