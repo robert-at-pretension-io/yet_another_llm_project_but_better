@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:code language="python" name="hello" auto_execute="true">
+  <![CDATA[
+  print("Hello, world!!")
+  ]]>
+  </meta:code>
+</meta:document>

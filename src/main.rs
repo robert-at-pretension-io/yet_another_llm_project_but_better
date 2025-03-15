@@ -6,18 +6,13 @@ use std::sync::{Arc, Mutex};
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 use std::process;
+use std::thread;
+use std::time::Duration;
 
 use anyhow::{Result, Context, anyhow};
 use lazy_static::lazy_static;
 use chrono::Local;
 use ctrlc;
-
-// Debug logging function that only prints if verbose mode is enabled
-fn log_debug(message: &str) {
-    if CONFIG.lock().unwrap().verbose {
-        println!("[{}] DEBUG: {}", Local::now().format("%H:%M:%S"), message);
-    }
-}
 
 // Import from our library
 use yet_another_llm_project_but_better::{
@@ -29,6 +24,13 @@ use yet_another_llm_project_but_better::{
 // Global configuration settings
 lazy_static! {
     static ref CONFIG: Arc<Mutex<Config>> = Arc::new(Mutex::new(Config::default()));
+}
+
+// Debug logging function that only prints if verbose mode is enabled
+fn log_debug(message: &str) {
+    if CONFIG.lock().unwrap().verbose {
+        println!("[{}] DEBUG: {}", Local::now().format("%H:%M:%S"), message);
+    }
 }
 
 // Configuration structure
@@ -46,7 +48,7 @@ struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            watch_mode: false,
+            watch_mode: true,
             watch_paths: vec![".".to_string()],
             watch_extensions: vec![".meta".to_string(), ".xml".to_string()],
             auto_execute: true,
@@ -56,6 +58,12 @@ impl Default for Config {
             executor_map: HashMap::new(),
         }
     }
+}
+
+// Helper function to convert String errors to anyhow errors for file watcher
+fn watch(watcher: &mut FileWatcher, path: String) -> Result<()> {
+    watcher.watch(path.clone())
+        .map_err(|e| anyhow!("Failed to watch path {}: {}", path, e))
 }
 
 // Process a file immediately
@@ -114,7 +122,7 @@ fn process_file(file_path: &str) -> Result<()> {
     log_debug(&format!("Completed process_file in {:.2?}", elapsed));
     
     if config.verbose {
-        println!("[{}] Finished processing {} in {:.2?}", 
+        println!("[{}] Finished processing {} in {:.2?}",
                  Local::now().format("%H:%M:%S"), file_path, elapsed);
     }
     
@@ -292,7 +300,7 @@ fn handle_file_event(event: FileEvent) {
     println!("[{}] File changed: {}", Local::now().format("%H:%M:%S"), event.path);
     
     // Small delay to ensure the file is fully written
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(100));
     
     if let Err(e) = process_file(&event.path) {
         eprintln!("Error processing file {}: {}", event.path, e);
@@ -318,7 +326,7 @@ fn start_file_watcher() -> Result<()> {
     
     for path in &config.watch_paths {
         log_debug(&format!("Attempting to watch path: {}", path));
-        if let Err(e) = watcher.watch(path.clone()) {
+        if let Err(e) = watch(&mut watcher, path.clone()) {
             eprintln!("Error watching path {}: {}", path, e);
             log_debug(&format!("Error watching path {}: {}", path, e));
         } else {
@@ -328,7 +336,7 @@ fn start_file_watcher() -> Result<()> {
             
             // Print which extensions we're monitoring
             println!("[{}] Monitoring files with extensions: {}", 
-                     Local::now().format("%H:%M:%S"),
+                     Local::now().format("%H:%M:%S"), 
                      config.watch_extensions.join(", "));
         }
     }
@@ -363,7 +371,7 @@ fn start_file_watcher() -> Result<()> {
         }
         
         // Wait for file events with timeout to allow checking for interrupts
-        match rx.recv_timeout(std::time::Duration::from_millis(500)) {
+        match rx.recv_timeout(Duration::from_millis(500)) {
             Ok(event) => {
                 log_debug(&format!("Received file event for: {}", event.path));
                 handle_file_event(event);
