@@ -1,6 +1,4 @@
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::Path;
+use std::fs;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -38,11 +36,14 @@ fn test_file_watcher_detects_new_blocks() {
     let detected = Arc::new(Mutex::new(false));
     let detected_clone = Arc::clone(&detected);
     
+    // Clone the file path before moving it into the closure
+    let file_path_clone = file_path.clone();
+    
     // Spawn a thread to handle file events
-    let handle = thread::spawn(move || {
+    let _handle = thread::spawn(move || {
         for event in receiver {
             if let FileEvent { path, event_type: FileEventType::Modified } = event {
-                if path == file_path.to_str().unwrap() {
+                if path == file_path_clone.to_str().unwrap() {
                     // Read the updated file content
                     let content = fs::read_to_string(&path).expect("Failed to read file");
                     
@@ -150,11 +151,14 @@ fn test_file_watcher_detects_modified_blocks() {
     watcher.watch(file_path.to_str().unwrap().to_string())
         .expect("Failed to start watching file");
     
+    // Clone the file path before moving it into the closure
+    let file_path_clone = file_path.clone();
+    
     // Spawn a thread to handle file events
-    let handle = thread::spawn(move || {
+    let _handle = thread::spawn(move || {
         for event in receiver {
             if let FileEvent { path, event_type: FileEventType::Modified } = event {
-                if path == file_path.to_str().unwrap() {
+                if path == file_path_clone.to_str().unwrap() {
                     // Read the updated file content
                     let content = fs::read_to_string(&path).expect("Failed to read file");
                     
