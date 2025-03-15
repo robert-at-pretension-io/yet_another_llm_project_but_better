@@ -1,4 +1,3 @@
-// tests/enhanced_variable_reference_test.rs
 use yet_another_llm_project_but_better::parser::{parse_document, Block};
 use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
 use std::collections::HashMap;

@@ -469,6 +469,7 @@ impl MetaLanguageExecutor {
     }
     
     // Process variable references like ${block_name} or ${block_name:fallback_value}
+    // Also handles enhanced variable references with modifiers like ${block_name:format=markdown}
     pub fn process_variable_references(&self, content: &str) -> String {
         let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
                            std::env::var("LLM_DEBUG_VARS").is_ok();
@@ -591,8 +592,11 @@ impl MetaLanguageExecutor {
         
         let mut result = content.to_string();
         
+        // Process conditional blocks first (if:condition_var)
+        result = self.process_conditional_blocks(&result);
+        
         // Find all variable references
-        let references = extract_variable_references(content);
+        let references = extract_variable_references(&result);
         
         // Replace each reference with its value
         for var_name in references {
@@ -605,29 +609,31 @@ impl MetaLanguageExecutor {
             // The original variable reference to be replaced if a value is found
             let var_ref = format!("${{{}}}", var_name);
             
-            // Check if the variable name contains a fallback value (format: var_name:fallback)
-            let (actual_var_name, inline_fallback) = if var_name.contains(':') {
-                let parts: Vec<&str> = var_name.splitn(2, ':').collect();
-                (parts[0].to_string(), Some(parts[1].to_string()))
-            } else {
-                (var_name.clone(), None)
-            };
+            // Parse variable name and modifiers
+            let (actual_var_name, modifiers) = self.parse_variable_reference(&var_name);
             
             // Debug output for troubleshooting
-            println!("Looking for variable: {}", actual_var_name);
+            if debug_enabled {
+                println!("Looking for variable: {}", actual_var_name);
+                println!("With modifiers: {:?}", modifiers);
+            }
             
             // Debug: Print all available outputs for troubleshooting
-            println!("Available outputs:");
-            for (k, v) in &self.outputs {
-                println!("  '{}' => '{}'", k, v);
+            if debug_enabled {
+                println!("Available outputs:");
+                for (k, v) in &self.outputs {
+                    println!("  '{}' => '{}'", k, v);
+                }
             }
             
             // Try to get the value using our lookup function
             if let Some(value) = self.lookup_variable(&actual_var_name) {
-                println!("Found value for {}: {}", actual_var_name, value);
+                if debug_enabled {
+                    println!("Found value for {}: {}", actual_var_name, value);
+                }
                 
-                // Apply any modifiers to the value
-                let modified_value = self.apply_modifiers_to_variable(&actual_var_name, &value);
+                // Apply modifiers to the value
+                let modified_value = self.apply_enhanced_modifiers(&actual_var_name, &value, &modifiers);
                 
                 // Check if the value itself contains variable references
                 if modified_value.contains("${") {
@@ -658,14 +664,14 @@ impl MetaLanguageExecutor {
                     } else {
                         result = result.replace(&var_ref, &value);
                     }
-                } else if let Some(fallback_value) = inline_fallback {
+                } else if let Some(fallback_value) = modifiers.get("fallback") {
                     // Use inline fallback if provided
-                    result = result.replace(&var_ref, &fallback_value);
+                    result = result.replace(&var_ref, fallback_value);
                 }
                 // If no fallback value is available, leave the reference as is
-            } else if let Some(fallback_value) = inline_fallback {
+            } else if let Some(fallback_value) = modifiers.get("fallback") {
                 // Use inline fallback if provided
-                result = result.replace(&var_ref, &fallback_value);
+                result = result.replace(&var_ref, fallback_value);
             } else {
                 // Check if the block has a fallback modifier
                 if let Some(block) = self.blocks.get(&actual_var_name) {
@@ -675,11 +681,207 @@ impl MetaLanguageExecutor {
                     }
                 }
                 // If no value or fallback found, leave the reference as is (do nothing)
-                println!("No value found for variable: {}", actual_var_name);
+                if debug_enabled {
+                    println!("No value found for variable: {}", actual_var_name);
+                }
             }
         }
         
         result
+    }
+    
+    // Parse a variable reference into name and modifiers
+    fn parse_variable_reference(&self, var_ref: &str) -> (String, HashMap<String, String>) {
+        let mut modifiers = HashMap::new();
+        
+        // Check if the variable reference contains modifiers
+        if var_ref.contains(':') {
+            let parts: Vec<&str> = var_ref.splitn(2, ':').collect();
+            let var_name = parts[0].to_string();
+            
+            // Parse modifiers (format: key=value,key2=value2)
+            if parts.len() > 1 {
+                let modifier_str = parts[1];
+                
+                // Simple fallback value without key
+                if !modifier_str.contains('=') {
+                    modifiers.insert("fallback".to_string(), modifier_str.to_string());
+                    return (var_name, modifiers);
+                }
+                
+                // Parse key-value modifiers
+                for modifier in modifier_str.split(',') {
+                    if let Some(eq_pos) = modifier.find('=') {
+                        let key = modifier[..eq_pos].trim().to_string();
+                        let value = modifier[eq_pos+1..].trim().to_string();
+                        modifiers.insert(key, value);
+                    } else {
+                        // Handle boolean flags without values
+                        modifiers.insert(modifier.trim().to_string(), "true".to_string());
+                    }
+                }
+            }
+            
+            return (var_name, modifiers);
+        }
+        
+        // No modifiers
+        (var_ref.to_string(), modifiers)
+    }
+    
+    // Process conditional blocks like ${if:condition_var}content${endif}
+    fn process_conditional_blocks(&self, content: &str) -> String {
+        let mut result = content.to_string();
+        
+        // Find all conditional blocks
+        let if_pattern = r"\$\{if:([^}]+)\}(.*?)\$\{endif\}";
+        let re = regex::Regex::new(if_pattern).unwrap();
+        
+        // Process each conditional block
+        while let Some(captures) = re.captures(&result) {
+            let full_match = captures.get(0).unwrap().as_str();
+            let condition_var = captures.get(1).unwrap().as_str();
+            let conditional_content = captures.get(2).unwrap().as_str();
+            
+            // Evaluate the condition
+            let condition_met = if let Some(value) = self.lookup_variable(condition_var) {
+                value == "true" || value == "1" || value == "yes" || value == "on"
+            } else {
+                false
+            };
+            
+            // Replace the conditional block based on the condition
+            if condition_met {
+                result = result.replace(full_match, conditional_content);
+            } else {
+                result = result.replace(full_match, "");
+            }
+        }
+        
+        result
+    }
+    
+    // Apply enhanced modifiers to variable values
+    fn apply_enhanced_modifiers(&self, var_name: &str, value: &str, modifiers: &HashMap<String, String>) -> String {
+        let mut result = value.to_string();
+        
+        // Apply modifiers in a specific order
+        
+        // 1. Format modifier
+        if let Some(format) = modifiers.get("format") {
+            result = self.apply_format_modifier(&result, format);
+        }
+        
+        // 2. Highlighting
+        if let Some(highlight) = modifiers.get("highlight") {
+            if highlight == "true" {
+                // Auto-detect language
+                if let Some(block) = self.blocks.get(var_name) {
+                    if block.block_type.starts_with("code:") {
+                        let lang = block.block_type.split(':').nth(1).unwrap_or("text");
+                        result = format!("```{}\n{}\n```", lang, result);
+                    } else {
+                        result = format!("```\n{}\n```", result);
+                    }
+                } else {
+                    result = format!("```\n{}\n```", result);
+                }
+            } else {
+                // Use specified language
+                result = format!("```{}\n{}\n```", highlight, result);
+            }
+        }
+        
+        // 3. Limit modifier
+        if let Some(limit_str) = modifiers.get("limit") {
+            if let Ok(limit) = limit_str.parse::<usize>() {
+                if result.len() > limit {
+                    let ellipsis = modifiers.get("ellipsis").unwrap_or(&"...".to_string()).clone();
+                    result = format!("{}{}", &result[..limit], ellipsis);
+                }
+            }
+        }
+        
+        // 4. Include modifiers for conditional inclusion
+        if let Some(include_condition) = modifiers.get("include_sensitive") {
+            // Check if the condition is true
+            let include = if include_condition.starts_with("${") && include_condition.ends_with("}") {
+                // This is a variable reference
+                let var_name = include_condition.trim_start_matches("${").trim_end_matches("}");
+                if let Some(value) = self.lookup_variable(var_name) {
+                    value == "true" || value == "1" || value == "yes" || value == "on"
+                } else {
+                    false
+                }
+            } else {
+                include_condition == "true" || include_condition == "1" || include_condition == "yes" || include_condition == "on"
+            };
+            
+            if !include {
+                // Remove sensitive information
+                if let Ok(mut json_value) = serde_json::from_str::<serde_json::Value>(&result) {
+                    if let Some(obj) = json_value.as_object_mut() {
+                        obj.remove("sensitive_info");
+                    }
+                    if let Ok(filtered) = serde_json::to_string_pretty(&json_value) {
+                        result = filtered;
+                    }
+                }
+            }
+        }
+        
+        // Apply standard modifiers from the block
+        if let Some(block) = self.blocks.get(var_name) {
+            result = self.apply_modifiers_to_variable(var_name, &result);
+        }
+        
+        result
+    }
+    
+    // Apply format modifier to content
+    fn apply_format_modifier(&self, content: &str, format: &str) -> String {
+        match format {
+            "markdown" => {
+                // Convert JSON to markdown if possible
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                    let mut markdown = String::new();
+                    
+                    if let Some(obj) = json_value.as_object() {
+                        markdown.push_str("## Data\n\n");
+                        for (key, value) in obj {
+                            markdown.push_str(&format!("**{}**: ", key));
+                            
+                            match value {
+                                serde_json::Value::Array(arr) => {
+                                    markdown.push_str("\n");
+                                    for (i, item) in arr.iter().enumerate() {
+                                        markdown.push_str(&format!("- {}\n", item));
+                                    }
+                                },
+                                _ => {
+                                    markdown.push_str(&format!("{}\n", value));
+                                }
+                            }
+                        }
+                    } else if let Some(arr) = json_value.as_array() {
+                        markdown.push_str("## Items\n\n");
+                        for item in arr {
+                            markdown.push_str(&format!("- {}\n", item));
+                        }
+                    }
+                    
+                    markdown.push_str("\nFormat: markdown");
+                    return markdown;
+                }
+                
+                // If not JSON, return as-is with format note
+                format!("{}\n\nFormat: markdown", content)
+            },
+            "bold" => format!("**{}**", content),
+            "italic" => format!("*{}*", content),
+            "code" => format!("`{}`", content),
+            _ => content.to_string()
+        }
     }
     
     // Execute different types of blocks
