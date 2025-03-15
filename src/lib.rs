@@ -9,6 +9,7 @@ pub mod parser;
 pub mod executor;
 pub mod file_watcher;
 pub mod llm_client;
+pub mod logging;
 
 // Re-export common types
 pub use parser::{Block, parse_document};
