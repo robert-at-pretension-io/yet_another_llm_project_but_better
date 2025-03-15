@@ -655,9 +655,27 @@ print("Block with extreme whitespace")
     
     // Check block with tab indentation
     let tab_indentation = find_block_by_name(&blocks, "tab_indentation").expect("Tab indentation block not found");
-    assert!(tab_indentation.content.contains("	print(\"Tab indented line\")"));
-    assert!(tab_indentation.content.contains("		print(\"Double tab indented line\")"));
-    assert!(tab_indentation.content.contains("			print(\"Triple tab indented line\")"));
+    
+    // Print the content for debugging
+    println!("DEBUG: Tab indentation block content (escaped): {:?}", tab_indentation.content);
+    
+    // Check if content contains lines with tabs, using different approaches
+    let content = &tab_indentation.content;
+    
+    // Check for tab characters directly
+    assert!(content.contains("\tprint"));
+    assert!(content.contains("\t\tprint"));
+    assert!(content.contains("\t\t\tprint"));
+    
+    // Alternative check using line-by-line comparison
+    let lines: Vec<&str> = content.lines().collect();
+    let has_single_tab = lines.iter().any(|line| line.starts_with("\t") && line.contains("Tab indented line"));
+    let has_double_tab = lines.iter().any(|line| line.starts_with("\t\t") && line.contains("Double tab indented line"));
+    let has_triple_tab = lines.iter().any(|line| line.starts_with("\t\t\t") && line.contains("Triple tab indented line"));
+    
+    assert!(has_single_tab, "Missing line with single tab indentation");
+    assert!(has_double_tab, "Missing line with double tab indentation");
+    assert!(has_triple_tab, "Missing line with triple tab indentation");
 }
 #[test]
 fn test_closing_tags() {
