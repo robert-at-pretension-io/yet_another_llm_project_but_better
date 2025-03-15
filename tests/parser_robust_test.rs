@@ -243,11 +243,11 @@ fn test_all_block_types() {
     Conditional content
     ]]></meta:conditional>
     
-    <meta:results name="test-results"><![CDATA[
+    <meta:results name="test-results" for="test-code-python"><![CDATA[
     Results content
     ]]></meta:results>
     
-    <meta:error_results name="test-error-results"><![CDATA[
+    <meta:error_results name="test-error-results" for="test-shell"><![CDATA[
     Error results content
     ]]></meta:error_results>
     
@@ -624,23 +624,21 @@ fn test_malformed_blocks() {
     assert!(result4.is_err(), "Parser should fail on malformed opening tag");
     println!("DEBUG: Error for malformed opening tag: {:?}", result4.err());
     
-    // Missing required name attribute
+    // Variable block with a name attribute (required now)
     let input5 = r#"<?xml version="1.0" encoding="UTF-8"?>
 <meta:document xmlns:meta="https://example.com/meta-language">
-    <meta:variable><![CDATA[
-    value without name
+    <meta:variable name="unnamed-variable"><![CDATA[
+    value with required name
     ]]></meta:variable>
 </meta:document>"#;
     
     let result5 = parse_document(input5);
-    // Note: The parser actually accepts variable blocks without names
-    // This test now verifies the current behavior rather than expecting an error
-    assert!(result5.is_ok(), "Parser accepts variable block without name");
+    assert!(result5.is_ok(), "Parser should accept variable block with name");
     if let Ok(blocks) = result5 {
         let block = blocks.iter().find(|b| b.block_type == "variable");
         assert!(block.is_some(), "Variable block not found");
-        assert!(block.unwrap().name.is_none(), "Variable block should have no name");
-        println!("DEBUG: Variable block without name was accepted by the parser");
+        assert_eq!(block.unwrap().name.as_deref(), Some("unnamed-variable"), "Variable block should have the correct name");
+        println!("DEBUG: Variable block with name was accepted by the parser");
     }
     
     // Invalid modifier format
