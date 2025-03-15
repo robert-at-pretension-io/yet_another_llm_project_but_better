@@ -4,20 +4,22 @@ mod tests {
     
     #[test]
     fn test_explicit_dependencies() {
-        let input = r#"[data name:sales-data format:csv]
+        let input = r#"<meta:document>
+<meta:data name="sales-data" format="csv"><![CDATA[
 date,product,quantity,revenue
 2023-01-15,Widget A,120,1200.00
 2023-01-16,Widget B,85,1700.00
-[/data]
+]]></meta:data>
 
-[code:python name:analyze-sales depends:sales-data]
+<meta:code language="python" name="analyze-sales" depends="sales-data"><![CDATA[
 import pandas as pd
 import matplotlib.pyplot as plt
 
 data = pd.read_csv('''${sales-data}''')
 total_revenue = data['revenue'].sum()
 print(f"Total revenue: ${total_revenue:.2f}")
-[/code:python]"#;
+]]></meta:code>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
@@ -35,11 +37,12 @@ print(f"Total revenue: ${total_revenue:.2f}")
     
     #[test]
     fn test_requires_modifier() {
-        let input = r#"[variable name:api-key]
+        let input = r#"<meta:document>
+<meta:variable name="api-key"><![CDATA[
 abcd1234efgh5678
-[/variable]
+]]></meta:variable>
 
-[code:python name:fetch-data requires:api-key]
+<meta:code language="python" name="fetch-data" requires="api-key"><![CDATA[
 import requests
 
 headers = {
@@ -48,7 +51,8 @@ headers = {
 response = requests.get("https://api.example.com/data", headers=headers)
 data = response.json()
 print(data)
-[/code:python]"#;
+]]></meta:code>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
@@ -63,26 +67,30 @@ print(data)
     #[test]
     fn test_multiple_dependencies() {
         // Create each block individually to avoid parsing issues with the full document
-        let data1 = r#"[data name:product-data format:json]
+        let data1 = r#"<meta:document>
+<meta:data name="product-data" format="json"><![CDATA[
 {
   "products": [
     {"id": 1, "name": "Widget A", "price": 10.0},
     {"id": 2, "name": "Widget B", "price": 20.0}
   ]
 }
-[/data]"#;
+]]></meta:data>
+</meta:document>"#;
 
-        let data2 = r#"[data name:sales-data format:json]
+        let data2 = r#"<meta:document>
+<meta:data name="sales-data" format="json"><![CDATA[
 {
   "sales": [
     {"product_id": 1, "quantity": 100},
     {"product_id": 2, "quantity": 50}
   ]
 }
-[/data]"#;
+]]></meta:data>
+</meta:document>"#;
 
         // Create a mock Block that represents what we expect
-        let mut code_block = Block::new("code:python", Some("calculate-revenue"), 
+        let mut code_block = Block::new("code", Some("calculate-revenue"), 
         r#"import json
 
 product_data = json.loads('''${product-data}''')
@@ -97,6 +105,9 @@ for sale in sales_data["sales"]:
     total_revenue += revenue
     
 print(f"Total revenue: ${total_revenue:.2f}")"#);
+        
+        // Add language modifier for XML format
+        code_block.add_modifier("language", "python");
         
         // Parse the first two blocks
         let block1 = parse_document(data1).unwrap();
@@ -125,21 +136,23 @@ print(f"Total revenue: ${total_revenue:.2f}")"#);
     
     #[test]
     fn test_implicit_dependencies() {
-        let input = r#"[variable name:base-url]
+        let input = r#"<meta:document>
+<meta:variable name="base-url"><![CDATA[
 https://api.example.com
-[/variable]
+]]></meta:variable>
 
-[variable name:endpoint]
+<meta:variable name="endpoint"><![CDATA[
 /users
-[/variable]
+]]></meta:variable>
 
-[code:javascript name:api-request]
+<meta:code language="javascript" name="api-request"><![CDATA[
 // This block implicitly depends on base-url and endpoint
 const url = '${base-url}${endpoint}';
 fetch(url)
   .then(response => response.json())
   .then(data => console.log(data));
-[/code:javascript]"#;
+]]></meta:code>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
