@@ -608,10 +608,7 @@ Variable with empty lines
 
 [/variable]
 
-[code:python name:multiline_whitespace
-   timeout:30   
-   auto_execute:true   
-   format:json   ]
+[code:python name:multiline_whitespace timeout:30 auto_execute:true format:json]
 print("Block with whitespace in multiline modifiers")
 [/code:python]
 
