@@ -1323,6 +1323,16 @@ fn test_different_languages() {
         ("c-code", "code:c")
     ];
     
+    // Print all block names for debugging
+    println!("DEBUG: Found blocks:");
+    for block in &blocks {
+        if let Some(name) = &block.name {
+            println!("DEBUG:   Name: {}, Type: {}", name, block.block_type);
+        } else {
+            println!("DEBUG:   Unnamed block of type: {}", block.block_type);
+        }
+    }
+    
     for (name, expected_type) in languages {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some(name));
         assert!(block.is_some(), "Block {} not found ", name);
