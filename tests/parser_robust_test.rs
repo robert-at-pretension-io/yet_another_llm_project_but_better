@@ -1181,7 +1181,7 @@ print("This block should still be parsed")
 
     // The parser might be lenient with malformed blocks
     let result = parse_document(input);
-    match result {
+    match &result {
         Ok(blocks) => {
             println!("DEBUG: Parser accepted malformed block structure. Found {} blocks", blocks.len());
             // Check if we at least got the valid blocks
@@ -1192,13 +1192,12 @@ print("This block should still be parsed")
         Err(e) => {
             println!("DEBUG: Parser rejected malformed block structure: {:?}", e);
             // This is also acceptable behavior
+            
+            // Log the error details
+            let error_string = format!("{:?}", e);
+            println!("DEBUG: Error for malformed block: {}", error_string);
+            // We don't assert on specific error message content as it may vary
         }
-    }
-    
-    if let Err(e) = result {
-        let error_string = format!("{:?}", e);
-        println!("DEBUG: Error for malformed block: {:?}", e);
-        // We don't assert on specific error message content as it may vary
     }
     
     // Test with a document containing valid blocks and a syntax error
