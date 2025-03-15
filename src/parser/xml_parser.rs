@@ -7,6 +7,7 @@ use std::str;
 use crate::parser::blocks::Block;
 use crate::parser::ParserError;
 use crate::parser::is_valid_block_type;
+use crate::parser::debug_utils::parser_debug;
 
 /// Parse an XML document into a vector of blocks
 pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
