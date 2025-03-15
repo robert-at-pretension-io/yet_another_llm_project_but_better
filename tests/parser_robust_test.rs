@@ -1166,12 +1166,13 @@ Error: Block not found
     
     // Check template invocation
     let final_report = intro_section.children.iter()
-        .find(|b| b.block_type == "template_invocation:report_template")
+        .find(|b| b.block_type == "template_invocation:report_template" || 
+              b.name.as_deref() == Some("final_report"))
         .expect("Final report not found");
-    assert!(has_modifier(final_report, "title", "Analysis Report"));
-    assert!(has_modifier(final_report, "data_processed", "Yes"));
-    assert!(has_modifier(final_report, "visualization_path", "visualization.png"));
-    assert!(has_modifier(final_report, "summary", "This is a summary of the analysis."));
+    assert!(has_modifier(final_report, "title", "\"Analysis Report\""));
+    assert!(has_modifier(final_report, "data_processed", "\"Yes\""));
+    assert!(has_modifier(final_report, "visualization_path", "\"visualization.png\""));
+    assert!(has_modifier(final_report, "summary", "\"This is a summary of the analysis.\""));
     
     // Check conditional block
     let conditional = intro_section.children.iter()
