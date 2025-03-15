@@ -26,7 +26,7 @@ print(df.head())
         let blocks = parse_document(input).unwrap();
         
         assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].block_type, "code");
+        assert_eq!(blocks[0].block_type, "code:python");
         assert_eq!(blocks[0].name, Some("fetch-data".to_string()));
         assert_eq!(blocks[0].get_modifier("language"), Some(&"python".to_string()));
         
@@ -57,7 +57,7 @@ console.log(JSON.stringify(results, null, 2));
         let blocks = parse_document(input).unwrap();
         
         assert_eq!(blocks.len(), 1);
-        assert_eq!(blocks[0].block_type, "code");
+        assert_eq!(blocks[0].block_type, "code:javascript");
         assert_eq!(blocks[0].name, Some("process-json".to_string()));
         assert_eq!(blocks[0].get_modifier("language"), Some(&"javascript".to_string()));
         
@@ -154,12 +154,12 @@ result = {"status": "fallback", "data": None}
         
         assert_eq!(blocks.len(), 2);
         
-        assert_eq!(blocks[0].block_type, "code");
+        assert_eq!(blocks[0].block_type, "code:python");
         assert_eq!(blocks[0].name, Some("risky-operation".to_string()));
         assert_eq!(blocks[0].get_modifier("language"), Some(&"python".to_string()));
         assert_eq!(blocks[0].get_modifier("fallback"), Some(&"fallback-handler".to_string()));
         
-        assert_eq!(blocks[1].block_type, "code");
+        assert_eq!(blocks[1].block_type, "code:python");
         assert_eq!(blocks[1].get_modifier("language"), Some(&"python".to_string()));
         assert_eq!(blocks[1].name, Some("fallback-handler".to_string()));
         
