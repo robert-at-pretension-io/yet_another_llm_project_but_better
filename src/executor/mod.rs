@@ -388,6 +388,23 @@ impl MetaLanguageExecutor {
                 let error_key = format!("{}_error", name);
                 self.outputs.insert(error_key, e.to_string());
                 
+                // Create an error-response block
+                if let Some(block) = self.blocks.get(name) {
+                    let error_response_name = format!("{}_error_response", name);
+                    let error_str = e.to_string();
+                    let error_response_block = self.generate_error_response_block(block, &error_str);
+                    
+                    // Store the error-response block
+                    self.blocks.insert(error_response_name.clone(), error_response_block);
+                    
+                    // Store the error response in outputs
+                    self.outputs.insert(error_response_name, error_str);
+                    
+                    if debug_enabled {
+                        println!("DEBUG: Created error-response block for '{}'", name);
+                    }
+                }
+                
                 // Use fallback
                 if let Some(fallback_name) = self.fallbacks.get(name) {
                     if debug_enabled {
@@ -1060,6 +1077,44 @@ impl MetaLanguageExecutor {
                 Ok(response)
             },
             Err(e) => {
+                println!("DEBUG: Processing error response for question: {}", e);
+                
+                // Create an error-response block
+                if let Some(name) = &block.name {
+                    // For named question blocks
+                    let error_response_name = format!("{}_error_response", name);
+                    println!("DEBUG: Creating error-response block: {}", error_response_name);
+                    
+                    let error_str = e.to_string();
+                    let error_response_block = self.generate_error_response_block(block, &error_str);
+                    
+                    // Store the error-response block
+                    println!("DEBUG: Storing error-response block in blocks map");
+                    self.blocks.insert(error_response_name.clone(), error_response_block);
+                    
+                    // Store the error response in outputs
+                    println!("DEBUG: Storing error response in outputs map with key: {}", error_response_name);
+                    self.outputs.insert(error_response_name, error_str.clone());
+                    
+                    // Also store with the standard error key format for compatibility
+                    let error_key = format!("{}_error", name);
+                    self.outputs.insert(error_key, error_str);
+                } else {
+                    // For unnamed question blocks
+                    println!("DEBUG: Question block has no name, creating generic error-response block");
+                    
+                    let error_str = e.to_string();
+                    let error_response_block = self.generate_error_response_block(block, &error_str);
+                    
+                    // Store the error-response block
+                    println!("DEBUG: Storing generic error-response block in blocks map");
+                    self.blocks.insert("generic_error_response".to_string(), error_response_block);
+                    
+                    // Store the error response in outputs with a generic key
+                    println!("DEBUG: Storing error response in outputs map with key: question_error_response");
+                    self.outputs.insert("question_error_response".to_string(), error_str);
+                }
+                
                 println!("DEBUG: Returning error from execute_question: {}", e);
                 Err(e)
             },
@@ -1110,6 +1165,48 @@ impl MetaLanguageExecutor {
         error_block
     }
     
+    // Generate an error-response block from a question or code block
+    pub fn generate_error_response_block(&self, original_block: &Block, error_text: &str) -> Block {
+        println!("DEBUG: generate_error_response_block called");
+        println!("DEBUG: Original block name: {:?}", original_block.name);
+        println!("DEBUG: Error text length: {}", error_text.len());
+        
+        let response_name = if let Some(name) = &original_block.name {
+            let name = format!("{}_error_response", name);
+            println!("DEBUG: Generated error response name: {}", name);
+            Some(name)
+        } else {
+            println!("DEBUG: No name for original block, error response will be unnamed");
+            None
+        };
+        
+        let mut error_response_block = Block::new("error-response", response_name.as_deref(), error_text);
+        println!("DEBUG: Created error-response block with type: {}", error_response_block.block_type);
+        
+        // Add "for" modifier pointing to the original block
+        if let Some(block_name) = &original_block.name {
+            println!("DEBUG: Adding 'for' modifier with value: {}", block_name);
+            error_response_block.add_modifier("for", block_name);
+        }
+        
+        // Copy relevant modifiers from the original block
+        for (key, value) in &original_block.modifiers {
+            if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
+                println!("DEBUG: Copying modifier: {}={}", key, value);
+                error_response_block.add_modifier(key, value);
+            }
+        }
+        
+        // Set default format to markdown if not specified
+        if !original_block.modifiers.iter().any(|(k, _)| k == "format") {
+            println!("DEBUG: Setting default format to markdown");
+            error_response_block.add_modifier("format", "markdown");
+        }
+        
+        println!("DEBUG: Final error-response block modifiers: {:?}", error_response_block.modifiers);
+        error_response_block
+    }
+
     // Generate a response block from a question block
     pub fn generate_response_block(&self, question_block: &Block, response_text: &str) -> Block {
         println!("DEBUG: generate_response_block called");
@@ -1395,6 +1492,14 @@ impl MetaLanguageExecutor {
             
             updated_doc = updated_doc.replace(&response_marker, &response_replacement);
             
+            // Handle error-response markers
+            let error_response_marker = format!("[error-response for:{}]", name);
+            if updated_doc.contains(&error_response_marker) {
+                let error_response_replacement = format!("[error-response for:{}]\n{}\n[/error-response]", name, output);
+                println!("DEBUG: Looking for error-response marker: '{}'", error_response_marker);
+                updated_doc = updated_doc.replace(&error_response_marker, &error_response_replacement);
+            }
+            
             // Also handle question-response pairs
             if name.ends_with("_response") {
                 let question_name = name.trim_end_matches("_response");
@@ -1409,11 +1514,24 @@ impl MetaLanguageExecutor {
                 
                 updated_doc = updated_doc.replace(&question_response_marker, &question_response_replacement);
             }
+            // Handle error-response for question blocks
+            else if name.ends_with("_error_response") {
+                let block_name = name.trim_end_matches("_error_response");
+                println!("DEBUG: Found error-response for block: '{}'", block_name);
+                
+                let error_response_marker = format!("[error-response for:{}]", block_name);
+                let error_response_replacement = format!("[error-response for:{}]\n{}\n[/error-response]", block_name, output);
+                
+                println!("DEBUG: Looking for error-response marker: '{}'", error_response_marker);
+                updated_doc = updated_doc.replace(&error_response_marker, &error_response_replacement);
+            }
         }
         
         // Check if the document already contains response blocks
         let has_response_block = updated_doc.contains("[response]") || updated_doc.contains("[/response]") ||
-                                updated_doc.contains("<meta:response") || updated_doc.contains("</meta:response>");
+                                updated_doc.contains("<meta:response") || updated_doc.contains("</meta:response>") ||
+                                updated_doc.contains("[error-response]") || updated_doc.contains("[/error-response]") ||
+                                updated_doc.contains("<meta:error-response") || updated_doc.contains("</meta:error-response>");
         println!("DEBUG: Document already contains response blocks: {}", has_response_block);
         println!("DEBUG: Executor {} has {} outputs available for insertion", 
                  self.instance_id, self.outputs.len());
@@ -1510,35 +1628,58 @@ impl MetaLanguageExecutor {
                         // Look for a response to this specific question in the outputs
                         // Try multiple possible formats for the response name
                         let response_name = format!("{}_response", question_name);
+                        let error_response_name = format!("{}_error_response", question_name);
                         let response_results_name = format!("{}_results", question_name);
                         let response_dot_results_name = format!("{}.results", question_name);
                         
-                        println!("DEBUG: Looking for response with names: '{}', '{}', '{}', or '{}'", 
-                                 question_name, response_name, response_results_name, response_dot_results_name);
+                        println!("DEBUG: Looking for response with names: '{}', '{}', '{}', '{}', or '{}'", 
+                                 question_name, response_name, error_response_name, response_results_name, response_dot_results_name);
                         
-                        // Try all possible response name formats
-                        let output = self.outputs.get(&response_name)
-                            .or_else(|| self.outputs.get(question_name))
-                            .or_else(|| self.outputs.get(&response_results_name))
-                            .or_else(|| self.outputs.get(&response_dot_results_name));
+                        // First check for error-response
+                        let error_output = self.outputs.get(&error_response_name);
                         
-                        if let Some(output) = output {
-                            println!("DEBUG: Found matching response for '{}' (length: {})", question_name, output.len());
-                            // Insert the response block after the question block
+                        if let Some(output) = error_output {
+                            println!("DEBUG: Found matching error-response for '{}' (length: {})", question_name, output.len());
+                            // Insert the error-response block after the question block
                             // Use the same format (XML or markdown) as the question block
                             if trimmed_line.starts_with("<") {
                                 // XML format
-                                result.push_str("  <meta:response>\n  ");
+                                result.push_str("  <meta:error-response>\n  ");
                                 result.push_str(&output.replace("\n", "\n  ")); // Indent response content
-                                result.push_str("\n  </meta:response>\n\n");
+                                result.push_str("\n  </meta:error-response>\n\n");
                             } else {
                                 // Markdown format
-                                result.push_str("[response]\n");
+                                result.push_str("[error-response]\n");
                                 result.push_str(output);
-                                result.push_str("\n[/response]\n\n");
+                                result.push_str("\n[/error-response]\n\n");
                             }
                             response_blocks_added += 1;
-                            println!("DEBUG: Added response block #{} for question '{}'", response_blocks_added, question_name);
+                            println!("DEBUG: Added error-response block #{} for question '{}'", response_blocks_added, question_name);
+                        } else {
+                            // Try all possible regular response name formats
+                            let output = self.outputs.get(&response_name)
+                                .or_else(|| self.outputs.get(question_name))
+                                .or_else(|| self.outputs.get(&response_results_name))
+                                .or_else(|| self.outputs.get(&response_dot_results_name));
+                            
+                            if let Some(output) = output {
+                                println!("DEBUG: Found matching response for '{}' (length: {})", question_name, output.len());
+                                // Insert the response block after the question block
+                                // Use the same format (XML or markdown) as the question block
+                                if trimmed_line.starts_with("<") {
+                                    // XML format
+                                    result.push_str("  <meta:response>\n  ");
+                                    result.push_str(&output.replace("\n", "\n  ")); // Indent response content
+                                    result.push_str("\n  </meta:response>\n\n");
+                                } else {
+                                    // Markdown format
+                                    result.push_str("[response]\n");
+                                    result.push_str(output);
+                                    result.push_str("\n[/response]\n\n");
+                                }
+                                response_blocks_added += 1;
+                                println!("DEBUG: Added response block #{} for question '{}'", response_blocks_added, question_name);
+                            }
                         } else {
                             println!("DEBUG: No matching response found for question '{}'", question_name);
                         }
@@ -1547,8 +1688,27 @@ impl MetaLanguageExecutor {
                         unnamed_question_count += 1;
                         println!("DEBUG: Processing end of unnamed question block #{} at line {}", unnamed_question_count, i);
                         
+                        // First check for error-response for unnamed question blocks
+                        if let Some(output) = self.outputs.get("question_error_response") {
+                            println!("DEBUG: Found generic question_error_response (length: {})", output.len());
+                            // Insert the error-response block after the question block
+                            // Use the same format (XML or markdown) as the question block
+                            if trimmed_line.starts_with("<") {
+                                // XML format
+                                result.push_str("  <meta:error-response>\n  ");
+                                result.push_str(&output.replace("\n", "\n  ")); // Indent response content
+                                result.push_str("\n  </meta:error-response>\n\n");
+                            } else {
+                                // Markdown format
+                                result.push_str("[error-response]\n");
+                                result.push_str(output);
+                                result.push_str("\n[/error-response]\n\n");
+                            }
+                            response_blocks_added += 1;
+                            println!("DEBUG: Added error-response block #{} for unnamed question", response_blocks_added);
+                        } 
                         // For unnamed question blocks, check the generic "question_response" key
-                        if let Some(output) = self.outputs.get("question_response") {
+                        else if let Some(output) = self.outputs.get("question_response") {
                             println!("DEBUG: Found generic question_response (length: {})", output.len());
                             // Insert the response block after the question block
                             // Use the same format (XML or markdown) as the question block
