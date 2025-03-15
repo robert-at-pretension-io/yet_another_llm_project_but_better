@@ -94,8 +94,15 @@ fn process_block(executor: &mut MetaLanguageExecutor, block: &Block) {
         None => format!("unnamed_block_{}", block.block_type)
     };
     
+    // Special handling for question blocks
+    let is_question = block.block_type == "question";
+    
     println!("\n==================================================");
-    println!("Executing block: {} (type: {})", block_name, block.block_type);
+    if is_question {
+        println!("Processing question: {} (type: {})", block_name, block.block_type);
+    } else {
+        println!("Executing block: {} (type: {})", block_name, block.block_type);
+    }
     println!("==================================================");
     
     // Register the block with the executor
@@ -105,7 +112,26 @@ fn process_block(executor: &mut MetaLanguageExecutor, block: &Block) {
     match executor.execute_block(&block_name) {
         Ok(output) => {
             println!("\nExecution successful!");
-            println!("Output:\n{}", output);
+            
+            if is_question {
+                // Format question/answer output nicely
+                println!("Question:");
+                println!("{}", block.content.trim());
+                println!("\nAnswer:");
+                println!("{}", output);
+                
+                // Check if we have a response block and register it
+                if let Some(response_name) = block.get_modifier("response") {
+                    let mut response_block = Block::new("response", Some(response_name), &output);
+                    response_block.add_modifier("from_question", &block_name);
+                    
+                    // Register the response block with the executor
+                    executor.blocks.insert(response_name.clone(), response_block);
+                    println!("\nResponse saved as block: {}", response_name);
+                }
+            } else {
+                println!("Output:\n{}", output);
+            }
         },
         Err(e) => {
             eprintln!("\nExecution failed: {}", e);
