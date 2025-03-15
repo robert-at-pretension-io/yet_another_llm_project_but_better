@@ -51,7 +51,7 @@ impl Default for Config {
             auto_execute: true,
             answer_questions: true,
             update_files: true,
-            verbose: false,
+            verbose: true,
             executor_map: HashMap::new(),
         }
     }
