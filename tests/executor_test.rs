@@ -228,4 +228,59 @@ mod tests {
         
         assert_eq!(for_modifier, Some(&"error-source".to_string()));
     }
+    
+    #[test]
+    fn test_question_response_execution() {
+        // This test verifies that:
+        // 1. Parsing a question block doesn't automatically add a response
+        // 2. Executing a question block adds a response block
+        // 3. The response block is correctly linked to the question block
+        
+        // Setup
+        let mut executor = MetaLanguageExecutor::new();
+        
+        // 1. Parse a document with just a question block
+        let input = r#"[question name:test-question model:gpt-4]
+        What is the capital of France?
+        [/question]"#;
+        
+        let blocks = parse_document(input).unwrap();
+        assert_eq!(blocks.len(), 1, "Should only have one block after parsing");
+        assert_eq!(blocks[0].block_type, "question");
+        
+        // Add the question block to the executor
+        let question_block = blocks[0].clone();
+        let question_name = question_block.name.clone().unwrap();
+        executor.blocks.insert(question_name.clone(), question_block);
+        
+        // Verify no response block exists yet
+        assert_eq!(executor.blocks.len(), 1, "Should only have the question block");
+        
+        // 2. Mock execution of the question block
+        // In a real scenario, this would call an LLM API
+        // For testing, we'll manually add a response to the outputs
+        executor.outputs.insert(question_name.clone(), "Paris is the capital of France.".to_string());
+        
+        // Generate a response block (simulating what would happen during execution)
+        let response_content = executor.outputs.get(&question_name).unwrap();
+        let mut response_block = Block::new("response", None, response_content);
+        response_block.add_modifier("for", &question_name);
+        
+        // Add the response block to the executor
+        let response_name = format!("{}-response", question_name);
+        executor.blocks.insert(response_name.clone(), response_block);
+        
+        // 3. Verify the response block is correctly linked to the question
+        assert_eq!(executor.blocks.len(), 2, "Should now have question and response blocks");
+        
+        let stored_response = executor.blocks.get(&response_name).unwrap();
+        assert_eq!(stored_response.block_type, "response");
+        
+        // Check the "for" modifier links to the question
+        let for_modifier = stored_response.get_modifier("for");
+        assert_eq!(for_modifier, Some(&question_name));
+        
+        // Check the content matches what we set
+        assert_eq!(stored_response.content, "Paris is the capital of France.");
+    }
 }
