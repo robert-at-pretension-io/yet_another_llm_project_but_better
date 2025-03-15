@@ -90,9 +90,16 @@ fn process_file(file_path: &str) -> Result<()> {
     
     // Process the document
     log_debug("Beginning document processing");
-    executor.process_document(&content)
-        .with_context(|| format!("Failed to process document: {}", file_path))?;
-    log_debug(&format!("Document processed successfully, found {} blocks", executor.blocks.len()));
+    match executor.process_document(&content) {
+        Ok(_) => {
+            log_debug(&format!("Document processed successfully, found {} blocks", executor.blocks.len()));
+        },
+        Err(e) => {
+            // Print the error but continue execution
+            eprintln!("Error processing document {}: {}", file_path, e);
+            log_debug(&format!("Error processing document: {}", e));
+        }
+    }
     
     // Auto-execute blocks marked with auto_execute
     if config.auto_execute {
@@ -496,14 +503,28 @@ fn print_usage() {
 fn process_files(files: &[String]) -> Result<()> {
     log_debug(&format!("Entering process_files with {} files", files.len()));
     
+    if files.is_empty() {
+        println!("No files specified to process");
+        return Ok(());
+    }
+    
     for (index, file) in files.iter().enumerate() {
         log_debug(&format!("Processing file {}/{}: {}", index + 1, files.len(), file));
+        println!("Processing file: {}", file);
+        
+        // Check if file exists
+        if !std::path::Path::new(file).exists() {
+            eprintln!("Error: File does not exist: {}", file);
+            log_debug(&format!("File does not exist: {}", file));
+            continue;
+        }
         
         if let Err(e) = process_file(file) {
             eprintln!("Error processing file {}: {}", file, e);
             log_debug(&format!("Error processing file {}: {}", file, e));
         } else {
             log_debug(&format!("Successfully processed file: {}", file));
+            println!("Successfully processed file: {}", file);
         }
     }
     
