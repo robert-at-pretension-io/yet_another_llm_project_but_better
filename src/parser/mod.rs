@@ -62,7 +62,9 @@ fn is_valid_block_type(block_type: &str) -> bool {
 
 // Parse a document string into blocks
 pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
-    // Only use the XML parser
-    println!("DEBUG: Using XML parser for document");
-    xml_parser::parse_xml_document(input)
+    // Use only the XML parser for document parsing
+    match xml_parser::parse_xml_document(input) {
+        Ok(blocks) => Ok(blocks),
+        Err(err) => Err(ParserError::ParseError(format!("XML parsing failed: {}", err)))
+    }
 }
