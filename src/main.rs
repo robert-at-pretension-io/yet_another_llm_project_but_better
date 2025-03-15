@@ -88,9 +88,17 @@ fn process_file(file_path: &str) -> Result<()> {
     log_debug(&format!("  Path exists (absolute): {}", absolute_path.exists()));
     
     // Check file extension
+    let is_xml_file = false;
     if let Some(ext) = path.extension() {
         let ext_str = format!(".{}", ext.to_string_lossy());
         log_debug(&format!("File extension: '{}' for file: '{}'", ext_str, file_path));
+        
+        // Check if this is an XML file
+        let is_xml_file = ext_str.to_lowercase() == ".xml";
+        if is_xml_file {
+            println!("DEBUG: File identified as XML: {}", file_path);
+            log_debug(&format!("File identified as XML: '{}'", file_path));
+        }
     } else {
         log_debug(&format!("File '{}' has no extension", file_path));
     }
@@ -140,11 +148,26 @@ fn process_file(file_path: &str) -> Result<()> {
     log_debug(&format!("Beginning document processing for '{}'", file_path));
     println!("Processing document content: {} bytes", content.len());
     
+    // Debug content type being passed to executor
+    if is_xml_file {
+        println!("DEBUG: Passing XML content to executor.process_document");
+        log_debug("Passing XML content to executor.process_document");
+    } else {
+        println!("DEBUG: Passing non-XML content to executor.process_document");
+        log_debug("Passing non-XML content to executor.process_document");
+    }
+    
+    // Print first 50 chars of content for debugging
+    println!("DEBUG: Content preview: '{}'", 
+             if content.len() > 50 { &content[..50] } else { &content });
+    
+    log_debug("About to call executor.process_document");
     match executor.process_document(&content) {
         Ok(_) => {
             log_debug(&format!("Document '{}' processed successfully, found {} blocks", 
                               file_path, executor.blocks.len()));
             println!("Successfully parsed document, found {} blocks", executor.blocks.len());
+            println!("DEBUG: Document processed successfully with executor: {}", executor.instance_id);
             
             // Debug: Print all blocks found
             log_debug("Listing all blocks found:");
@@ -211,11 +234,13 @@ fn get_or_create_executor(file_path: &str) -> Arc<Mutex<MetaLanguageExecutor>> {
     
     if let Some(executor) = config.executor_map.get(file_path) {
         log_debug("Found existing executor, reusing");
+        println!("DEBUG: Reusing existing executor for file: {}", file_path);
         return executor.clone();
     }
     
     // Create a new executor
     log_debug("No existing executor found, creating new one");
+    println!("DEBUG: Creating new executor for file: {}", file_path);
     let executor = Arc::new(Mutex::new(MetaLanguageExecutor::new()));
     config.executor_map.insert(file_path.to_string(), executor.clone());
     log_debug(&format!("New executor created and stored for: {}", file_path));
