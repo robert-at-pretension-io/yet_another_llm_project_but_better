@@ -126,12 +126,27 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
 fn main() -> Result<(), anyhow::Error> {
     // Get file path from command line arguments
     let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: {} <file_path>", args[0]);
-        std::process::exit(1);
+    
+    // Check for --no-watch flag
+    let no_watch = args.contains(&String::from("--no-watch"));
+    
+    // Find the file path (skip program name and any flags)
+    let mut file_path = None;
+    for arg in &args[1..] {
+        if !arg.starts_with("--") {
+            file_path = Some(PathBuf::from(arg));
+            break;
+        }
     }
     
-    let file_path = PathBuf::from(&args[1]);
+    // Ensure we have a file path
+    let file_path = match file_path {
+        Some(path) => path,
+        None => {
+            eprintln!("Usage: {} [--no-watch] <file_path>", args[0]);
+            std::process::exit(1);
+        }
+    };
     
     if !file_path.exists() {
         eprintln!("File does not exist: {}", file_path.display());
@@ -140,6 +155,12 @@ fn main() -> Result<(), anyhow::Error> {
     
     // Initial processing of the file
     process_file(&file_path)?;
+    
+    // Exit early if --no-watch flag is present
+    if no_watch {
+        println!("Processed file once, exiting (--no-watch flag detected)");
+        return Ok(());
+    }
     
     // Set up file watcher using our library's FileWatcher
     println!("Watching file for changes: {}", file_path.display());
