@@ -566,7 +566,7 @@ fn test_whitespace_patterns() {
         print(f"  {i}")
 [/code:python]
 
-[  data   name:whitespace_data  format:json  ]
+[data name:whitespace_data format:json]
 {
     "key": "value",
     "nested": {
