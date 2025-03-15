@@ -186,7 +186,7 @@ The analysis of the data shows interesting patterns.
         
         // Check the document section
         let document = &blocks[0];
-        assert_eq!(document.block_type, "section:document");
+        assert_eq!(document.block_type, "section");
         assert_eq!(document.name, Some("analysis-report".to_string()));
         assert!(document.content.contains("# Data Analysis Report"));
         
@@ -207,7 +207,7 @@ The analysis of the data shows interesting patterns.
         
         // Check the nested section (third child)
         let results_section = &document.children[2];
-        assert_eq!(results_section.block_type, "section:results");
+        assert_eq!(results_section.block_type, "section");
         assert_eq!(results_section.name, Some("data-results".to_string()));
         assert!(results_section.content.contains("## Results"));
         assert!(results_section.content.contains("interesting patterns"));
