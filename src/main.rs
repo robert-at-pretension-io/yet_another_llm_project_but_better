@@ -13,7 +13,8 @@ use yet_another_llm_project_but_better::{
     parse_document, 
     FileWatcher, 
     FileEvent, 
-    FileEventType
+    FileEventType,
+    executor::MetaLanguageExecutor
 };
 
 /// Executes a block based on its type
@@ -65,6 +66,22 @@ fn execute_block(block: &Block) -> Result<String, String> {
                 Err(String::from_utf8_lossy(&output.stderr).to_string())
             }
         },
+        "question" => {
+            // For question blocks, we need to use the LLM client
+            println!("Processing question: {}", block.content);
+            
+            // Create a new executor to handle the question
+            let mut executor = MetaLanguageExecutor::new();
+            
+            // Add test_mode modifier to avoid actual API calls during testing
+            let mut question_block = block.clone();
+            question_block.add_modifier("test_mode", "true");
+            
+            match executor.execute_question(&question_block, &block.content) {
+                Ok(response) => Ok(response),
+                Err(e) => Err(format!("Failed to execute question: {}", e))
+            }
+        },
         _ => Err(format!("Block type '{}' is not executable", block.block_type))
     }
 }
@@ -85,7 +102,7 @@ fn should_auto_execute(block: &Block) -> bool {
     
     // Check for auto-executable block types
     let is_auto_executable_type = matches!(block.block_type.as_str(), 
-             "shell" | "code:python" | "code:javascript" | "code:ruby");
+             "shell" | "code:python" | "code:javascript" | "code:ruby" | "question");
     
     println!("DEBUG: is auto-executable type: {}", is_auto_executable_type);
     
@@ -105,6 +122,11 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
         .map_err(|e| anyhow!("Parser error: {}", e))?;
     
     println!("Found {} blocks in file", blocks.len());
+    
+    // Create an executor for more advanced blocks like questions
+    let mut executor = MetaLanguageExecutor::new();
+    executor.process_document(&content)
+        .map_err(|e| anyhow!("Executor error: {}", e))?;
     
     // Print detailed information about each block
     for (i, block) in blocks.iter().enumerate() {
