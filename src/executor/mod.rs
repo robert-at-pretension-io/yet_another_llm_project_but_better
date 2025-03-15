@@ -880,8 +880,17 @@ impl MetaLanguageExecutor {
         println!("DEBUG: Block name: {:?}", block.name);
         println!("DEBUG: Block modifiers: {:?}", block.modifiers);
         
-        // Check if we're in test mode
-        if block.is_modifier_true("test_mode") || std::env::var("LLM_TEST_MODE").is_ok() {
+        // Check if we're in test mode - more robust environment variable checking
+        let test_mode_env = std::env::var("LLM_TEST_MODE").unwrap_or_default();
+        let is_test_mode = block.is_modifier_true("test_mode") || 
+                          !test_mode_env.is_empty() || 
+                          test_mode_env == "1" || 
+                          test_mode_env.to_lowercase() == "true";
+        
+        if is_test_mode {
+            println!("DEBUG: Test mode detected (env: '{}', block modifier: {})", 
+                     test_mode_env, block.is_modifier_true("test_mode"));
+            
             let test_response = if let Some(test_response) = block.get_modifier("test_response") {
                 println!("DEBUG: Using custom test response from modifier");
                 test_response.clone()
