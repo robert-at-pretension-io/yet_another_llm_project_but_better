@@ -15,12 +15,14 @@ mod utils;
 mod block_parsers;
 mod modifiers;
 pub mod document_processor;
+mod xml_parser;
 
 // Re-export important types
 pub use self::blocks::Block;
 pub use block_parser::{parse_single_block, extract_block_type};
 pub use utils::extractors::{extract_name, extract_modifiers, extract_variable_references};
 pub use utils::validators::check_duplicate_names;
+pub use xml_parser::{parse_xml_document, is_xml_document};
 
 // Define error type
 #[derive(Error, Debug)]
@@ -60,6 +62,12 @@ fn is_valid_block_type(block_type: &str) -> bool {
 
 // Parse a document string into blocks
 pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
+    // Check if this is an XML document first
+    if xml_parser::is_xml_document(input) {
+        println!("DEBUG: Detected XML document, using XML parser");
+        return xml_parser::parse_xml_document(input);
+    }
+    
     // Try parsing with the full document parser first
     let result = MetaLanguageParser::parse(Rule::document, input);
     
@@ -315,6 +323,12 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
     }
     
     if blocks.is_empty() {
+        // Try XML as a last resort if we couldn't parse any blocks
+        if input.contains("<") && input.contains(">") {
+            println!("DEBUG: Trying XML parser as fallback");
+            return xml_parser::parse_xml_document(input);
+        }
+        
         return Err(ParserError::ParseError(format!("Failed to parse any blocks from input")));
     }
     
