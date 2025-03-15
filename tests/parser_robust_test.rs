@@ -639,7 +639,7 @@ fn test_malformed_blocks() {
         assert!(block.is_some(), "Variable block not found");
         assert_eq!(block.unwrap().name.as_deref(), Some("unnamed-variable"), "Variable block should have the correct name");
         println!("DEBUG: Variable block with name was accepted by the parser");
-    }
+     }
     
     // Invalid modifier format
     let input6 = r#"<?xml version="1.0" encoding="UTF-8"?>

@@ -20,7 +20,7 @@ indexmap = "=1.9.3"
 lazy_static = "=1.4.0"
 chrono = "=0.4.31"  # Added for timestamp formatting
 quick-xml = "=0.28.2"  # Added for XML parsing
-ctrlc = "=3.2.5"  # Added for handling Ctrl+C interrupts
+ctrlc = "=3.2.5"
 
 [features]
 default = []
@@ -39,3 +39,7 @@ path = "src/lib.rs"
 
 
 [workspace]
+
+[[test]]
+name = "integration_tests"
+path = "tests/lib.rs"

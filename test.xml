@@ -1,12 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<document>
-  <code language="python" name="hello" auto_execute="true">
-  <![CDATA[
-  print("Hello, world!!")
-  ]]>
-  </code>
-  
-  <question name="meaning">
-    What is the meaning of life?
-  </question>
-</document>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="good" test_mode="true" test_response="These are the three laws of robotics: 1. A robot may not injure a human being or, through inaction, allow a human being to come to harm. 2. A robot must obey orders given it by human beings except where such orders would conflict with the First Law. 3. A robot must protect its own existence as long as such protection does not conflict with the First or Second Law.">
+  What are the three laws of robotics?
+  </meta:question>
+  <meta:response>
+  These are the three laws of robotics: 1. A robot may not injure a human being or, through inaction, allow a human being to come to harm. 2. A robot must obey orders given it by human beings except where such orders would conflict with the First Law. 3. A robot must protect its own existence as long as such protection does not conflict with the First or Second Law.
+  </meta:response>
+
+</meta:document>

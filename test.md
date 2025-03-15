@@ -1,3 +1,4 @@
-<question>
-What's the meaning of life?
-</question>
+  <meta:question name="user-query">
+    What insights can be derived from this data?
+  </meta:question>
+
