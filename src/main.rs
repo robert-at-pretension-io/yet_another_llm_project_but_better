@@ -88,13 +88,13 @@ fn process_file(file_path: &str) -> Result<()> {
     log_debug(&format!("  Path exists (absolute): {}", absolute_path.exists()));
     
     // Check file extension
-    let is_xml_file = false;
+    let mut is_xml_file = false;
     if let Some(ext) = path.extension() {
         let ext_str = format!(".{}", ext.to_string_lossy());
         log_debug(&format!("File extension: '{}' for file: '{}'", ext_str, file_path));
         
         // Check if this is an XML file
-        let is_xml_file = ext_str.to_lowercase() == ".xml";
+        is_xml_file = ext_str.to_lowercase() == ".xml";
         if is_xml_file {
             println!("DEBUG: File identified as XML: {}", file_path);
             log_debug(&format!("File identified as XML: '{}'", file_path));
