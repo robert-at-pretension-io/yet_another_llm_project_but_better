@@ -148,6 +148,8 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<(String, bool), Stri
                     
                     // Create a response block with proper attribution to the question
                     // Find the end of the question block
+                    let mut needs_update = false;
+                    
                     if let Some(pos) = file_content.find("[/question]") {
                         println!("DEBUG: Found [/question] at position {}", pos);
                         
@@ -163,7 +165,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<(String, bool), Stri
                                  response_block.chars().take(100).collect::<String>().replace("\n", "\\n"));
                         
                         // File needs to be updated with the response
-                        let mut needs_update = true;
+                        needs_update = true;
                     } else {
                         println!("DEBUG: Could not find [/question] tag in the document");
                     }
