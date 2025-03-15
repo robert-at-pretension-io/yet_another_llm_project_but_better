@@ -7,7 +7,9 @@
 
 pub mod parser;
 pub mod executor;
+pub mod file_watcher;
 
 // Re-export common types
 pub use parser::{Block, parse_document};
 pub use executor::MetaLanguageExecutor;
+pub use file_watcher::{FileWatcher, FileEvent, FileEventType};
