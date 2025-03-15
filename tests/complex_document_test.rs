@@ -4,19 +4,28 @@ mod tests {
     
     #[test]
     fn test_mixed_block_types() {
-        let input = r#"[data name:user-info format:json]
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:data name="user-info" format="json">
+  <![CDATA[
 {"name": "Alice", "role": "Developer"}
-[/data]
+  ]]>
+  </meta:data>
 
-[code:python name:greet-user]
+  <meta:code language="python" name="greet-user">
+  <![CDATA[
 import json
 user = json.loads('${user-info}')
 print(f"Hello, {user['name']}! You are a {user['role']}.")
-[/code:python]
+  ]]>
+  </meta:code>
 
-[shell name:run-script]
+  <meta:shell name="run-script">
+  <![CDATA[
 python script.py
-[/shell]"#;
+  ]]>
+  </meta:shell>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse mixed blocks: {:?}", result.err());
@@ -32,22 +41,31 @@ python script.py
     #[test]
     // Test for dependency handling
     fn test_document_with_dependencies() {
-        let input = r#"[data name:config format:json]
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:data name="config" format="json">
+  <![CDATA[
 {"api_url": "https://api.example.com", "timeout": 30}
-[/data]
+  ]]>
+  </meta:data>
 
-[code:python name:api-call depends:config]
+  <meta:code language="python" name="api-call" depends="config">
+  <![CDATA[
 import json
 import requests
 
 config = json.loads('${config}')
 response = requests.get(config['api_url'], timeout=config['timeout'])
 print(response.status_code)
-[/code:python]
+  ]]>
+  </meta:code>
 
-[template name:report requires:api-call]
+  <meta:template name="report" requires="api-call">
+  <![CDATA[
 API call result: ${api-call}
-[/template]"#;
+  ]]>
+  </meta:template>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse document with dependencies: {:?}", result.err());
@@ -70,23 +88,32 @@ API call result: ${api-call}
         use yet_another_llm_project_but_better::parser::Block;
         
         // Create a simple document with multiple blocks
-        let input = r#"[data name:dataset format:csv]
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:data name="dataset" format="csv">
+  <![CDATA[
 id,value,category
 1,42,A
 2,37,B
 3,19,A
-[/data]
+  ]]>
+  </meta:data>
 
-[code:python name:analyze-data depends:dataset]
+  <meta:code language="python" name="analyze-data" depends="dataset">
+  <![CDATA[
 import pandas as pd
 data = pd.read_csv('${dataset}')
 result = data.groupby('category').mean()
 print(result)
-[/code:python]
+  ]]>
+  </meta:code>
 
-[visualization name:chart-1 data:analyze-data]
+  <meta:visualization name="chart-1" data="analyze-data">
+  <![CDATA[
 bar-chart
-[/visualization]"#;
+  ]]>
+  </meta:visualization>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse document: {:?}", result.err());
@@ -115,29 +142,40 @@ bar-chart
     
     #[test]
     fn test_nested_structure() {
-        let input = r#"[section:document name:analysis-report]
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:section type="document" name="analysis-report">
+  <![CDATA[
 # Data Analysis Report
-
-[data name:dataset format:csv]
+  ]]>
+  
+    <meta:data name="dataset" format="csv">
+    <![CDATA[
 id,value,category
 1,42,A
 2,37,B
 3,19,A
-[/data]
+    ]]>
+    </meta:data>
 
-[code:python name:analyze-data depends:dataset]
+    <meta:code language="python" name="analyze-data" depends="dataset">
+    <![CDATA[
 import pandas as pd
 data = pd.read_csv('${dataset}')
 result = data.groupby('category').mean()
 print(result)
-[/code:python]
+    ]]>
+    </meta:code>
 
-[section:results name:data-results]
+    <meta:section type="results" name="data-results">
+    <![CDATA[
 ## Results
 The analysis of the data shows interesting patterns.
-[/section:results]
-
-[/section:document]"#;
+    ]]>
+    </meta:section>
+    
+  </meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse nested structure: {:?}", result.err());
