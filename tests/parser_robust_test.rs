@@ -631,7 +631,9 @@ print("Block with extreme whitespace")
     assert_eq!(empty_lines.content.trim(), "Variable with empty lines");
     
     // Check block with multiline whitespace in modifiers
-    let multiline_whitespace = find_block_by_name(&blocks, "multiline_whitespace").expect("Multiline whitespace block not found");
+    let multiline_whitespace = find_block_by_name(&blocks, "multiline_whitespace");
+    assert!(multiline_whitespace.is_some(), "Multiline whitespace block not found");
+    let multiline_whitespace = multiline_whitespace.unwrap();
     assert!(has_modifier(multiline_whitespace, "timeout", "30"));
     assert!(has_modifier(multiline_whitespace, "auto_execute", "true"));
     assert!(has_modifier(multiline_whitespace, "format", "json"));
