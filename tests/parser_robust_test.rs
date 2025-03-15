@@ -14,7 +14,7 @@ fn convert_to_xml(input: &str) -> String {
     let closing_tag_regex = Regex::new(r"\[/([\w:]+)\]").unwrap();
     
     // Start with XML document wrapper
-    let mut result = String::from("<meta:document xmlns:meta=\"https://example.com/meta-language\">\n");
+    let mut result = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\n");
     
     // Process the input line by line
     let mut in_block = false;
@@ -193,7 +193,8 @@ fn extract_variable_references(text: &str) -> HashSet<String> {
 #[test]
 fn test_all_block_types() {
     // Create a document with every block type
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:question name="test-question"><![CDATA[
     What is the meaning of life?
     ]]></meta:question>
@@ -253,7 +254,7 @@ fn test_all_block_types() {
     <meta:template name="test-template"><![CDATA[
     Template content with ${variable} placeholder
     ]]></meta:template>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result = parse_document(input);
     assert!(result.is_ok(), "Failed to parse document with all block types: {:?}", result.err());
@@ -294,7 +295,8 @@ fn test_all_block_types() {
 /// Test blocks with special characters in names
 #[test]
 fn test_special_character_names() {
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="test-with-hyphens"><![CDATA[
     print("Block with hyphens in name")
     ]]></meta:code>
@@ -314,7 +316,7 @@ fn test_special_character_names() {
     <meta:code language="javascript" name="test-emoji-😊"><![CDATA[
     console.log("Block with emoji in name");
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result = parse_document(input);
     assert!(result.is_ok(), "Failed to parse document with special character names: {:?}", result.err());
@@ -343,7 +345,8 @@ fn test_special_character_names() {
 /// Test blocks with unusual whitespace patterns
 #[test]
 fn test_unusual_whitespace() {
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="extra-spaces-in-opening-tag"><![CDATA[
     print("Block with extra spaces in opening tag")
     ]]></meta:code>
@@ -366,7 +369,7 @@ fn test_unusual_whitespace() {
 		print("Line with double tab indentation")
 	    print("Line with mixed tab and space indentation")
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result = parse_document(input);
     assert!(result.is_ok(), "Failed to parse document with unusual whitespace: {:?}", result.err());
@@ -400,7 +403,8 @@ fn test_unusual_whitespace() {
 /// Test blocks with multiple modifiers in various formats
 #[test]
 fn test_multiple_modifiers() {
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="many-modifiers" cache_result="true" timeout="30" retry="3" depends="data-block" 
      fallback="fallback-block" async="false" debug="true" verbosity="high" priority="10"><![CDATA[
     print("Block with many modifiers in a single line with line break")
@@ -421,7 +425,7 @@ fn test_multiple_modifiers() {
     <meta:variable name="comma-separated-modifiers" format="plain" display="block" order="0.1" priority="9"><![CDATA[
     Block with comma-separated modifiers
     ]]></meta:variable>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result = parse_document(input);
     assert!(result.is_ok(), "Failed to parse document with multiple modifiers: {:?}", result.err());
@@ -482,7 +486,8 @@ fn test_multiple_modifiers() {
 /// the actual behavior of the parser.
 #[test]
 fn test_nested_blocks() {
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:section type="h1" name="outer-section"><![CDATA[
     # Outer Section
     ]]></meta:section>
@@ -498,7 +503,7 @@ fn test_nested_blocks() {
     <meta:variable name="nested-variable"><![CDATA[
     nested value
     ]]></meta:variable>
-    </meta:document>"#;
+</meta:document>"#;
     
     let blocks = parse_document(input).expect("Failed to parse document");
     
@@ -556,22 +561,24 @@ fn test_nested_blocks() {
 #[test]
 fn test_malformed_blocks() {
     // Missing closing tag
-    let input1 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input1 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="missing-close"><![CDATA[
     print("This block is missing a closing tag")
     ]]>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result1 = parse_document(input1);
     assert!(result1.is_err(), "Expected an error for malformed block ");
     println!("DEBUG: Error for missing closing tag: {:?}", result1.err());
     
     // Mismatched closing tag
-    let input2 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input2 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="mismatched-close"><![CDATA[
     print("This block has a mismatched closing tag")
     ]]></meta:javascript>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result2 = parse_document(input2);
     // The parser might be lenient with closing tags, so we'll check if it's an error
@@ -595,32 +602,35 @@ fn test_malformed_blocks() {
     }
     
     // Invalid block type
-    let input3 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input3 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:invalid-block-type name="test"><![CDATA[
     This is an invalid block type
     ]]></meta:invalid-block-type>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result3 = parse_document(input3);
     assert!(result3.is_err(), "Expected an error for invalid block type ");
     
     // Malformed opening tag (missing bracket)
-    let input4 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input4 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     meta:code language="python" name="malformed-open"><![CDATA[
     print("Hello, world!")
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result4 = parse_document(input4);
     assert!(result4.is_err(), "Parser should fail on malformed opening tag");
     println!("DEBUG: Error for malformed opening tag: {:?}", result4.err());
     
     // Missing required name attribute
-    let input5 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input5 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:variable><![CDATA[
     value without name
     ]]></meta:variable>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result5 = parse_document(input5);
     // Note: The parser actually accepts variable blocks without names
@@ -634,11 +644,12 @@ fn test_malformed_blocks() {
     }
     
     // Invalid modifier format
-    let input6 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input6 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="invalid-modifier-format" cache_result="notboolean"><![CDATA[
     print("Hello, world!")
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     // This might parse successfully as modifiers are not validated during parsing
     let result6 = parse_document(input6);
@@ -658,13 +669,14 @@ fn test_malformed_blocks() {
 /// Test empty blocks and whitespace handling
 #[test]
 fn test_empty_blocks() {
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:variable name="empty-var"></meta:variable>
     
     <meta:code language="python" name="whitespace-only"><![CDATA[
     
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     let blocks = parse_document(input).expect("Failed to parse document");
     assert_eq!(blocks.len(), 2, "Expected 2 blocks ");
@@ -685,7 +697,8 @@ fn test_empty_blocks() {
 #[test]
 fn test_special_characters() {
     // Test blocks with special characters in names and content
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="special-chars-1"><![CDATA[
 print("Special chars: !@#$%^&*()")
 ]]></meta:code>
@@ -752,7 +765,8 @@ print("Block with special symbols in name")
 #[test]
 fn test_whitespace_patterns() {
     // Test blocks with unusual whitespace patterns
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="whitespace_test"><![CDATA[
     print("Indented code")
     for i in range(5):
@@ -870,7 +884,8 @@ print("Block with extreme whitespace")
 #[test]
 fn test_closing_tags() {
     // Test closing tags with and without language specification
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="with_lang"><![CDATA[
 print("Block with language in closing tag")
 ]]></meta:code>
@@ -938,26 +953,27 @@ fn test_line_endings() {
     // Test CRLF vs LF line ending differences
     
     // LF line endings
-    let lf_input = "<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"lf_test\"><![CDATA[\nprint(\"LF line endings\")\n]]></meta:code>\n</meta:document>";
+    let lf_input = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"lf_test\"><![CDATA[\nprint(\"LF line endings\")\n]]></meta:code>\n</meta:document>";
     let lf_blocks = parse_document(lf_input).expect("Failed to parse LF line endings");
     let lf_block = find_block_by_name(&lf_blocks, "lf_test").expect("LF block not found");
     assert_eq!(lf_block.content.trim(), "print(\"LF line endings\")");
     
     // CRLF line endings
-    let crlf_input = "<meta:document xmlns:meta=\"https://example.com/meta-language\">\r\n<meta:code language=\"python\" name=\"crlf_test\"><![CDATA[\r\nprint(\"CRLF line endings\")\r\n]]></meta:code>\r\n</meta:document>";
+    let crlf_input = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\r\n<meta:code language=\"python\" name=\"crlf_test\"><![CDATA[\r\nprint(\"CRLF line endings\")\r\n]]></meta:code>\r\n</meta:document>";
     let crlf_blocks = parse_document(crlf_input).expect("Failed to parse CRLF line endings");
     let crlf_block = find_block_by_name(&crlf_blocks, "crlf_test").expect("CRLF block not found");
     assert_eq!(crlf_block.content.trim(), "print(\"CRLF line endings\")");
     
     // Mixed line endings
-    let mixed_input = "<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"mixed_test\"><![CDATA[\nprint(\"First line\")\r\nprint(\"Second line\")\n]]></meta:code>\n</meta:document>";
+    let mixed_input = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"mixed_test\"><![CDATA[\nprint(\"First line\")\r\nprint(\"Second line\")\n]]></meta:code>\n</meta:document>";
     let mixed_blocks = parse_document(mixed_input).expect("Failed to parse mixed line endings");
     let mixed_block = find_block_by_name(&mixed_blocks, "mixed_test").expect("Mixed block not found");
     assert!(mixed_block.content.contains("First line"));
     assert!(mixed_block.content.contains("Second line"));
     
     // Complex document with mixed line endings
-    let complex_mixed = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let complex_mixed = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="complex_mixed"><![CDATA[
 print("Line with LF")
 print("Line with CRLF")
@@ -974,7 +990,8 @@ print("Another LF line")
 #[test]
 fn test_language_types() {
     // Test different language types in code blocks
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="python_code"><![CDATA[
 def hello():
     print("Hello from Python")
@@ -1082,7 +1099,8 @@ done
 #[test]
 fn test_indentation_patterns() {
     // Test blocks with complicated indentation patterns
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="indented_code"><![CDATA[
 def complex_function():
     if True:
@@ -1175,7 +1193,8 @@ root:
 #[test]
 fn test_error_recovery() {
     // Test parse error recovery with a completely malformed block
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="valid_block"><![CDATA[
 print("This is a valid block")
 ]]></meta:code>
@@ -1212,7 +1231,8 @@ print("This block should still be parsed")
     }
     
     // Test with a document containing valid blocks and a syntax error
-    let input_with_syntax_error = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input_with_syntax_error = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="first_valid"><![CDATA[
 print("This is a valid block")
 ]]></meta:code>
@@ -1245,7 +1265,8 @@ print("This is another valid block")
     }
     
     // Test with a document containing valid blocks and a block with severely malformed tag
-    let input_with_invalid_structure = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input_with_invalid_structure = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:code language="python" name="first_valid"><![CDATA[
 print("This is a valid block")
 ]]></meta:code>
@@ -1286,41 +1307,45 @@ print("This is another valid block")
 #[test]
 fn test_closing_tag_variants() {
     // Code block with language in closing tag
-    let input1 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input1 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="with-language-close"><![CDATA[
     print("Hello, world!")
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result1 = parse_document(input1);
     assert!(result1.is_ok(), "Failed to parse code block with language in closing tag: {:?}", result1.err());
     
     // Code block without language in closing tag
-    let input2 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input2 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="without-language-close"><![CDATA[
     print("Hello, world!")
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result2 = parse_document(input2);
     assert!(result2.is_ok(), "Failed to parse code block without language in closing tag: {:?}", result2.err());
     
     // Section block with type in closing tag
-    let input3 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input3 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:section type="intro" name="with-type-close"><![CDATA[
     Introduction content
     ]]></meta:section>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result3 = parse_document(input3);
     assert!(result3.is_ok(), "Failed to parse section block with type in closing tag: {:?}", result3.err());
     
     // Section block without type in closing tag
-    let input4 = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input4 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:section type="summary" name="without-type-close"><![CDATA[
     Summary content
     ]]></meta:section>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result4 = parse_document(input4);
     assert!(result4.is_ok(), "Failed to parse section block without type in closing tag: {:?}", result4.err());
@@ -1363,13 +1388,13 @@ fn test_closing_tag_variants() {
 #[test]
 fn test_line_ending_differences() {
     // LF line endings
-    let input_lf = "<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"lf-endings\"><![CDATA[\nprint(\"Hello, LF!\")\n]]></meta:code>\n</meta:document>";
+    let input_lf = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"lf-endings\"><![CDATA[\nprint(\"Hello, LF!\")\n]]></meta:code>\n</meta:document>";
     
     // CRLF line endings
-    let input_crlf = "<meta:document xmlns:meta=\"https://example.com/meta-language\">\r\n<meta:code language=\"python\" name=\"crlf-endings\"><![CDATA[\r\nprint(\"Hello, CRLF!\")\r\n]]></meta:code>\r\n</meta:document>";
+    let input_crlf = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\r\n<meta:code language=\"python\" name=\"crlf-endings\"><![CDATA[\r\nprint(\"Hello, CRLF!\")\r\n]]></meta:code>\r\n</meta:document>";
     
     // Mixed line endings
-    let input_mixed = "<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"mixed-endings\"><![CDATA[\nprint(\"Line 1\")\r\nprint(\"Line 2\")\n]]></meta:code>\n</meta:document>";
+    let input_mixed = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"mixed-endings\"><![CDATA[\nprint(\"Line 1\")\r\nprint(\"Line 2\")\n]]></meta:code>\n</meta:document>";
     
     let result_lf = parse_document(input_lf);
     let result_crlf = parse_document(input_crlf);
@@ -1401,7 +1426,8 @@ fn test_line_ending_differences() {
 /// Test different language types in code blocks
 #[test]
 fn test_different_languages() {
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="python-code"><![CDATA[
     def hello():
         print("Hello, Python!")
@@ -1444,7 +1470,7 @@ fn test_different_languages() {
         return 0;
     }
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result = parse_document(input);
     assert!(result.is_ok(), "Failed to parse document with different languages: {:?}", result.err());
@@ -1497,7 +1523,8 @@ fn test_different_languages() {
 /// Test character escaping in content
 #[test]
 fn test_character_escaping() {
-    let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+    let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
     <meta:code language="python" name="code-with-brackets"><![CDATA[
     # Code with square brackets
     data = [1, 2, 3, 4]
@@ -1532,7 +1559,7 @@ fn test_character_escaping() {
       }
     </script>
     ]]></meta:code>
-    </meta:document>"#;
+</meta:document>"#;
     
     let result = parse_document(input);
     assert!(result.is_ok(), "Failed to parse document with escaped characters: {:?}", result.err());
@@ -1664,15 +1691,15 @@ fn test_convert_to_xml() {
 fn test_large_blocks() {
     // Create a large block with repeated content
     let large_content = "print(\"This is line {}\")".repeat(1000);
-    let large_block = format!("<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"large-code-block\"><![CDATA[\n{}\n]]></meta:code>\n</meta:document>", large_content);
+    let large_block = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:code language=\"python\" name=\"large-code-block\"><![CDATA[\n{}\n]]></meta:code>\n</meta:document>", large_content);
     
     // Create a large block with lots of nested brackets
     let nested_brackets = (0..100).map(|i| format!("{}{}{}", "[".repeat(i), "content", "]".repeat(i))).collect::<Vec<_>>().join("\n");
-    let brackets_block = format!("<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:data name=\"nested-brackets\"><![CDATA[\n{}\n]]></meta:data>\n</meta:document>", nested_brackets);
+    let brackets_block = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\n<meta:data name=\"nested-brackets\"><![CDATA[\n{}\n]]></meta:data>\n</meta:document>", nested_brackets);
     
     // Create a large document with many small blocks
     let many_blocks_content = (0..100).map(|i| format!("<meta:variable name=\"var{}\"><![CDATA[\nvalue{}\n]]></meta:variable>", i, i)).collect::<Vec<_>>().join("\n\n");
-    let many_blocks = format!("<meta:document xmlns:meta=\"https://example.com/meta-language\">\n{}\n</meta:document>", many_blocks_content);
+    let many_blocks = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<meta:document xmlns:meta=\"https://example.com/meta-language\">\n{}\n</meta:document>", many_blocks_content);
     
     // Test each large input
     let result1 = parse_document(&large_block);
