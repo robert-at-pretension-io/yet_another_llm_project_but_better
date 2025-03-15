@@ -1679,9 +1679,9 @@ impl MetaLanguageExecutor {
                                 }
                                 response_blocks_added += 1;
                                 println!("DEBUG: Added response block #{} for question '{}'", response_blocks_added, question_name);
+                            } else {
+                                println!("DEBUG: No matching response found for question '{}'", question_name);
                             }
-                        } else {
-                            println!("DEBUG: No matching response found for question '{}'", question_name);
                         }
                     } else {
                         // Handle unnamed question block
