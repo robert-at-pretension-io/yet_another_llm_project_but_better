@@ -25,9 +25,14 @@ mod tests {
     
     #[test]
     fn test_parse_code_block() {
-        let input = r#"[code:python name:example-code]
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:code:python name="example-code">
+  <![CDATA[
 print("Hello, world!")
-[/code:python]"#;
+  ]]>
+  </meta:code:python>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
@@ -39,15 +44,22 @@ print("Hello, world!")
     
     #[test]
     fn test_parse_multiple_blocks() {
-        let input = r#"[data name:test-data format:json]
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:data name="test-data" format="json">
+  <![CDATA[
 {"key": "value"}
-[/data]
-
-[code:python name:process-data]
+  ]]>
+  </meta:data>
+  
+  <meta:code:python name="process-data">
+  <![CDATA[
 import json
 data = json.loads('''${test-data}''')
 print(data)
-[/code:python]"#;
+  ]]>
+  </meta:code:python>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         
