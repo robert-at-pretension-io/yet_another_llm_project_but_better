@@ -378,33 +378,78 @@ fn test_nested_blocks() {
 #[test]
 fn test_malformed_blocks() {
     // Missing closing tag
-    let input = r#"
+    let input1 = r#"
     [code:python name:missing-close]
     print("This block is missing a closing tag")
     "#;
     
-    let result = parse_document(input);
-    assert!(result.is_err(), "Expected an error for malformed block ");
+    let result1 = parse_document(input1);
+    assert!(result1.is_err(), "Expected an error for malformed block ");
+    println!("DEBUG: Error for missing closing tag: {:?}", result1.err());
     
     // Mismatched closing tag
-    let input = r#"
+    let input2 = r#"
     [code:python name:mismatched-close]
     print("This block has a mismatched closing tag")
     [/code:javascript]
     "#;
     
-    let result = parse_document(input);
-    assert!(result.is_err(), "Expected an error for mismatched closing tag ");
+    let result2 = parse_document(input2);
+    assert!(result2.is_err(), "Expected an error for mismatched closing tag ");
+    println!("DEBUG: Error for mismatched closing tag: {:?}", result2.err());
     
     // Invalid block type
-    let input = r#"
+    let input3 = r#"
     [invalid-block-type name:test]
     This is an invalid block type
     [/invalid-block-type]
     "#;
     
-    let result = parse_document(input);
-    assert!(result.is_err(), "Expected an error for invalid block type ");
+    let result3 = parse_document(input3);
+    assert!(result3.is_err(), "Expected an error for invalid block type ");
+    
+    // Malformed opening tag (missing bracket)
+    let input4 = r#"
+    code:python name:malformed-open]
+    print("Hello, world!")
+    [/code:python]
+    "#;
+    
+    let result4 = parse_document(input4);
+    assert!(result4.is_err(), "Parser should fail on malformed opening tag");
+    println!("DEBUG: Error for malformed opening tag: {:?}", result4.err());
+    
+    // Missing required name attribute
+    let input5 = r#"
+    [variable]
+    value without name
+    [/variable]
+    "#;
+    
+    let result5 = parse_document(input5);
+    assert!(result5.is_err(), "Parser should fail on variable block without name");
+    println!("DEBUG: Error for missing required name: {:?}", result5.err());
+    
+    // Invalid modifier format
+    let input6 = r#"
+    [code:python name:invalid-modifier-format cache_result:notboolean]
+    print("Hello, world!")
+    [/code:python]
+    "#;
+    
+    // This might parse successfully as modifiers are not validated during parsing
+    let result6 = parse_document(input6);
+    if let Ok(blocks) = result6 {
+        let block = blocks.iter().find(|b| b.name.as_deref() == Some("invalid-modifier-format"));
+        assert!(block.is_some(), "Block with invalid modifier format not found");
+        
+        // The modifier should be present even if the value is invalid
+        let block = block.unwrap();
+        assert!(block.has_modifier("cache_result"), "cache_result modifier not found");
+        println!("DEBUG: cache_result value: {:?}", block.get_modifier("cache_result"));
+    } else {
+        println!("DEBUG: Parser rejected invalid modifier format: {:?}", result6.err());
+    }
 }
 
 /// Test empty blocks and whitespace handling
@@ -1086,73 +1131,6 @@ Error: Block not found
     assert!(has_modifier(conditional, "if", "config.max_rows>500"));
 }
 
-/// Test error cases with malformed blocks
-#[test]
-fn test_malformed_blocks() {
-    // Missing closing tag
-    let input1 = r#"
-    [code:python name:missing-close]
-    print("Hello, world!")
-    "#;
-    
-    let result1 = parse_document(input1);
-    assert!(result1.is_err(), "Parser should fail on missing closing tag");
-    println!("DEBUG: Error for missing closing tag: {:?}", result1.err());
-    
-    // Mismatched closing tag
-    let input2 = r#"
-    [code:python name:mismatched-close]
-    print("Hello, world!")
-    [/shell]
-    "#;
-    
-    let result2 = parse_document(input2);
-    assert!(result2.is_err(), "Parser should fail on mismatched closing tag");
-    println!("DEBUG: Error for mismatched closing tag: {:?}", result2.err());
-    
-    // Malformed opening tag (missing bracket)
-    let input3 = r#"
-    code:python name:malformed-open]
-    print("Hello, world!")
-    [/code:python]
-    "#;
-    
-    let result3 = parse_document(input3);
-    assert!(result3.is_err(), "Parser should fail on malformed opening tag");
-    println!("DEBUG: Error for malformed opening tag: {:?}", result3.err());
-    
-    // Missing required name attribute
-    let input4 = r#"
-    [variable]
-    value without name
-    [/variable]
-    "#;
-    
-    let result4 = parse_document(input4);
-    assert!(result4.is_err(), "Parser should fail on variable block without name");
-    println!("DEBUG: Error for missing required name: {:?}", result4.err());
-    
-    // Invalid modifier format
-    let input5 = r#"
-    [code:python name:invalid-modifier-format cache_result:notboolean]
-    print("Hello, world!")
-    [/code:python]
-    "#;
-    
-    // This might parse successfully as modifiers are not validated during parsing
-    let result5 = parse_document(input5);
-    if let Ok(blocks) = result5 {
-        let block = blocks.iter().find(|b| b.name.as_deref() == Some("invalid-modifier-format"));
-        assert!(block.is_some(), "Block with invalid modifier format not found");
-        
-        // The modifier should be present even if the value is invalid
-        let block = block.unwrap();
-        assert!(block.has_modifier("cache_result"), "cache_result modifier not found");
-        println!("DEBUG: cache_result value: {:?}", block.get_modifier("cache_result"));
-    } else {
-        println!("DEBUG: Parser rejected invalid modifier format: {:?}", result5.err());
-    }
-}
 
 /// Test different closing tag variants
 #[test]
