@@ -7,6 +7,7 @@ use std::time::Duration;
 use yet_another_llm_project_but_better::file_watcher::{FileEvent, FileEventType, FileWatcher};
 use yet_another_llm_project_but_better::parser::{parse_document, Block};
 use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
+use chrono;
 
 fn main() {
     // Get file path from command line arguments
@@ -38,14 +39,16 @@ fn main() {
     let mut executor = MetaLanguageExecutor::new();
     
     // Process file events
-    println!("Waiting for file changes... (Press Ctrl+C to exit)");
+    println!("\n🔍 Waiting for file changes... (Press Ctrl+C to exit)");
+    println!("Watching file: {}", file_path);
     
     loop {
         // Check for file events with a timeout
         if let Ok(event) = rx.recv_timeout(Duration::from_secs(1)) {
             match event.event_type {
                 FileEventType::Created | FileEventType::Modified => {
-                    println!("\nFile changed: {}", event.path);
+                    println!("\n📄 File changed: {}", event.path);
+                    println!("Timestamp: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
                     
                     // Read the file content
                     match std::fs::read_to_string(&event.path) {
@@ -80,6 +83,9 @@ fn main() {
 fn process_block(executor: &mut MetaLanguageExecutor, block: &Block) {
     // Skip blocks that aren't executable
     if !executor.is_executable_block(block) {
+        println!("Skipping non-executable block: {} (type: {})", 
+                 block.name.as_deref().unwrap_or("unnamed"), 
+                 block.block_type);
         return;
     }
     
@@ -97,7 +103,18 @@ fn process_block(executor: &mut MetaLanguageExecutor, block: &Block) {
         }
     };
     
-    println!("\nExecuting block: {} (type: {})", block_name, block.block_type);
+    println!("\n==================================================");
+    println!("Executing block: {} (type: {})", block_name, block.block_type);
+    println!("==================================================");
+    
+    // Print block content preview
+    let content_preview = if block.content.len() > 100 {
+        format!("{:.100}...\n(content truncated, total length: {} chars)", 
+                block.content, block.content.len())
+    } else {
+        block.content.clone()
+    };
+    println!("Block content:\n{}", content_preview);
     
     // Register the block with the executor
     executor.blocks.insert(block_name.clone(), block.clone());
@@ -105,8 +122,16 @@ fn process_block(executor: &mut MetaLanguageExecutor, block: &Block) {
     // Execute the block
     match executor.execute_block(&block_name) {
         Ok(output) => {
-            println!("Execution successful!");
-            println!("Output:\n{}", output);
+            println!("\n✅ Execution successful!");
+            
+            // Print output preview
+            let output_preview = if output.len() > 500 {
+                format!("{:.500}...\n(output truncated, total length: {} chars)", 
+                        output, output.len())
+            } else {
+                output.clone()
+            };
+            println!("Output:\n{}", output_preview);
             
             // Generate and display results block
             let results_block = executor.generate_results_block(
@@ -125,7 +150,7 @@ fn process_block(executor: &mut MetaLanguageExecutor, block: &Block) {
             println!("[/results]");
         },
         Err(e) => {
-            eprintln!("Execution failed: {}", e);
+            eprintln!("\n❌ Execution failed: {}", e);
             
             // Generate and display error block
             let error_block = executor.generate_error_results_block(block, &e.to_string());

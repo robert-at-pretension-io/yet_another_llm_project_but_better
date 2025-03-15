@@ -431,12 +431,57 @@ impl MetaLanguageExecutor {
         // Debug: Print processed code
         println!("DEBUG: Processed Python code:\n{}", processed_code);
         
-        // Use the specific Python path that's available on the system
-        let python_path = "/usr/bin/python3";
+        // Find Python interpreter by trying different commands/paths
+        let python_commands = vec!["python3", "python", "py"];
+        let python_paths = vec![
+            "/usr/bin/python3",
+            "/usr/bin/python",
+            "/usr/local/bin/python3",
+            "/usr/local/bin/python",
+        ];
         
-        println!("DEBUG: Executing Python with '{}'", python_path);
+        // First try commands that should be in PATH
+        let mut python_cmd = None;
+        for cmd in &python_commands {
+            println!("DEBUG: Trying Python command: '{}'", cmd);
+            if Command::new(cmd)
+                .arg("--version")
+                .output()
+                .is_ok() {
+                python_cmd = Some(cmd.to_string());
+                println!("DEBUG: Found working Python command: '{}'", cmd);
+                break;
+            }
+        }
         
-        let result = Command::new(python_path)
+        // If no command worked, try specific paths
+        if python_cmd.is_none() {
+            for path in &python_paths {
+                println!("DEBUG: Trying Python path: '{}'", path);
+                if std::path::Path::new(path).exists() {
+                    if Command::new(path)
+                        .arg("--version")
+                        .output()
+                        .is_ok() {
+                        python_cmd = Some(path.to_string());
+                        println!("DEBUG: Found working Python path: '{}'", path);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // If we still don't have a working Python, return an error
+        let python_cmd = match python_cmd {
+            Some(cmd) => cmd,
+            None => return Err(ExecutorError::ExecutionFailed(
+                "Could not find a working Python interpreter. Please ensure Python is installed and in your PATH.".to_string()
+            )),
+        };
+        
+        println!("DEBUG: Executing Python with '{}'", python_cmd);
+        
+        let result = Command::new(&python_cmd)
             .arg("-c")
             .arg(&processed_code)
             .stdout(Stdio::piped())
@@ -455,8 +500,19 @@ impl MetaLanguageExecutor {
                         } else {
                             // Command executed but returned an error
                             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                             println!("DEBUG: Python execution failed with error:\n{}", stderr);
-                            return Err(ExecutorError::ExecutionFailed(stderr));
+                            
+                            // Provide more detailed error message
+                            let error_msg = if !stderr.is_empty() {
+                                format!("Python execution error:\n{}", stderr)
+                            } else if !stdout.is_empty() {
+                                format!("Python execution failed with output:\n{}", stdout)
+                            } else {
+                                "Python execution failed with no error output".to_string()
+                            };
+                            
+                            return Err(ExecutorError::ExecutionFailed(error_msg));
                         }
                     },
                     Err(e) => {
@@ -471,7 +527,7 @@ impl MetaLanguageExecutor {
                 // Command not found or other spawn error
                 println!("DEBUG: Error spawning Python process: {}", e);
                 return Err(ExecutorError::ExecutionFailed(
-                    format!("Failed to execute Python code. Error: {}", e)
+                    format!("Failed to execute Python code with '{}'. Error: {}\nPlease ensure Python is installed and in your PATH.", python_cmd, e)
                 ));
             }
         }
