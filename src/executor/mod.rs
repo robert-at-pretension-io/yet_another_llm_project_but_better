@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use tempfile;
 use thiserror::Error;
-use tokio::runtime::Runtime;
 
 use crate::parser::{Block, parse_document, extract_variable_references};
 use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
@@ -50,8 +49,6 @@ pub struct MetaLanguageExecutor {
     pub current_document: String,
     // Track blocks being processed to detect circular dependencies
     processing_blocks: Vec<String>,
-    // Tokio runtime for async operations
-    runtime: Runtime,
 }
 
 impl MetaLanguageExecutor {
@@ -63,7 +60,6 @@ impl MetaLanguageExecutor {
             cache: HashMap::new(),
             current_document: String::new(),
             processing_blocks: Vec::new(),
-            runtime: Runtime::new().expect("Failed to create Tokio runtime"),
         }
     }
 
@@ -713,13 +709,11 @@ impl MetaLanguageExecutor {
             prompt = format!("Context:\n{}\n\nQuestion:\n{}", context, prompt);
         }
         
-        // Execute the LLM request in the runtime
-        let result = self.runtime.block_on(async {
-            match llm_client.send_prompt(&prompt).await {
-                Ok(response) => Ok(response),
-                Err(e) => Err(ExecutorError::LlmApiError(e.to_string())),
-            }
-        });
+        // Execute the LLM request using the synchronous client
+        let result = match llm_client.send_prompt(&prompt) {
+            Ok(response) => Ok(response),
+            Err(e) => Err(ExecutorError::LlmApiError(e.to_string())),
+        };
         
         // Process the result
         match result {
