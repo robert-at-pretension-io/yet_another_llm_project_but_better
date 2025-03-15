@@ -18,6 +18,7 @@ half = "=1.8.2"  # Pin to exactly version 1.8.2
 num-traits = "=0.2.15"
 indexmap = "=1.9.3"
 lazy_static = "=1.4.0"
+chrono = "=0.4.31"  # Added for timestamp formatting
 
 [features]
 default = []
