@@ -39,6 +39,14 @@ impl Block {
             .map(|(_, v)| v)
     }
     
+    // Get all modifiers with a specific prefix
+    pub fn get_modifiers_with_prefix(&self, prefix: &str) -> Vec<(&String, &String)> {
+        self.modifiers.iter()
+            .filter(|(k, _)| k.starts_with(prefix))
+            .map(|(k, v)| (k, v))
+            .collect()
+    }
+    
     // Check if a modifier has a truthy value (true, yes, 1)
     pub fn is_modifier_true(&self, key: &str) -> bool {
         if let Some(value) = self.get_modifier(key) {
@@ -58,6 +66,17 @@ impl Block {
     // Add a child block
     pub fn add_child(&mut self, child: Block) {
         self.children.push(child);
+    }
+    
+    // Get the XML namespace from a block type (if any)
+    pub fn get_namespace(&self) -> Option<(&str, &str)> {
+        if self.block_type.contains(':') {
+            let parts: Vec<&str> = self.block_type.splitn(2, ':').collect();
+            if parts.len() == 2 {
+                return Some((parts[0], parts[1]));
+            }
+        }
+        None
     }
 }
 

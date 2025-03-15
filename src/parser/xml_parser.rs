@@ -2,6 +2,7 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 use std::collections::HashMap;
 use std::io::BufRead;
+use std::str;
 
 use crate::parser::blocks::Block;
 use crate::parser::ParserError;
@@ -24,7 +25,10 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
-                let name = reader.decoder().decode(e.name().as_ref()).unwrap_or_default();
+                // Convert tag name to string - compatible with quick-xml 0.28
+                let name = str::from_utf8(e.name().as_ref())
+                    .unwrap_or_default()
+                    .to_string();
                 
                 // Check for meta:document
                 if name == "meta:document" {
@@ -47,13 +51,17 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     
                     for attr_result in e.attributes() {
                         if let Ok(attr) = attr_result {
-                            let key = reader.decoder().decode(attr.key.as_ref()).unwrap_or_default();
-                            let value = reader.decoder().decode(&attr.value).unwrap_or_default();
+                            let key = str::from_utf8(attr.key.as_ref())
+                                .unwrap_or_default()
+                                .to_string();
+                            let value = str::from_utf8(&attr.value)
+                                .unwrap_or_default()
+                                .to_string();
                             
                             if key == "name" {
-                                block_name = Some(value.to_string());
+                                block_name = Some(value);
                             } else {
-                                modifiers.push((key.to_string(), value.to_string()));
+                                modifiers.push((key, value));
                             }
                         }
                     }
@@ -71,7 +79,9 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 }
             },
             Ok(Event::End(ref e)) => {
-                let name = reader.decoder().decode(e.name().as_ref()).unwrap_or_default();
+                let name = str::from_utf8(e.name().as_ref())
+                    .unwrap_or_default()
+                    .to_string();
                 
                 if name == "meta:document" {
                     in_document = false;
@@ -89,14 +99,16 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
             },
             Ok(Event::Text(e)) => {
                 if in_document && current_block.is_some() {
-                    let text = reader.decoder().decode(e.as_ref()).unwrap_or_default();
-                    current_content.push_str(&text);
+                    if let Ok(text) = e.unescape() {
+                        current_content.push_str(&text);
+                    }
                 }
             },
             Ok(Event::CData(e)) => {
                 if in_document && current_block.is_some() {
-                    let text = reader.decoder().decode(e.as_ref()).unwrap_or_default();
-                    current_content.push_str(&text);
+                    let text = str::from_utf8(e.as_ref())
+                        .unwrap_or_default();
+                    current_content.push_str(text);
                 }
             },
             Ok(Event::Eof) => break,
