@@ -745,7 +745,7 @@ def hello():
     print("Hello from Python")
 [/code:python]
 
-[code:javascript name:js_code]
+[code:javascript name:javascript_code]
 function hello() {
     console.log("Hello from JavaScript");
 }
