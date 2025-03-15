@@ -1149,8 +1149,9 @@ Error: Block not found
     assert!(has_modifier(create_viz, "depends", "process_data"));
     
     // Check template invocation
-    let final_report = find_child_by_name(intro_section, "final_report").expect("Final report not found");
-    assert_eq!(final_report.block_type, "template_invocation:report_template");
+    let final_report = intro_section.children.iter()
+        .find(|b| b.block_type == "template_invocation:report_template")
+        .expect("Final report not found");
     assert!(has_modifier(final_report, "title", "Analysis Report"));
     assert!(has_modifier(final_report, "data_processed", "Yes"));
     assert!(has_modifier(final_report, "visualization_path", "visualization.png"));
