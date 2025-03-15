@@ -1402,8 +1402,8 @@ impl MetaLanguageExecutor {
         for (i, line) in lines.iter().enumerate() {
             let trimmed = line.trim();
             
-            // Check for question block start with name attribute
-            if trimmed.starts_with("[question") {
+            // Check for question block start with name attribute - handle both XML and markdown formats
+            if trimmed.starts_with("[question") || trimmed.starts_with("<meta:question") || trimmed.starts_with("<question") {
                 in_question_block = true;
                 
                 // Try to extract name from the opening tag
@@ -1411,17 +1411,27 @@ impl MetaLanguageExecutor {
                     let name_start = name_start + 5; // skip "name:"
                     let name_end = trimmed[name_start..].find(']')
                         .map(|pos| name_start + pos)
-                        .unwrap_or_else(|| trimmed[name_start..].find(' ')
+                        .unwrap_or_else(|| trimmed[name_start..].find('>')
                             .map(|pos| name_start + pos)
-                            .unwrap_or(trimmed.len()));
+                            .unwrap_or_else(|| trimmed[name_start..].find(' ')
+                                .map(|pos| name_start + pos)
+                                .unwrap_or(trimmed.len())));
                     
                     current_question_name = Some(trimmed[name_start..name_end].trim().to_string());
                     println!("DEBUG: Found question block with name: {:?}", current_question_name);
+                } else if let Some(name_start) = trimmed.find("name=\"") {
+                    let name_start = name_start + 6; // skip "name=\""
+                    let name_end = trimmed[name_start..].find('"')
+                        .map(|pos| name_start + pos)
+                        .unwrap_or(trimmed.len());
+                    
+                    current_question_name = Some(trimmed[name_start..name_end].trim().to_string());
+                    println!("DEBUG: Found question block with XML name attribute: {:?}", current_question_name);
                 }
             }
             
-            // Check for question block end
-            if trimmed == "[/question]" && in_question_block {
+            // Check for question block end - handle both XML and markdown formats
+            if (trimmed == "[/question]" || trimmed == "</meta:question>" || trimmed == "</question>") && in_question_block {
                 in_question_block = false;
                 
                 // Store the question block info
@@ -1444,8 +1454,9 @@ impl MetaLanguageExecutor {
             result.push_str(line);
             result.push('\n');
             
-            // Check if this is the end of a question block
-            if line.trim() == "[/question]" {
+            // Check if this is the end of a question block - handle both XML and markdown formats
+            let trimmed_line = line.trim();
+            if trimmed_line == "[/question]" || trimmed_line == "</meta:question>" || trimmed_line == "</question>" {
                 // Check if this is a named question block we identified
                 let named_question_pos = question_blocks.iter().position(|(line_idx, _)| *line_idx == i);
                 
@@ -1467,9 +1478,18 @@ impl MetaLanguageExecutor {
                         if let Some(output) = self.outputs.get(&response_name) {
                             println!("DEBUG: Found matching response '{}' (length: {})", response_name, output.len());
                             // Insert the response block after the question block
-                            result.push_str("[response]\n");
-                            result.push_str(output);
-                            result.push_str("\n[/response]\n\n");
+                            // Use the same format (XML or markdown) as the question block
+                            if trimmed_line.starts_with("<") {
+                                // XML format
+                                result.push_str("<meta:response>\n");
+                                result.push_str(output);
+                                result.push_str("\n</meta:response>\n\n");
+                            } else {
+                                // Markdown format
+                                result.push_str("[response]\n");
+                                result.push_str(output);
+                                result.push_str("\n[/response]\n\n");
+                            }
                             response_blocks_added += 1;
                             println!("DEBUG: Added response block #{} for question '{}'", response_blocks_added, question_name);
                         } else {
@@ -1484,9 +1504,18 @@ impl MetaLanguageExecutor {
                         if let Some(output) = self.outputs.get("question_response") {
                             println!("DEBUG: Found generic question_response (length: {})", output.len());
                             // Insert the response block after the question block
-                            result.push_str("[response]\n");
-                            result.push_str(output);
-                            result.push_str("\n[/response]\n\n");
+                            // Use the same format (XML or markdown) as the question block
+                            if trimmed_line.starts_with("<") {
+                                // XML format
+                                result.push_str("<meta:response>\n");
+                                result.push_str(output);
+                                result.push_str("\n</meta:response>\n\n");
+                            } else {
+                                // Markdown format
+                                result.push_str("[response]\n");
+                                result.push_str(output);
+                                result.push_str("\n[/response]\n\n");
+                            }
                             response_blocks_added += 1;
                             println!("DEBUG: Added response block #{} for unnamed question", response_blocks_added);
                         } else {

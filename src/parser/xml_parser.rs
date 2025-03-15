@@ -73,23 +73,31 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     println!("DEBUG: Extracting attributes for block type: {}", block_type);
                     for attr_result in e.attributes() {
                         if let Ok(attr) = attr_result {
-                            let key = str::from_utf8(attr.key.as_ref())
+                            let raw_key = str::from_utf8(attr.key.as_ref())
                                 .unwrap_or_default()
                                 .to_string();
                             let value = str::from_utf8(&attr.value)
                                 .unwrap_or_default()
                                 .to_string();
                             
-                            println!("DEBUG:   Attribute: {}=\"{}\"", key, value);
+                            // Handle special case for attributes with format "name:value"
+                            let (key, actual_value) = if raw_key.contains(':') {
+                                let parts: Vec<&str> = raw_key.splitn(2, ':').collect();
+                                (parts[0].to_string(), parts[1].to_string())
+                            } else {
+                                (raw_key, value)
+                            };
+                            
+                            println!("DEBUG:   Attribute: {}=\"{}\"", key, actual_value);
                             
                             // Special debug for auto_execute and question blocks
                             if key == "auto_execute" {
-                                println!("DEBUG:   Found auto_execute attribute with value: {}", value);
+                                println!("DEBUG:   Found auto_execute attribute with value: {}", actual_value);
                                 println!("DEBUG:   For block type: {}", block_type);
                             }
                             
                             if key == "name" {
-                                block_name = Some(value);
+                                block_name = Some(actual_value);
                             } else if key == "type" && block_type == "section" {
                                 // For sections, store type as a modifier
                                 modifiers.push((key.clone(), value.clone()));
