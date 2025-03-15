@@ -1,3 +1,3 @@
-[question auto_execute:yes depends:my_wife]
+[question]
 what's the meaning of life?
 [/question]

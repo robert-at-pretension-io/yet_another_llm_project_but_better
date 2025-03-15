@@ -280,7 +280,7 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                                     let block_content = &potential_block[open_tag_end..close_pos].trim();
                                     
                                     // Create block
-                                    let mut block = Block::new(block_type, None, block_content);
+                                    let block = Block::new(block_type, None, block_content);
                                     
                                     blocks.push(block);
                                     println!("DEBUG: Added code block with simple closing tag");
