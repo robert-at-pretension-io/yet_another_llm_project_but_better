@@ -62,17 +62,32 @@ pub fn is_valid_block_type(block_type: &str) -> bool {
 
 // Parse a document string into blocks
 pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
+    println!("DEBUG: parse_document called with input length: {} characters", input.len());
+    println!("DEBUG: Input preview: {}", &input[..std::cmp::min(100, input.len())]);
+    
     // Use only the XML parser for document parsing
+    println!("DEBUG: Calling xml_parser::parse_xml_document");
     match xml_parser::parse_xml_document(input) {
         Ok(blocks) => {
+            println!("DEBUG: XML parsing successful, got {} blocks", blocks.len());
+            
             // Validate block types
-            for block in &blocks {
+            for (i, block) in blocks.iter().enumerate() {
+                println!("DEBUG: Validating block {}: type={}, name={:?}", 
+                         i, block.block_type, block.name);
+                
                 if !is_valid_block_type(&block.block_type) {
+                    println!("DEBUG: Invalid block type: {}", block.block_type);
                     return Err(ParserError::InvalidBlockType(block.block_type.clone()));
                 }
             }
+            
+            println!("DEBUG: All blocks validated successfully");
             Ok(blocks)
         },
-        Err(err) => Err(ParserError::ParseError(format!("XML parsing failed: {}", err)))
+        Err(err) => {
+            println!("DEBUG: XML parsing failed: {}", err);
+            Err(ParserError::ParseError(format!("XML parsing failed: {}", err)))
+        }
     }
 }

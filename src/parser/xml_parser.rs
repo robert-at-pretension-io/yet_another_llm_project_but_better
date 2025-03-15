@@ -10,6 +10,10 @@ use crate::parser::is_valid_block_type;
 
 /// Parse an XML document into a vector of blocks
 pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
+    println!("DEBUG: Starting XML document parsing");
+    println!("DEBUG: Input document length: {} characters", input.len());
+    println!("DEBUG: First 100 chars: {}", &input[..std::cmp::min(100, input.len())]);
+    
     let mut reader = Reader::from_str(input);
     reader.trim_text(true);
     
@@ -23,6 +27,8 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
     let mut block_stack: Vec<Block> = Vec::new();
     let mut content_stack: Vec<String> = Vec::new();
     
+    println!("DEBUG: Beginning XML event loop");
+    
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
@@ -31,14 +37,18 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     .unwrap_or_default()
                     .to_string();
                 
+                println!("DEBUG: Start tag: <{}>", name);
+                
                 // Check for document tag (with or without meta: prefix)
                 if name == "meta:document" || name == "document" {
+                    println!("DEBUG: Entering document element");
                     in_document = true;
                     continue;
                 }
                 
                 // Only process elements inside document
                 if !in_document {
+                    println!("DEBUG: Skipping tag <{}> - not inside document element", name);
                     continue;
                 }
                 
@@ -49,13 +59,18 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     name
                 };
                 
+                println!("DEBUG: Processing block type: {}", block_type);
+                
                 // Check if this is a valid block type
                 if is_valid_block_type(&block_type) {
+                    println!("DEBUG: Valid block type: {}", block_type);
+                    
                     // Extract attributes
                     let mut block_name = None;
                     let mut modifiers = Vec::new();
                     let mut final_block_type = block_type.clone();
                     
+                    println!("DEBUG: Extracting attributes for block type: {}", block_type);
                     for attr_result in e.attributes() {
                         if let Ok(attr) = attr_result {
                             let key = str::from_utf8(attr.key.as_ref())
@@ -64,6 +79,8 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                             let value = str::from_utf8(&attr.value)
                                 .unwrap_or_default()
                                 .to_string();
+                            
+                            println!("DEBUG:   Attribute: {}=\"{}\"", key, value);
                             
                             if key == "name" {
                                 block_name = Some(value);
@@ -85,14 +102,19 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     // Create a new block
                     let mut block = Block::new(&final_block_type, block_name.as_deref(), "");
                     
+                    println!("DEBUG: Created new block: type={}, name={:?}", 
+                             final_block_type, block_name);
+                    
                     // Add modifiers
                     for (key, value) in modifiers {
                         block.add_modifier(&key, &value);
+                        println!("DEBUG:   Added modifier: {}=\"{}\"", key, value);
                     }
                     
                     // Push to the stack
                     block_stack.push(block);
                     content_stack.push(String::new());
+                    println!("DEBUG: Pushed block to stack, stack size: {}", block_stack.len());
                 }
             },
             Ok(Event::End(ref e)) => {
@@ -100,8 +122,11 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     .unwrap_or_default()
                     .to_string();
                 
+                println!("DEBUG: End tag: </{}>", name);
+                
                 // Handle document end tag (with or without meta: prefix)
                 if name == "meta:document" || name == "document" {
+                    println!("DEBUG: Exiting document element");
                     in_document = false;
                     continue;
                 }
@@ -115,18 +140,25 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 
                 // Process end of any valid block type
                 if in_document && is_valid_block_type(&block_type) {
+                    println!("DEBUG: Processing end of block: {}", block_type);
                     if !block_stack.is_empty() {
                         // Pop the current block and its content
                         let mut block = block_stack.pop().unwrap();
                         let content = content_stack.pop().unwrap();
                         block.content = content.trim().to_string();
                         
+                        println!("DEBUG: Block content length: {} characters", block.content.len());
+                        println!("DEBUG: Content preview: {}", 
+                                 &block.content[..std::cmp::min(50, block.content.len())]);
+                        
                         // If there's a parent block, add this as a child
                         if !block_stack.is_empty() {
                             let parent_index = block_stack.len() - 1;
+                            println!("DEBUG: Adding block as child to parent at index {}", parent_index);
                             block_stack[parent_index].children.push(block);
                         } else {
                             // This is a top-level block
+                            println!("DEBUG: Adding block as top-level block");
                             blocks.push(block);
                         }
                     }
@@ -135,6 +167,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
             Ok(Event::Text(e)) => {
                 if in_document && !block_stack.is_empty() {
                     if let Ok(text) = e.unescape() {
+                        println!("DEBUG: Text event: \"{}\"", text);
                         let last_idx = content_stack.len() - 1;
                         content_stack[last_idx].push_str(&text);
                     }
@@ -144,21 +177,31 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 if in_document && !block_stack.is_empty() {
                     let text = str::from_utf8(e.as_ref())
                         .unwrap_or_default();
+                    println!("DEBUG: CDATA event, length: {} characters", text.len());
+                    println!("DEBUG: CDATA preview: {}", 
+                             &text[..std::cmp::min(50, text.len())]);
                     let last_idx = content_stack.len() - 1;
                     content_stack[last_idx].push_str(text);
                 }
             },
-            Ok(Event::Eof) => break,
+            Ok(Event::Eof) => {
+                println!("DEBUG: Reached end of XML document");
+                break;
+            },
             Err(e) => {
+                println!("DEBUG: XML parsing error: {}", e);
                 return Err(ParserError::ParseError(format!("XML parsing error: {}", e)));
             },
-            _ => (),
+            _ => {
+                println!("DEBUG: Other XML event type");
+            },
         }
         
         buf.clear();
     }
     
     if blocks.is_empty() {
+        println!("DEBUG: No blocks found in XML document");
         return Err(ParserError::ParseError("No valid blocks found in XML document".to_string()));
     }
     
