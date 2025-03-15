@@ -5,10 +5,11 @@
 
 use notify::{Watcher, DebouncedEvent, RecursiveMode, watcher};
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Sender};
 use std::collections::HashSet;
 use std::time::Duration;
 use std::thread;
+use std::sync::{Arc, Mutex};
 
 /// Types of file events that can be detected
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,8 +37,8 @@ pub struct FileWatcher {
     watcher: notify::RecommendedWatcher,
     // Set of files being watched
     watched_files: HashSet<PathBuf>,
-    // Sender for file events
-    sender: Sender<FileEvent>,
+    // Flag to signal the background thread to stop
+    running: Arc<Mutex<bool>>,
 }
 
 impl FileWatcher {
@@ -58,25 +59,43 @@ impl FileWatcher {
         let watcher = watcher(tx, Duration::from_millis(100))
             .expect("Failed to create file watcher");
         
+        // Create a flag to signal when the watcher should stop
+        let running = Arc::new(Mutex::new(true));
+        let running_clone = running.clone();
+        
         // Spawn a thread to handle events from the watcher
-        let tx_clone = sender.clone();
         thread::spawn(move || {
-            for event in rx {
-                // Convert notify events to our FileEvent type
-                if let Some(file_event) = Self::convert_event(event) {
-                    // Send the event
-                    if tx_clone.send(file_event).is_err() {
-                        eprintln!("Error sending file event: receiver may have been dropped");
+            while let Ok(true) = running_clone.lock().map(|guard| *guard) {
+                // Try to receive an event with a timeout to allow checking the running flag
+                match rx.recv_timeout(Duration::from_millis(500)) {
+                    Ok(event) => {
+                        // Convert notify events to our FileEvent type
+                        if let Some(file_event) = Self::convert_event(event) {
+                            // Send the event
+                            if sender.send(file_event).is_err() {
+                                eprintln!("Error sending file event: receiver may have been dropped");
+                                break;
+                            }
+                        }
+                    },
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                        // Just a timeout, continue and check running flag
+                        continue;
+                    },
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                        // Channel disconnected, exit the loop
+                        eprintln!("File watcher channel disconnected");
                         break;
                     }
                 }
             }
+            eprintln!("File watcher thread shutting down");
         });
         
         FileWatcher {
             watcher,
             watched_files: HashSet::new(),
-            sender,
+            running,
         }
     }
     
@@ -92,6 +111,11 @@ impl FileWatcher {
     pub fn watch(&mut self, path: String) -> Result<(), String> {
         let path_buf = PathBuf::from(&path);
         
+        // Check if the path exists
+        if !path_buf.exists() {
+            return Err(format!("Path does not exist: {}", path));
+        }
+        
         // Add to our internal set of watched files
         self.watched_files.insert(path_buf.clone());
         
@@ -99,6 +123,28 @@ impl FileWatcher {
         match self.watcher.watch(&path_buf, RecursiveMode::NonRecursive) {
             Ok(_) => Ok(()),
             Err(e) => Err(format!("Failed to watch path: {}", e)),
+        }
+    }
+    
+    /// Stop watching a specific path
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to stop watching
+    ///
+    /// # Returns
+    ///
+    /// Result indicating success or failure
+    pub fn unwatch(&mut self, path: &str) -> Result<(), String> {
+        let path_buf = PathBuf::from(path);
+        
+        // Remove from our internal set
+        self.watched_files.remove(&path_buf);
+        
+        // Stop watching with notify
+        match self.watcher.unwatch(&path_buf) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(format!("Failed to unwatch path: {}", e)),
         }
     }
     
@@ -131,7 +177,20 @@ impl FileWatcher {
 // Implement Drop to ensure resources are cleaned up
 impl Drop for FileWatcher {
     fn drop(&mut self) {
-        // The watcher will be dropped automatically
+        // Signal the background thread to stop
+        if let Ok(mut running) = self.running.lock() {
+            *running = false;
+        }
+        
+        // Unwatch all paths to clean up resources
+        for path in self.watched_files.clone() {
+            if let Err(e) = self.watcher.unwatch(&path) {
+                eprintln!("Error unwatching path during shutdown: {}", e);
+            }
+        }
+        
+        // Allow some time for the thread to clean up
+        std::thread::sleep(Duration::from_millis(100));
     }
 }
 
@@ -147,7 +206,7 @@ mod tests {
     #[test]
     fn test_file_watcher_creation() {
         let (tx, _rx) = channel();
-        let watcher = FileWatcher::new(tx);
+        let _watcher = FileWatcher::new(tx);
         // Just check that creation doesn't panic
     }
     
