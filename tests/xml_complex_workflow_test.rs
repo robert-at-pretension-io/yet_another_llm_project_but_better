@@ -233,9 +233,14 @@ Based on the security analysis, what are the key vulnerabilities that need addre
         executor.outputs.insert("target-app".to_string(), 
             r#"{"url": "https://example-app.com", "tech_stack": ["Python", "Django", "PostgreSQL"], "authentication": true}"#.to_string());
         
+        // Set up environment variable to enable test mode
+        std::env::set_var("LLM_TEST_MODE", "1");
+        
+        // Mock the security-headers API response
         executor.outputs.insert("security-headers".to_string(), 
             r#"{"grade": "B", "headers": ["X-Content-Type-Options", "X-Frame-Options"]}"#.to_string());
         
+        // Mock the nmap-scan output
         executor.outputs.insert("nmap-scan".to_string(), 
             "PORT   STATE  SERVICE\n22/tcp open   ssh\n80/tcp open   http".to_string());
         
@@ -394,6 +399,9 @@ print(result)
         
         // Manually set up the data block result
         executor.outputs.insert("simple-data".to_string(), "[1, 2, 3, 4, 5]".to_string());
+        
+        // Set up environment variable to enable test mode
+        std::env::set_var("LLM_TEST_MODE", "1");
         
         // Execute the process-data block
         println!("Executing process-data block...");        let result = executor.execute_block("process-data");

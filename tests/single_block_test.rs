@@ -5,37 +5,43 @@ mod tests {
     
     #[test]
     fn test_direct_block_parsing() {
-        let input = r#"<meta:data name="test-data" format="json">
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="test-data" format="json">
+<![CDATA[
 {"value": 42}
-</meta:data>"#;
+]]>
+</meta:data>
+</meta:document>"#;
         
-        // Try parsing just as a data_block instead of a document
-        let pairs = MetaLanguageParser::parse(Rule::data_block, input);
-        assert!(pairs.is_ok(), "Failed to parse data block: {:?}", pairs.err());
+        // Parse as a document
+        let doc_result = parse_document(input);
+        assert!(doc_result.is_ok(), "Failed to parse document: {:?}", doc_result.err());
         
-        let pairs = pairs.unwrap();
-        let mut pair_count = 0;
-        for _ in pairs {
-            pair_count += 1;
-        }
+        let blocks = doc_result.unwrap();
+        assert_eq!(blocks.len(), 1, "Expected 1 data block, found {}", blocks.len());
+        assert_eq!(blocks[0].block_type, "data");
+        assert_eq!(blocks[0].name, Some("test-data".to_string()));
         
-        assert_eq!(pair_count, 1, "Expected 1 data block, found {}", pair_count);
+        // Check modifiers
+        let format = blocks[0].get_modifier("format");
+        assert_eq!(format, Some(&"json".to_string()));
     }
     
     #[test]
     fn test_code_block_parsing() {
-        let input = r#"<meta:code language="python" name="calculate-sum">
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:code language="python" name="calculate-sum">
+<![CDATA[
 def add(a, b):
     return a + b
 
 result = add(5, 7)
 print(result)
-</meta:code>"#;
+]]>
+</meta:code>
+</meta:document>"#;
         
-        let pairs = MetaLanguageParser::parse(Rule::code_block, input);
-        assert!(pairs.is_ok(), "Failed to parse code block: {:?}", pairs.err());
-        
-        // Also test as part of a document
+        // Parse as a document
         let doc_result = parse_document(input);
         assert!(doc_result.is_ok(), "Failed to parse code block in document: {:?}", doc_result.err());
         
@@ -47,15 +53,16 @@ print(result)
     
     #[test]
     fn test_shell_block_parsing() {
-        let input = r#"<meta:shell name="install-deps">
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:shell name="install-deps">
+<![CDATA[
 pip install pandas numpy matplotlib
-</meta:shell>"#;
-        
-        let pairs = MetaLanguageParser::parse(Rule::shell_block, input);
-        assert!(pairs.is_ok(), "Failed to parse shell block: {:?}", pairs.err());
+]]>
+</meta:shell>
+</meta:document>"#;
         
         let doc_result = parse_document(input);
-        assert!(doc_result.is_ok());
+        assert!(doc_result.is_ok(), "Failed to parse shell block: {:?}", doc_result.err());
         
         let blocks = doc_result.unwrap();
         assert_eq!(blocks[0].block_type, "shell");
@@ -65,15 +72,16 @@ pip install pandas numpy matplotlib
     
     #[test]
     fn test_variable_block_parsing() {
-        let input = r#"<meta:variable name="api-key">
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:variable name="api-key">
+<![CDATA[
 sk-1234567890abcdef
-</meta:variable>"#;
-        
-        let pairs = MetaLanguageParser::parse(Rule::variable_block, input);
-        assert!(pairs.is_ok(), "Failed to parse variable block: {:?}", pairs.err());
+]]>
+</meta:variable>
+</meta:document>"#;
         
         let doc_result = parse_document(input);
-        assert!(doc_result.is_ok());
+        assert!(doc_result.is_ok(), "Failed to parse variable block: {:?}", doc_result.err());
         
         let blocks = doc_result.unwrap();
         assert_eq!(blocks[0].block_type, "variable");
@@ -82,21 +90,24 @@ sk-1234567890abcdef
     }
     
     #[test]
-    
     fn test_block_with_modifiers() {
-        let input = r#"<meta:data name="config" format="json">
+        let input = r#"<meta:document xmlns:meta="https://example.com/meta-language">
+<meta:data name="config" format="json">
+<![CDATA[
 {"server": "localhost", "port": 8080}
-</meta:data>"#;
+]]>
+</meta:data>
+</meta:document>"#;
         
         let doc_result = parse_document(input);
-        assert!(doc_result.is_ok());
+        assert!(doc_result.is_ok(), "Failed to parse document: {:?}", doc_result.err());
         
         let blocks = doc_result.unwrap();
         assert_eq!(blocks[0].block_type, "data");
         assert_eq!(blocks[0].name, Some("config".to_string()));
         
         // Check modifiers
-        let format = blocks[0].modifiers.iter().find(|(k, _)| k == "format").map(|(_, v)| v);
+        let format = blocks[0].get_modifier("format");
         assert_eq!(format, Some(&"json".to_string()));
     }
 }
