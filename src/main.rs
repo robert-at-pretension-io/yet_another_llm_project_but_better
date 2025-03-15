@@ -11,6 +11,13 @@ use anyhow::{Result, Context, anyhow};
 use lazy_static::lazy_static;
 use chrono::Local;
 
+// Debug logging function that only prints if verbose mode is enabled
+fn log_debug(message: &str) {
+    if CONFIG.lock().unwrap().verbose {
+        println!("[{}] DEBUG: {}", Local::now().format("%H:%M:%S"), message);
+    }
+}
+
 // Import from our library
 use yet_another_llm_project_but_better::{
     parser::Block,
@@ -52,6 +59,7 @@ impl Default for Config {
 
 // Process a file immediately
 fn process_file(file_path: &str) -> Result<()> {
+    log_debug(&format!("Starting process_file for: {}", file_path));
     let start_time = Instant::now();
     let config = CONFIG.lock().unwrap();
     
@@ -60,34 +68,51 @@ fn process_file(file_path: &str) -> Result<()> {
     }
     
     // Read the file
+    log_debug(&format!("Reading file content from: {}", file_path));
     let content = fs::read_to_string(file_path)
         .with_context(|| format!("Failed to read file: {}", file_path))?;
+    log_debug(&format!("File read successfully, content length: {} bytes", content.len()));
     
     // Get or create an executor for this file
+    log_debug(&format!("Getting executor for file: {}", file_path));
     let executor = get_or_create_executor(file_path);
     let mut executor = executor.lock().unwrap();
+    log_debug("Executor acquired successfully");
     
     // Process the document
+    log_debug("Beginning document processing");
     executor.process_document(&content)
         .with_context(|| format!("Failed to process document: {}", file_path))?;
+    log_debug(&format!("Document processed successfully, found {} blocks", executor.blocks.len()));
     
     // Auto-execute blocks marked with auto_execute
     if config.auto_execute {
+        log_debug("Auto-execute enabled, processing auto-execute blocks");
         auto_execute_blocks(&mut executor)?;
+    } else {
+        log_debug("Auto-execute disabled, skipping");
     }
     
     // Process question blocks that don't have responses
     if config.answer_questions {
+        log_debug("Answer questions enabled, processing question blocks");
         answer_questions(&mut executor)?;
+    } else {
+        log_debug("Answer questions disabled, skipping");
     }
     
     // Update the file with results if configured
     if config.update_files {
+        log_debug(&format!("Update files enabled, updating: {}", file_path));
         update_file_with_results(file_path, &mut executor)?;
+    } else {
+        log_debug("Update files disabled, skipping");
     }
     
+    let elapsed = start_time.elapsed();
+    log_debug(&format!("Completed process_file in {:.2?}", elapsed));
+    
     if config.verbose {
-        let elapsed = start_time.elapsed();
         println!("[{}] Finished processing {} in {:.2?}", 
                  Local::now().format("%H:%M:%S"), file_path, elapsed);
     }
@@ -97,21 +122,26 @@ fn process_file(file_path: &str) -> Result<()> {
 
 // Get or create an executor for a specific file
 fn get_or_create_executor(file_path: &str) -> Arc<Mutex<MetaLanguageExecutor>> {
+    log_debug(&format!("Entering get_or_create_executor for: {}", file_path));
     let mut config = CONFIG.lock().unwrap();
     
     if let Some(executor) = config.executor_map.get(file_path) {
+        log_debug("Found existing executor, reusing");
         return executor.clone();
     }
     
     // Create a new executor
+    log_debug("No existing executor found, creating new one");
     let executor = Arc::new(Mutex::new(MetaLanguageExecutor::new()));
     config.executor_map.insert(file_path.to_string(), executor.clone());
+    log_debug(&format!("New executor created and stored for: {}", file_path));
     
     executor
 }
 
 // Execute blocks marked with auto_execute modifier
 fn auto_execute_blocks(executor: &mut MetaLanguageExecutor) -> Result<()> {
+    log_debug("Entering auto_execute_blocks");
     let mut executed_blocks = HashSet::new();
     
     // First collect the names of blocks to execute
@@ -120,14 +150,21 @@ fn auto_execute_blocks(executor: &mut MetaLanguageExecutor) -> Result<()> {
         .map(|(name, _)| name.clone())
         .collect();
     
+    log_debug(&format!("Found {} blocks with auto_execute modifier", blocks_to_execute.len()));
+    
     // Then execute each block
     for name in blocks_to_execute {
+        log_debug(&format!("Executing auto_execute block: '{}'", name));
         if let Err(e) = executor.execute_block(&name) {
             eprintln!("Error executing block '{}': {}", name, e);
+            log_debug(&format!("Error executing block '{}': {}", name, e));
         } else {
-            executed_blocks.insert(name);
+            executed_blocks.insert(name.clone());
+            log_debug(&format!("Successfully executed block: '{}'", name));
         }
     }
+    
+    log_debug(&format!("Completed auto_execute_blocks, executed {} blocks", executed_blocks.len()));
     
     if !executed_blocks.is_empty() && CONFIG.lock().unwrap().verbose {
         println!("Auto-executed {} blocks", executed_blocks.len());
@@ -138,6 +175,7 @@ fn auto_execute_blocks(executor: &mut MetaLanguageExecutor) -> Result<()> {
 
 // Process question blocks without responses
 fn answer_questions(executor: &mut MetaLanguageExecutor) -> Result<()> {
+    log_debug("Entering answer_questions");
     let mut questions_answered = 0;
     
     // Identify question blocks
@@ -151,14 +189,23 @@ fn answer_questions(executor: &mut MetaLanguageExecutor) -> Result<()> {
         .map(|(name, block)| (name.clone(), block.clone()))
         .collect();
     
+    log_debug(&format!("Found {} question blocks without responses", question_blocks.len()));
+    
     // Process each question block
-    for (name, _) in question_blocks {
+    for (name, block) in question_blocks {
+        log_debug(&format!("Processing question block: '{}', content length: {}", 
+                          name, block.content.len()));
+        
         if let Err(e) = executor.execute_block(&name) {
             eprintln!("Error executing question block '{}': {}", name, e);
+            log_debug(&format!("Error executing question block '{}': {}", name, e));
         } else {
             questions_answered += 1;
+            log_debug(&format!("Successfully processed question: '{}'", name));
         }
     }
+    
+    log_debug(&format!("Completed answer_questions, answered {} questions", questions_answered));
     
     if questions_answered > 0 && CONFIG.lock().unwrap().verbose {
         println!("Answered {} questions", questions_answered);
@@ -169,33 +216,46 @@ fn answer_questions(executor: &mut MetaLanguageExecutor) -> Result<()> {
 
 // Update the original file with execution results
 fn update_file_with_results(file_path: &str, executor: &mut MetaLanguageExecutor) -> Result<()> {
+    log_debug(&format!("Entering update_file_with_results for: {}", file_path));
+    
     // Generate updated document content
+    log_debug("Generating updated document content");
     let updated_content = executor.update_document()
         .with_context(|| format!("Failed to update document content for {}", file_path))?;
+    log_debug(&format!("Generated updated content, length: {} bytes", updated_content.len()));
     
     // Read the current file content
+    log_debug("Reading current file content for comparison");
     let current_content = fs::read_to_string(file_path)
         .with_context(|| format!("Failed to read file for update: {}", file_path))?;
+    log_debug(&format!("Current content length: {} bytes", current_content.len()));
     
     // Only write if content has changed
     if updated_content != current_content {
+        log_debug("Content has changed, updating file");
         if CONFIG.lock().unwrap().verbose {
             println!("Updating file with execution results: {}", file_path);
         }
         
         fs::write(file_path, updated_content)
             .with_context(|| format!("Failed to write updated content to {}", file_path))?;
+        log_debug("File updated successfully");
+    } else {
+        log_debug("Content unchanged, skipping file update");
     }
     
+    log_debug("Completed update_file_with_results");
     Ok(())
 }
 
 // Handle a file system event from the watcher
 fn handle_file_event(event: FileEvent) {
+    log_debug(&format!("Received file event: {:?} for path: {}", event.event_type, event.path));
     let config = CONFIG.lock().unwrap();
     
     // Only process file modifications
     if event.event_type != FileEventType::Modified {
+        log_debug(&format!("Ignoring non-modification event: {:?}", event.event_type));
         return;
     }
     
@@ -203,70 +263,102 @@ fn handle_file_event(event: FileEvent) {
     let path = Path::new(&event.path);
     if let Some(ext) = path.extension() {
         let ext_str = format!(".{}", ext.to_string_lossy());
+        log_debug(&format!("File extension: {}", ext_str));
+        
         if !config.watch_extensions.contains(&ext_str) {
+            log_debug(&format!("Ignoring file with unmonitored extension: {}", ext_str));
             return;
         }
     } else {
+        log_debug("Ignoring file with no extension");
         return; // No extension, not a file we want to process
     }
     
     // Process the modified file
+    log_debug(&format!("Processing modified file: {}", event.path));
     if config.verbose {
         println!("[{}] File changed: {}", Local::now().format("%H:%M:%S"), event.path);
     }
     
     if let Err(e) = process_file(&event.path) {
         eprintln!("Error processing file {}: {}", event.path, e);
+        log_debug(&format!("Error processing file {}: {}", event.path, e));
+    } else {
+        log_debug(&format!("Successfully processed modified file: {}", event.path));
     }
 }
 
 // Start the file watcher
 fn start_file_watcher() -> Result<()> {
+    log_debug("Entering start_file_watcher");
     let (tx, rx) = channel();
     let mut watcher = FileWatcher::new(tx);
+    log_debug("FileWatcher created successfully");
     
     // Add watch paths
     let config = CONFIG.lock().unwrap();
+    log_debug(&format!("Setting up {} watch paths", config.watch_paths.len()));
+    
     for path in &config.watch_paths {
+        log_debug(&format!("Attempting to watch path: {}", path));
         if let Err(e) = watcher.watch(path.clone()) {
             eprintln!("Error watching path {}: {}", path, e);
-        } else if config.verbose {
-            println!("Watching path: {}", path);
+            log_debug(&format!("Error watching path {}: {}", path, e));
+        } else {
+            log_debug(&format!("Successfully watching path: {}", path));
+            if config.verbose {
+                println!("Watching path: {}", path);
+            }
         }
     }
     
     // Handle events in a loop
     println!("Watching for file changes. Press Ctrl+C to exit.");
+    log_debug("Starting file watch event loop");
     drop(config); // Release the mutex lock
     
     loop {
+        log_debug("Waiting for file events...");
         match rx.recv() {
-            Ok(event) => handle_file_event(event),
+            Ok(event) => {
+                log_debug(&format!("Received file event for: {}", event.path));
+                handle_file_event(event);
+            },
             Err(e) => {
                 eprintln!("File watcher error: {}", e);
+                log_debug(&format!("File watcher error, exiting loop: {}", e));
                 break;
             }
         }
     }
     
+    log_debug("Exiting start_file_watcher");
     Ok(())
 }
 
 // Parse command-line arguments and configure the application
 fn parse_args() -> Result<()> {
+    log_debug("Entering parse_args");
     let args: Vec<String> = env::args().collect();
+    log_debug(&format!("Processing {} command line arguments", args.len() - 1));
+    
     let mut config = CONFIG.lock().unwrap();
     
     let mut i = 1;
     while i < args.len() {
+        log_debug(&format!("Processing argument: {}", args[i]));
         match args[i].as_str() {
             "--watch" | "-w" => {
                 config.watch_mode = true;
+                log_debug("Watch mode enabled");
             },
             "--path" | "-p" => {
                 if i + 1 < args.len() {
                     config.watch_paths = vec![args[i + 1].clone()];
+                    log_debug(&format!("Watch path set to: {}", args[i + 1]));
                     i += 1;
+                } else {
+                    log_debug("Warning: --path specified without a value");
                 }
             },
             "--extensions" | "-e" => {
@@ -282,31 +374,41 @@ fn parse_args() -> Result<()> {
                             }
                         })
                         .collect();
+                    log_debug(&format!("Watch extensions set to: {:?}", config.watch_extensions));
                     i += 1;
+                } else {
+                    log_debug("Warning: --extensions specified without a value");
                 }
             },
             "--no-auto-execute" => {
                 config.auto_execute = false;
+                log_debug("Auto-execute disabled");
             },
             "--no-questions" => {
                 config.answer_questions = false;
+                log_debug("Answer questions disabled");
             },
             "--no-update" => {
                 config.update_files = false;
+                log_debug("File updates disabled");
             },
             "--verbose" | "-v" => {
                 config.verbose = true;
+                log_debug("Verbose mode enabled");
             },
             "--help" | "-h" => {
+                log_debug("Help requested, showing usage information");
                 print_usage();
                 process::exit(0);
             },
             // If not a known flag, assume it's a file to process
             _ if args[i].starts_with('-') => {
+                log_debug(&format!("Unknown option: {}", args[i]));
                 return Err(anyhow!("Unknown option: {}", args[i]));
             },
             // Individual file to process
             _ => {
+                log_debug(&format!("Found file argument: {}", args[i]));
                 // Store the file path for later processing
                 return Ok(());
             }
@@ -314,6 +416,7 @@ fn parse_args() -> Result<()> {
         i += 1;
     }
     
+    log_debug("Completed parse_args successfully");
     Ok(())
 }
 
@@ -335,42 +438,64 @@ fn print_usage() {
 
 // Process a list of files
 fn process_files(files: &[String]) -> Result<()> {
-    for file in files {
+    log_debug(&format!("Entering process_files with {} files", files.len()));
+    
+    for (index, file) in files.iter().enumerate() {
+        log_debug(&format!("Processing file {}/{}: {}", index + 1, files.len(), file));
+        
         if let Err(e) = process_file(file) {
             eprintln!("Error processing file {}: {}", file, e);
+            log_debug(&format!("Error processing file {}: {}", file, e));
+        } else {
+            log_debug(&format!("Successfully processed file: {}", file));
         }
     }
+    
+    log_debug("Completed process_files");
     Ok(())
 }
 
 fn main() -> Result<()> {
+    println!("[{}] Starting META Programming Language Processor", 
+             Local::now().format("%H:%M:%S"));
+    
     // Parse command-line arguments
+    log_debug("Starting argument parsing");
     if let Err(e) = parse_args() {
         eprintln!("Error parsing arguments: {}", e);
+        log_debug(&format!("Error parsing arguments: {}", e));
         print_usage();
         process::exit(1);
     }
     
     // Check for files to process
+    log_debug("Collecting file arguments");
     let files: Vec<String> = env::args()
         .skip(1)
         .filter(|arg| !arg.starts_with('-') && arg != "--path" && arg != "--extensions")
         .collect();
     
+    log_debug(&format!("Found {} files to process", files.len()));
+    
     // Process specified files
     if !files.is_empty() {
+        log_debug("Processing specified files");
         process_files(&files)?;
+        log_debug("Completed processing all specified files");
     }
     
     // Start file watcher if in watch mode
     let config = CONFIG.lock().unwrap();
     if config.watch_mode {
+        log_debug("Watch mode enabled, starting file watcher");
         drop(config); // Release the lock
         start_file_watcher()?;
     } else if files.is_empty() {
         // No files specified and not in watch mode, print usage
+        log_debug("No files specified and not in watch mode, showing usage");
         print_usage();
     }
     
+    log_debug("Program execution complete");
     Ok(())
 }
