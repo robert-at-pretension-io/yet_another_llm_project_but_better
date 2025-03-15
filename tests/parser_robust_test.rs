@@ -1596,13 +1596,13 @@ fn test_different_languages() {
     
     // Verify each language block
     let languages = [
-        ("python-code", "code"),
-        ("javascript-code", "code"),
-        ("rust-code", "code"),
-        ("sql-code", "code"),
-        ("html-code", "code"),
-        ("css-code", "code"),
-        ("c-code", "code")
+        ("python-code", "code", "python"),
+        ("javascript-code", "code", "javascript"),
+        ("rust-code", "code", "rust"),
+        ("sql-code", "code", "sql"),
+        ("html-code", "code", "html"),
+        ("css-code", "code", "css"),
+        ("c-code", "code", "c")
     ];
     
     // Print all block names for debugging
@@ -1615,13 +1615,17 @@ fn test_different_languages() {
         }
     }
     
-    for (name, expected_type) in languages {
+    for (name, expected_type, expected_language) in languages {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some(name));
         assert!(block.is_some(), "Block {} not found ", name);
         
         let block = block.unwrap();
         assert_eq!(block.block_type, expected_type, 
                   "Block {} has incorrect type: {} ", name, block.block_type);
+        
+        // Check language modifier
+        assert_eq!(block.get_modifier("language").map(|s| s.as_str()), Some(expected_language),
+                  "Block {} has incorrect language: {:?} ", name, block.get_modifier("language"));
         
         println!("DEBUG: {} content: {}", name, block.content);
     }
