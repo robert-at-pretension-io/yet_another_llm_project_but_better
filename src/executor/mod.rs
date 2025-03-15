@@ -1146,8 +1146,49 @@ impl MetaLanguageExecutor {
         let mut result = String::new();
         let mut lines = updated_doc.lines().collect::<Vec<_>>();
         println!("DEBUG: Document has {} lines", lines.len());
+        
+        // First pass: identify question blocks and their names
+        let mut question_blocks = Vec::new();
+        let mut current_question_name = None;
+        let mut in_question_block = false;
+        
+        for (i, line) in lines.iter().enumerate() {
+            let trimmed = line.trim();
+            
+            // Check for question block start with name attribute
+            if trimmed.starts_with("[question") {
+                in_question_block = true;
+                
+                // Try to extract name from the opening tag
+                if let Some(name_start) = trimmed.find("name:") {
+                    let name_start = name_start + 5; // skip "name:"
+                    let name_end = trimmed[name_start..].find(']')
+                        .map(|pos| name_start + pos)
+                        .unwrap_or_else(|| trimmed[name_start..].find(' ')
+                            .map(|pos| name_start + pos)
+                            .unwrap_or(trimmed.len()));
+                    
+                    current_question_name = Some(trimmed[name_start..name_end].trim().to_string());
+                    println!("DEBUG: Found question block with name: {:?}", current_question_name);
+                }
+            }
+            
+            // Check for question block end
+            if trimmed == "[/question]" && in_question_block {
+                in_question_block = false;
+                
+                // Store the question block info
+                if let Some(name) = current_question_name.take() {
+                    question_blocks.push((i, name.clone()));
+                    println!("DEBUG: Recorded question block '{}' ending at line {}", name, i);
+                } else {
+                    println!("DEBUG: Found unnamed question block ending at line {}", i);
+                }
+            }
+        }
+        
+        // Second pass: insert responses after their corresponding question blocks
         let mut i = 0;
-        let mut question_blocks_found = 0;
         let mut response_blocks_added = 0;
         
         while i < lines.len() {
@@ -1155,28 +1196,31 @@ impl MetaLanguageExecutor {
             result.push_str(line);
             result.push('\n');
             
-            // Check if this is the end of a question block
-            if line.trim() == "[/question]" {
-                question_blocks_found += 1;
-                println!("DEBUG: Found end of question block #{}", question_blocks_found);
+            // Check if this is the end of a question block we identified
+            if let Some(pos) = question_blocks.iter().position(|(line_idx, _)| *line_idx == i) {
+                let (_, question_name) = &question_blocks[pos];
+                println!("DEBUG: Processing end of question block '{}' at line {}", question_name, i);
                 
                 // Check if the next line is already a response block
                 let next_is_response = i + 1 < lines.len() && lines[i + 1].trim().starts_with("[response");
                 println!("DEBUG: Next line is already a response block: {}", next_is_response);
                 
-                // If there's no response block following, add one
+                // If there's no response block following, try to add the corresponding one
                 if !next_is_response {
-                    println!("DEBUG: Looking for a response to add");
-                    // Look for a response to this question in the outputs
-                    for (output_name, output) in &self.outputs {
-                        println!("DEBUG: Considering output '{}' for insertion", output_name);
+                    // Look for a response to this specific question in the outputs
+                    let response_name = format!("{}_response", question_name);
+                    println!("DEBUG: Looking for response with name: '{}'", response_name);
+                    
+                    if let Some(output) = self.outputs.get(&response_name) {
+                        println!("DEBUG: Found matching response '{}' (length: {})", response_name, output.len());
                         // Insert the response block after the question block
                         result.push_str("[response]\n");
                         result.push_str(output);
                         result.push_str("\n[/response]\n\n");
                         response_blocks_added += 1;
-                        println!("DEBUG: Added response block #{}", response_blocks_added);
-                        break;
+                        println!("DEBUG: Added response block #{} for question '{}'", response_blocks_added, question_name);
+                    } else {
+                        println!("DEBUG: No matching response found for question '{}'", question_name);
                     }
                 }
             }
@@ -1185,7 +1229,7 @@ impl MetaLanguageExecutor {
         }
         
         println!("DEBUG: Found {} question blocks, added {} response blocks", 
-                 question_blocks_found, response_blocks_added);
+                 question_blocks.len(), response_blocks_added);
         println!("DEBUG: Final document length: {}", result.len());
         
         Ok(result)
