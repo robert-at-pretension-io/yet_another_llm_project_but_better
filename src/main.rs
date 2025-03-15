@@ -354,6 +354,12 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
 }
 
 fn main() -> Result<(), anyhow::Error> {
+    // Initialize the EXECUTORS lazy_static
+    {
+        let _executors = EXECUTORS.lock().unwrap();
+        println!("Initialized EXECUTORS static");
+    }
+    
     // Get file path from command line arguments
     let args: Vec<String> = env::args().collect();
     
