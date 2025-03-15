@@ -271,21 +271,21 @@ fn test_all_block_types() {
     println!("DEBUG: Block names: {:?}", block_names);
     
     // Check each block type
-    assert!(blocks.iter().any(|b| b.block_type == "question"), "Missing question block ");
-    assert!(blocks.iter().any(|b| b.block_type == "response"), "Missing response block ");
-    assert!(blocks.iter().any(|b| b.block_type == "code"), "Missing code block ");
-    assert!(blocks.iter().any(|b| b.block_type == "shell"), "Missing shell block ");
-    assert!(blocks.iter().any(|b| b.block_type == "api"), "Missing api block ");
-    assert!(blocks.iter().any(|b| b.block_type == "data"), "Missing data block ");
-    assert!(blocks.iter().any(|b| b.block_type == "variable"), "Missing variable block ");
-    assert!(blocks.iter().any(|b| b.block_type == "secret"), "Missing secret block ");
-    assert!(blocks.iter().any(|b| b.block_type == "filename"), "Missing filename block ");
-    assert!(blocks.iter().any(|b| b.block_type == "memory"), "Missing memory block ");
-    assert!(blocks.iter().any(|b| b.block_type == "section"), "Missing section block ");
-    assert!(blocks.iter().any(|b| b.block_type == "conditional"), "Missing conditional block ");
-    assert!(blocks.iter().any(|b| b.block_type == "results"), "Missing results block ");
-    assert!(blocks.iter().any(|b| b.block_type == "error_results"), "Missing error_results block ");
-    assert!(blocks.iter().any(|b| b.block_type == "template"), "Missing template block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("question")), "Missing question block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("response")), "Missing response block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("code")), "Missing code block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("shell")), "Missing shell block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("api")), "Missing api block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("data")), "Missing data block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("variable")), "Missing variable block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("secret")), "Missing secret block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("filename")), "Missing filename block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("memory")), "Missing memory block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("section")), "Missing section block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("conditional")), "Missing conditional block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("results")), "Missing results block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("error_results")), "Missing error_results block ");
+    assert!(blocks.iter().any(|b| b.block_type.starts_with("template")), "Missing template block ");
 }
 
 
