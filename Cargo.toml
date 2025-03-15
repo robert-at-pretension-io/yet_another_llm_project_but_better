@@ -17,7 +17,6 @@ rand = "=0.8.5"
 half = "=1.8.2"  # Pin to exactly version 1.8.2
 num-traits = "=0.2.15"
 indexmap = "=1.9.3"
-# Removed reqwest and async-trait dependencies
 
 [features]
 default = []
