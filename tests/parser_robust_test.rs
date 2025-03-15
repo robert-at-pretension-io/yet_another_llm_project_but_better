@@ -278,6 +278,10 @@ fn test_special_character_names() {
     <meta:shell name="test-special-chars-_123"><![CDATA[
     echo "Block with mixed special characters and numbers"
     ]]></meta:shell>
+    
+    <meta:code language="javascript" name="test-emoji-😊"><![CDATA[
+    console.log("Block with emoji in name");
+    ]]></meta:code>
     </meta:document>"#;
     
     let result = parse_document(input);
