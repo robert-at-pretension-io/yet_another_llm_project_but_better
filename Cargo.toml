@@ -26,15 +26,9 @@ criterion = "=0.5.1"
 proptest = "=1.2.0"
 mockall = "=0.11.4"
 
-[lib]
-name = "yet_another_llm_project_but_better"
-path = "src/lib.rs"
-
-[dev-dependencies]
-criterion = "0.5.1"
-proptest = "1.2.0"
-mockall = "0.11.4"
 
 [lib]
 name = "yet_another_llm_project_but_better"
 path = "src/lib.rs"
+
+[workspace]
