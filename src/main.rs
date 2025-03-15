@@ -111,12 +111,17 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
             
             match executor.execute_question(&question_block, &block.content) {
                 Ok(response) => {
+                    println!("DEBUG: Question execution successful, response length: {} bytes", response.len());
+                    println!("DEBUG: Response preview: {}", response.chars().take(100).collect::<String>());
+                    
                     // Store the response in the global executor
                     if let Some(name) = &block.name {
                         let response_name = format!("{}_response", name);
+                        println!("DEBUG: Storing response with key: '{}'", response_name);
                         executor.outputs.insert(response_name, response.clone());
                     } else {
                         // For unnamed blocks, use a generic key
+                        println!("DEBUG: Storing response with generic key 'question_response'");
                         executor.outputs.insert("question_response".to_string(), response.clone());
                     }
                     
@@ -126,6 +131,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                     // Find the end of the question block
                     if let Some(pos) = updated_content.find("[/question]") {
                         let insert_pos = pos + "[/question]".len();
+                        println!("DEBUG: Found [/question] at position {}, insert_pos: {}", pos, insert_pos);
                         
                         // Create response block with attribution if the question has a name
                         let response_block = if !block_identifier.is_empty() {
@@ -134,11 +140,21 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
                             format!("\n\n[response]\n{}\n[/response]", response)
                         };
                         
+                        println!("DEBUG: Created response block with length: {} bytes", response_block.len());
+                        println!("DEBUG: Response block preview: {}", 
+                                 response_block.chars().take(100).collect::<String>().replace("\n", "\\n"));
+                        
                         updated_content.insert_str(insert_pos, &response_block);
+                        println!("DEBUG: Updated content length: {} bytes", updated_content.len());
                         
                         // Write the updated content back to the file
-                        fs::write(file_path, &updated_content)
-                            .unwrap_or_else(|_| println!("Failed to write updated file"));
+                        println!("DEBUG: Writing updated content to file: {}", file_path.display());
+                        match fs::write(file_path, &updated_content) {
+                            Ok(_) => println!("DEBUG: Successfully wrote updated content to file"),
+                            Err(e) => println!("DEBUG: Failed to write updated file: {}", e)
+                        }
+                    } else {
+                        println!("DEBUG: Could not find [/question] tag in the document");
                     }
                     
                     Ok(response)
@@ -243,21 +259,53 @@ fn process_file(file_path: &Path) -> Result<(), anyhow::Error> {
     
     // If we executed any blocks that require file updates, update the file
     if file_updated {
+        println!("DEBUG: File update required, calling executor.update_document()");
+        
         // Get the updated document content from the executor
-        let updated_content = executor.update_document()
-            .map_err(|e| anyhow!("Failed to update document: {}", e))?;
+        let updated_content = match executor.update_document() {
+            Ok(content) => {
+                println!("DEBUG: executor.update_document() succeeded, content length: {} bytes", content.len());
+                println!("DEBUG: Updated content preview: {}", 
+                         content.chars().take(100).collect::<String>().replace("\n", "\\n"));
+                content
+            },
+            Err(e) => {
+                println!("DEBUG: executor.update_document() failed: {}", e);
+                return Err(anyhow!("Failed to update document: {}", e));
+            }
+        };
         
         // Check if the content actually changed
-        let current_content = fs::read_to_string(file_path)?;
+        let current_content = match fs::read_to_string(file_path) {
+            Ok(content) => {
+                println!("DEBUG: Read current file content, length: {} bytes", content.len());
+                content
+            },
+            Err(e) => {
+                println!("DEBUG: Failed to read current file content: {}", e);
+                return Err(anyhow!("Failed to read current file: {}", e));
+            }
+        };
+        
         if current_content != updated_content {
+            println!("DEBUG: Content has changed, writing updated content to file");
+            
             // Write the updated content back to the file
-            fs::write(file_path, updated_content)
-                .context("Failed to write updated file")?;
+            match fs::write(file_path, &updated_content) {
+                Ok(_) => println!("DEBUG: Successfully wrote updated content to file"),
+                Err(e) => {
+                    println!("DEBUG: Failed to write updated file: {}", e);
+                    return Err(anyhow!("Failed to write updated file: {}", e));
+                }
+            }
             
             println!("Updated file with execution results");
         } else {
+            println!("DEBUG: Content unchanged, no file update needed");
             println!("No changes needed to file");
         }
+    } else {
+        println!("DEBUG: No file update required");
     }
     
     Ok(())
@@ -327,13 +375,23 @@ fn main() -> Result<(), anyhow::Error> {
                 last_modified = now;
                 
                 // Read the current content to check if we need to process it
-                let current_content = fs::read_to_string(&path).unwrap_or_default();
+                match fs::read_to_string(&path) {
+                    Ok(current_content) => {
+                        println!("DEBUG: Read file after change, content length: {} bytes", current_content.len());
+                    },
+                    Err(e) => {
+                        println!("DEBUG: Failed to read file after change: {}", e);
+                    }
+                }
                 
                 // Process the file regardless of existing response blocks
                 // The execute_block function will handle checking for specific responses
                 println!("File changed: {}", path);
+                println!("DEBUG: Processing file after change");
                 if let Err(e) = process_file(&PathBuf::from(&path)) {
                     eprintln!("Error processing file after change: {:?}", e);
+                } else {
+                    println!("DEBUG: Successfully processed file after change");
                 }
             },
             Ok(FileEvent { event_type: FileEventType::Created, .. }) => {
