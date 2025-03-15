@@ -367,36 +367,83 @@ fn main() -> Result<(), anyhow::Error> {
     // Track last modification time to avoid duplicate events
     let mut last_modified = Instant::now();
     
+    // Track if we're currently in a cooldown period after processing
+    let mut in_cooldown = false;
+    
+    // Debounce buffer for file events
+    let mut pending_event = false;
+    let mut last_event_path = String::new();
+    
     // Watch for file changes
     loop {
-        match rx.recv() {
-            Ok(FileEvent { path, event_type: FileEventType::Modified }) => {
-                // Avoid processing the same change multiple times
-                let now = Instant::now();
-                if now.duration_since(last_modified) < Duration::from_millis(500) {
+        // If we have a pending event and we're not in cooldown, process it
+        if pending_event && !in_cooldown {
+            let path = last_event_path.clone();
+            pending_event = false;
+            
+            // Read the current content to check if we need to process it
+            match fs::read_to_string(&path) {
+                Ok(current_content) => {
+                    println!("DEBUG: Read file after change, content length: {} bytes", current_content.len());
+                },
+                Err(e) => {
+                    println!("DEBUG: Failed to read file after change: {}", e);
                     continue;
                 }
+            }
+            
+            // Process the file
+            println!("File changed: {}", path);
+            println!("DEBUG: Processing file after change");
+            
+            // Enter cooldown before processing to prevent reacting to our own changes
+            in_cooldown = true;
+            println!("DEBUG: Entering processing cooldown");
+            
+            if let Err(e) = process_file(&PathBuf::from(&path)) {
+                eprintln!("Error processing file after change: {:?}", e);
+            } else {
+                println!("DEBUG: Successfully processed file after change");
+            }
+            
+            // After processing, wait for a cooldown period before accepting new events
+            // This prevents reacting to our own file modifications
+            std::thread::sleep(Duration::from_millis(1000));
+            in_cooldown = false;
+            println!("DEBUG: Exiting processing cooldown");
+            
+            // Reset the last_modified time after processing
+            last_modified = Instant::now();
+            continue;
+        }
+        
+        // Use a timeout to check for pending events periodically
+        match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(FileEvent { path, event_type: FileEventType::Modified }) => {
+                // Skip events during cooldown
+                if in_cooldown {
+                    println!("DEBUG: Ignoring file change during cooldown period");
+                    continue;
+                }
+                
+                // Avoid processing the same change multiple times with debouncing
+                let now = Instant::now();
+                if now.duration_since(last_modified) < Duration::from_millis(500) {
+                    // Update the pending event but don't process yet
+                    pending_event = true;
+                    last_event_path = path.clone();
+                    println!("DEBUG: Debouncing file change event");
+                    continue;
+                }
+                
+                // Mark this event as pending
+                pending_event = true;
+                last_event_path = path.clone();
                 last_modified = now;
                 
-                // Read the current content to check if we need to process it
-                match fs::read_to_string(&path) {
-                    Ok(current_content) => {
-                        println!("DEBUG: Read file after change, content length: {} bytes", current_content.len());
-                    },
-                    Err(e) => {
-                        println!("DEBUG: Failed to read file after change: {}", e);
-                    }
-                }
-                
-                // Process the file regardless of existing response blocks
-                // The execute_block function will handle checking for specific responses
-                println!("File changed: {}", path);
-                println!("DEBUG: Processing file after change");
-                if let Err(e) = process_file(&PathBuf::from(&path)) {
-                    eprintln!("Error processing file after change: {:?}", e);
-                } else {
-                    println!("DEBUG: Successfully processed file after change");
-                }
+                // Wait for debounce period before processing
+                println!("DEBUG: Waiting for debounce period (500ms)");
+                std::thread::sleep(Duration::from_millis(500));
             },
             Ok(FileEvent { event_type: FileEventType::Created, .. }) => {
                 println!("File was created, but we're only watching for modifications");
@@ -404,6 +451,10 @@ fn main() -> Result<(), anyhow::Error> {
             Ok(FileEvent { event_type: FileEventType::Deleted, .. }) => {
                 println!("File was deleted, exiting watch loop");
                 break;
+            },
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // This is just a timeout for our polling loop, not an error
+                continue;
             },
             Err(e) => {
                 eprintln!("Watch channel error: {:?}", e);
