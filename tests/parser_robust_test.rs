@@ -124,7 +124,7 @@ fn test_all_block_types() {
         assert!(
             blocks.iter().any(|b| b.block_type == *block_type || 
                              (b.block_type.starts_with("template_invocation") && block_type == &"template")),
-            "Missing block type: {}", block_type
+            "Missing block type: {} ", block_type
         );
     }
     
