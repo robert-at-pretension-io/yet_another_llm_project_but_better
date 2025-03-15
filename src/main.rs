@@ -86,7 +86,7 @@ fn execute_block(block: &Block, file_path: &Path) -> Result<String, String> {
             
             // Add test_mode modifier to avoid actual API calls during testing
             let mut question_block = block.clone();
-            question_block.add_modifier("test_mode", "true");
+            // question_block.add_modifier("test_mode", "true");
             
             match executor.execute_question(&question_block, &block.content) {
                 Ok(response) => {
