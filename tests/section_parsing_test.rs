@@ -107,7 +107,8 @@ mod tests {
         
         // Check the second child
         let second_child = &section.children[1];
-        assert_eq!(second_child.block_type, "code:python");
+        assert_eq!(second_child.block_type, "code");
+        assert_eq!(second_child.get_modifier("language").unwrap(), "python");
         assert_eq!(second_child.name, Some("second-child".to_string()));
         
         // Check the third child
