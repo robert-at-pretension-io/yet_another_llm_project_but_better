@@ -6,7 +6,7 @@ use tempfile::tempdir;
 
 // Import necessary modules from your project
 // You may need to adjust these imports based on your actual project structure
-use yet_another_llm_project_but_better::parser::{parse_document, Block};
+use yet_another_llm_project_but_better::parser::parse_document;
 use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
 use yet_another_llm_project_but_better::file_watcher::{FileWatcher, FileEvent, FileEventType};
 
