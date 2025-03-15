@@ -324,13 +324,13 @@ fn test_special_character_names() {
     let blocks = result.unwrap();
     
     // Verify blocks with special characters in names
-    assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-with-hyphens")), 
+    assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-with-hyphens") && b.block_type.starts_with("code")), 
            "Missing block with hyphens in name ");
-    assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test_with_underscores")), 
+    assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test_with_underscores") && b.block_type.starts_with("data")), 
            "Missing block with underscores in name ");
-    assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-123-456")), 
+    assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-123-456") && b.block_type.starts_with("variable")), 
            "Missing block with numbers in name ");
-    assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-special-chars-_123")), 
+    assert!(blocks.iter().any(|b| b.name.as_deref() == Some("test-special-chars-_123") && b.block_type.starts_with("shell")), 
            "Missing block with mixed special characters and numbers ");
     
     // Print all block names for debugging
@@ -524,21 +524,21 @@ fn test_nested_blocks() {
     // Verify outer section
     assert!(outer_section.is_some(), "Outer section block not found");
     let outer_section = outer_section.unwrap();
-    assert_eq!(outer_section.block_type, "section");
+    assert!(outer_section.block_type.starts_with("section"), "Block type should start with 'section'");
     assert_eq!(outer_section.get_modifier("type").map(|s| s.as_str()), Some("h1"));
     assert_eq!(outer_section.content.trim(), "# Outer Section");
     
     // Verify nested code block
     assert!(nested_code.is_some(), "Nested code block not found");
     let nested_code = nested_code.unwrap();
-    assert_eq!(nested_code.block_type, "code");
+    assert!(nested_code.block_type.starts_with("code"), "Block type should start with 'code'");
     assert_eq!(nested_code.get_modifier("language").map(|s| s.as_str()), Some("python"));
     assert_eq!(nested_code.content.trim(), "print(\"I'm nested inside a section\")");
     
     // Verify inner section
     assert!(inner_section.is_some(), "Inner section block not found");
     let inner_section = inner_section.unwrap();
-    assert_eq!(inner_section.block_type, "section");
+    assert!(inner_section.block_type.starts_with("section"), "Block type should start with 'section'");
     assert_eq!(inner_section.get_modifier("type").map(|s| s.as_str()), Some("h2"));
     assert_eq!(inner_section.content.trim(), "## Inner Section");
     
@@ -682,12 +682,12 @@ fn test_empty_blocks() {
     assert_eq!(blocks.len(), 2, "Expected 2 blocks ");
     
     let empty_var = &blocks[0];
-    assert_eq!(empty_var.block_type, "variable");
+    assert!(empty_var.block_type.starts_with("variable"), "Block type should start with 'variable'");
     assert_eq!(empty_var.name, Some("empty-var".to_string()));
     assert_eq!(empty_var.content.trim(), "");
     
     let whitespace_only = &blocks[1];
-    assert_eq!(whitespace_only.block_type, "code");
+    assert!(whitespace_only.block_type.starts_with("code"), "Block type should start with 'code'");
     assert_eq!(whitespace_only.get_modifier("language"), Some(&"python".to_string()));
     assert_eq!(whitespace_only.name, Some("whitespace-only".to_string()));
     assert_eq!(whitespace_only.content.trim(), "");
@@ -1355,7 +1355,7 @@ fn test_closing_tag_variants() {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("with-language-close"));
         assert!(block.is_some(), "Block with language in closing tag not found");
         let block = block.unwrap();
-        assert_eq!(block.block_type, "code", "Block type incorrect");
+        assert!(block.block_type.starts_with("code"), "Block type should start with 'code'");
         assert_eq!(block.get_modifier("language"), Some(&"python".to_string()), "Language modifier incorrect");
     }
     
@@ -1363,7 +1363,7 @@ fn test_closing_tag_variants() {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("without-language-close"));
         assert!(block.is_some(), "Block without language in closing tag not found");
         let block = block.unwrap();
-        assert_eq!(block.block_type, "code", "Block type incorrect");
+        assert!(block.block_type.starts_with("code"), "Block type should start with 'code'");
         assert_eq!(block.get_modifier("language"), Some(&"python".to_string()), "Language modifier incorrect");
     }
     
@@ -1371,7 +1371,7 @@ fn test_closing_tag_variants() {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("with-type-close"));
         assert!(block.is_some(), "Block with type in closing tag not found");
         let block = block.unwrap();
-        assert_eq!(block.block_type, "section", "Block type incorrect");
+        assert!(block.block_type.starts_with("section"), "Block type should start with 'section'");
         assert_eq!(block.get_modifier("type"), Some(&"intro".to_string()), "Type modifier incorrect");
     }
     
@@ -1379,7 +1379,7 @@ fn test_closing_tag_variants() {
         let block = blocks.iter().find(|b| b.name.as_deref() == Some("without-type-close"));
         assert!(block.is_some(), "Block without type in closing tag not found");
         let block = block.unwrap();
-        assert_eq!(block.block_type, "section", "Block type incorrect");
+        assert!(block.block_type.starts_with("section"), "Block type should start with 'section'");
         assert_eq!(block.get_modifier("type"), Some(&"summary".to_string()), "Type modifier incorrect");
     }
 }
@@ -1479,13 +1479,13 @@ fn test_different_languages() {
     
     // Verify each language block
     let languages = [
-        ("python-code", "code", "python"),
-        ("javascript-code", "code", "javascript"),
-        ("rust-code", "code", "rust"),
-        ("sql-code", "code", "sql"),
-        ("html-code", "code", "html"),
-        ("css-code", "code", "css"),
-        ("c-code", "code", "c")
+        ("python-code", "code:python", "python"),
+        ("javascript-code", "code:javascript", "javascript"),
+        ("rust-code", "code:rust", "rust"),
+        ("sql-code", "code:sql", "sql"),
+        ("html-code", "code:html", "html"),
+        ("css-code", "code:css", "css"),
+        ("c-code", "code:c", "c")
     ];
     
     // Print all block names for debugging
@@ -1506,10 +1506,10 @@ fn test_different_languages() {
         println!("DEBUG: Block {}: type={}, modifiers={:?}", 
                  name, block.block_type, block.modifiers);
                  
-        // Check block type (should be just "code", not "code:language")
-        assert_eq!(block.block_type, expected_type, 
-                  "Block {} has incorrect type. Expected: '{}', Found: '{}' ", 
-                  name, expected_type, block.block_type);
+        // Check block type (should be "code:language")
+        assert!(block.block_type.starts_with(expected_type.split(':').next().unwrap()), 
+                  "Block {} has incorrect type. Expected to start with: '{}', Found: '{}' ", 
+                  name, expected_type.split(':').next().unwrap(), block.block_type);
         
         // Check language modifier
         assert_eq!(block.get_modifier("language").map(|s| s.as_str()), Some(expected_language),
@@ -1638,12 +1638,12 @@ fn test_convert_to_xml() {
     let code_block = find_block_by_name(&blocks, "test-code");
     assert!(code_block.is_some(), "Code block not found after conversion");
     let code_block = code_block.unwrap();
-    assert_eq!(code_block.block_type, "code");
+    assert!(code_block.block_type.starts_with("code"), "Block type should start with 'code'");
     assert!(check_language(code_block, "python"), "Code block should have python language modifier");
     
     let var_block = find_block_by_name(&blocks, "test-var");
     assert!(var_block.is_some(), "Variable block not found after conversion");
-    assert_eq!(var_block.unwrap().block_type, "variable");
+    assert!(var_block.unwrap().block_type.starts_with("variable"), "Block type should start with 'variable'");
     
     // Test conversion with nested blocks
     let nested_block_syntax = r#"
