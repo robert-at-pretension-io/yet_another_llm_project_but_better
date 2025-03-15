@@ -240,9 +240,12 @@ mod tests {
         let mut executor = MetaLanguageExecutor::new();
         
         // 1. Parse a document with just a question block
-        let input = r#"[question name:test-question model:gpt-4]
-        What is the capital of France?
-        [/question]"#;
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:question name="test-question" model="gpt-4">
+  What is the capital of France?
+  </meta:question>
+</meta:document>"#;
         
         let blocks = parse_document(input).unwrap();
         assert_eq!(blocks.len(), 1, "Should only have one block after parsing");
