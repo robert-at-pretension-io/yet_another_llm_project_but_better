@@ -557,7 +557,7 @@ fn try_parse_single_block(content: &str) -> Option<(Block, usize)> {
         }
         
         // Calculate the total length consumed
-        let whitespace_prefix = content.len() - trimmed_content.len();
+        let whitespace_prefix = if content.len() >= trimmed_content.len() { content.len() - trimmed_content.len() } else { println!("DEBUG: Unexpected condition: content.len() < trimmed_content.len()"); 0 };
         // Fix for potential underflow: add whitespace_prefix to closing_end instead of subtracting
         let total_consumed = closing_end + whitespace_prefix;
         
@@ -739,7 +739,7 @@ fn try_parse_section_block(content: &str) -> Option<(Block, usize)> {
     let block_type = format!("section:{}", section_type);
     
     // Adjust for the original content's whitespace
-    let whitespace_offset = content.len() - trimmed_content.len();
+    let whitespace_offset = if content.len() >= trimmed_content.len() { content.len() - trimmed_content.len() } else { println!("DEBUG: Unexpected condition: content.len() < trimmed_content.len()"); 0 };
     
     // Find where this section ends
     let close_tag = format!("[/section:{}", section_type);
