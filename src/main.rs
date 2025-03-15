@@ -509,79 +509,16 @@ fn parse_args() -> Result<Vec<String>> {
         log_debug(&format!("Argument[{}]: '{}'", idx, arg));
     }
     
-    let mut config = CONFIG.lock().unwrap();
     let mut files_to_process = Vec::new();
     
-    let mut i = 1;
-    while i < args.len() {
-        log_debug(&format!("Processing argument[{}]: '{}'", i, args[i]));
-        match args[i].as_str() {
-            "--watch" | "-w" => {
-                config.watch_mode = true;
-                log_debug("Watch mode enabled");
-            },
-            "--path" | "-p" => {
-                if i + 1 < args.len() && !args[i + 1].starts_with('-') {
-                    config.watch_paths = vec![args[i + 1].clone()];
-                    log_debug(&format!("Watch path set to: '{}'", args[i + 1]));
-                    i += 1;
-                } else {
-                    log_debug("Warning: --path specified without a value");
-                }
-            },
-            "--extensions" | "-e" => {
-                if i + 1 < args.len() && !args[i + 1].starts_with('-') {
-                    config.watch_extensions = args[i + 1]
-                        .split(',')
-                        .map(|s| {
-                            let s = s.trim();
-                            if s.starts_with('.') {
-                                s.to_string()
-                            } else {
-                                format!(".{}", s)
-                            }
-                        })
-                        .collect();
-                    log_debug(&format!("Watch extensions set to: {:?}", config.watch_extensions));
-                    i += 1;
-                } else {
-                    log_debug("Warning: --extensions specified without a value");
-                }
-            },
-            "--no-auto-execute" => {
-                config.auto_execute = false;
-                log_debug("Auto-execute disabled");
-            },
-            "--no-questions" => {
-                config.answer_questions = false;
-                log_debug("Answer questions disabled");
-            },
-            "--no-update" => {
-                config.update_files = false;
-                log_debug("File updates disabled");
-            },
-            "--verbose" | "-v" => {
-                config.verbose = true;
-                log_debug("Verbose mode enabled");
-            },
-            "--help" | "-h" => {
-                log_debug("Help requested, showing usage information");
-                print_usage();
-                process::exit(0);
-            },
-            // If not a known flag, assume it's a file to process
-            _ if args[i].starts_with('-') => {
-                log_debug(&format!("Unknown option: '{}'", args[i]));
-                return Err(anyhow!("Unknown option: {}", args[i]));
-            },
-            // Individual file to process
-            _ => {
-                log_debug(&format!("Found file argument[{}]: '{}'", i, args[i]));
-                log_debug(&format!("Adding '{}' to files_to_process", args[i]));
-                files_to_process.push(args[i].clone());
-            }
-        }
-        i += 1;
+    // Check if there's at least one argument after the program name
+    if args.len() > 1 {
+        let file_path = args[1].clone();
+        log_debug(&format!("Found file argument: '{}'", file_path));
+        log_debug(&format!("Adding '{}' to files_to_process", file_path));
+        files_to_process.push(file_path);
+    } else {
+        log_debug("No file argument provided");
     }
     
     log_debug(&format!("Final files_to_process: {:?}", files_to_process));
