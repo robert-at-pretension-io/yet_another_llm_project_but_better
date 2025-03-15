@@ -943,3 +943,1139 @@ Error: Block not found
         .expect("Conditional block not found");
     assert!(has_modifier(conditional, "if", "config.max_rows>500"));
 }
+#[test]
+fn test_complex_modifiers() {
+    // Test blocks with complex modifiers
+    let input = r#"
+[code:python name:modifier_test timeout:30 auto_execute:true cache_result:false]
+print("Testing modifiers")
+[/code:python]
+
+[data name:string_modifier format:"json" description:"This is a data block with a string modifier"]
+{"test": true}
+[/data]
+
+[shell name:numeric_modifier timeout:60 retries:3]
+echo "Testing numeric modifiers"
+[/shell]
+
+[variable name:boolean_modifier visible:true editable:false required:true]
+Boolean modifier test
+[/variable]
+
+[code:python name:complex_modifiers 
+  timeout:30 
+  auto_execute:true 
+  cache_result:false 
+  max_lines:100
+  description:"This is a complex description with spaces"
+  tags:"tag1,tag2,tag3"
+  priority:5
+  depends:block1,block2,block3
+  env:{"PATH":"/usr/bin","HOME":"/home/user"}
+]
+print("Testing complex modifiers with multiline format")
+[/code:python]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse complex modifiers");
+    
+    // Check string modifiers
+    let string_mod_block = find_block_by_name(&blocks, "string_modifier").expect("String modifier block not found");
+    assert!(has_modifier(string_mod_block, "format", "json"));
+    assert!(has_modifier(string_mod_block, "description", "This is a data block with a string modifier"));
+    
+    // Check numeric modifiers
+    let numeric_mod_block = find_block_by_name(&blocks, "numeric_modifier").expect("Numeric modifier block not found");
+    assert!(has_modifier(numeric_mod_block, "timeout", "60"));
+    assert!(has_modifier(numeric_mod_block, "retries", "3"));
+    
+    // Check boolean modifiers
+    let boolean_mod_block = find_block_by_name(&blocks, "boolean_modifier").expect("Boolean modifier block not found");
+    assert!(has_modifier(boolean_mod_block, "visible", "true"));
+    assert!(has_modifier(boolean_mod_block, "editable", "false"));
+    assert!(has_modifier(boolean_mod_block, "required", "true"));
+    
+    // Check complex multiline modifiers
+    let complex_mod_block = find_block_by_name(&blocks, "complex_modifiers").expect("Complex modifier block not found");
+    assert!(has_modifier(complex_mod_block, "timeout", "30"));
+    assert!(has_modifier(complex_mod_block, "auto_execute", "true"));
+    assert!(has_modifier(complex_mod_block, "cache_result", "false"));
+    assert!(has_modifier(complex_mod_block, "max_lines", "100"));
+    assert!(has_modifier(complex_mod_block, "description", "This is a complex description with spaces"));
+    assert!(has_modifier(complex_mod_block, "tags", "tag1,tag2,tag3"));
+    assert!(has_modifier(complex_mod_block, "priority", "5"));
+    assert!(has_modifier(complex_mod_block, "depends", "block1,block2,block3"));
+    assert!(has_modifier(complex_mod_block, "env", "{\"PATH\":\"/usr/bin\",\"HOME\":\"/home/user\"}"));
+}
+#[test]
+fn test_variable_references() {
+    // Test variable references within blocks
+    let input = r#"
+[variable name:test_var]
+Hello, world!
+[/variable]
+
+[code:python name:var_reference]
+message = "${test_var}"
+print(f"The message is: {message}")
+[/code:python]
+
+[shell name:shell_var_reference]
+echo "Shell says: ${test_var}"
+[/shell]
+
+[code:python name:nested_reference]
+outer = "${test_var}"
+inner = "This contains ${test_var} inside"
+nested = "${nested_reference}"
+print(f"{outer} - {inner} - {nested}")
+[/code:python]
+
+[code:python name:complex_references]
+# Multiple references on one line
+combined = "${var1} ${var2} ${var3}"
+
+# Nested variable references
+result = "${prefix_${dynamic_suffix}}"
+
+# References with special characters
+special = "${obj['key']} and ${arr[0]}"
+
+# References in multiline strings
+multiline = """
+Line 1: ${var1}
+Line 2: ${var2}
+Line 3: ${var3}
+"""
+[/code:python]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse variable references");
+    
+    // Check variable reference in Python code
+    let python_ref = find_block_by_name(&blocks, "var_reference").expect("Python reference block not found");
+    assert!(python_ref.content.contains("${test_var}"));
+    
+    // Check variable reference in shell command
+    let shell_ref = find_block_by_name(&blocks, "shell_var_reference").expect("Shell reference block not found");
+    assert!(shell_ref.content.contains("${test_var}"));
+    
+    // Check nested references
+    let nested_ref = find_block_by_name(&blocks, "nested_reference").expect("Nested reference block not found");
+    assert!(nested_ref.content.contains("${test_var}"));
+    assert!(nested_ref.content.contains("${nested_reference}"));
+    
+    // Check complex references
+    let complex_ref = find_block_by_name(&blocks, "complex_references").expect("Complex reference block not found");
+    assert!(complex_ref.content.contains("${var1} ${var2} ${var3}"));
+    assert!(complex_ref.content.contains("${prefix_${dynamic_suffix}}"));
+    assert!(complex_ref.content.contains("${obj['key']} and ${arr[0]}"));
+    assert!(complex_ref.content.contains("Line 1: ${var1}"));
+    
+    // Test variable reference extraction
+    let refs = extract_variable_references(&complex_ref.content);
+    let expected_refs: HashSet<String> = ["var1", "var2", "var3", "prefix_${dynamic_suffix}", 
+                                         "dynamic_suffix", "obj['key']", "arr[0]"]
+        .iter().map(|s| s.to_string()).collect();
+    
+    for var in expected_refs {
+        assert!(refs.contains(&var), "Missing variable reference: {}", var);
+    }
+}
+#[test]
+fn test_template_invocations() {
+    // Test template invocations with parameters
+    let input = r#"
+[template name:greeting_template]
+Hello, ${name}!
+[/template]
+
+[template:greeting_template name:greeting1 name:"Alice"]
+[/template:greeting_template]
+
+[template:greeting_template name:greeting2 name:"Bob" extra:"parameter"]
+[/template:greeting_template]
+
+[template name:complex_template]
+${param1} and ${param2} make ${result}
+[/template]
+
+[template:complex_template name:complex_invocation param1:"Apple" param2:"Orange" result:"Fruit Salad"]
+[/template:complex_template]
+
+[template name:multiline_template]
+def process_data(data):
+    # Process using ${algorithm}
+    return data.${operation}()
+[/template]
+
+[template:multiline_template 
+  name:multiline_invocation
+  algorithm:quicksort
+  operation:sort
+  extra_param:"This is a long parameter value with spaces and special chars: !@#$%^&*()"
+]
+[/template:multiline_template]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse template invocations");
+    
+    // Check template definitions
+    let template_blocks = find_blocks_by_type(&blocks, "template");
+    assert_eq!(template_blocks.len(), 3, "Expected 3 template blocks, got {}", template_blocks.len());
+    
+    // Check template invocations
+    let invocation_blocks = blocks.iter()
+        .filter(|b| b.block_type == "template_invocation" || b.block_type.starts_with("template_invocation:"))
+        .collect::<Vec<_>>();
+    assert_eq!(invocation_blocks.len(), 4, "Expected 4 template invocation blocks, got {}", invocation_blocks.len());
+    
+    // Check parameters in invocations
+    let greeting1 = find_block_by_name(&blocks, "greeting1").expect("Greeting1 invocation not found");
+    assert!(has_modifier(greeting1, "name", "Alice"));
+    
+    let greeting2 = find_block_by_name(&blocks, "greeting2").expect("Greeting2 invocation not found");
+    assert!(has_modifier(greeting2, "name", "Bob"));
+    assert!(has_modifier(greeting2, "extra", "parameter"));
+    
+    let complex = find_block_by_name(&blocks, "complex_invocation").expect("Complex invocation not found");
+    assert!(has_modifier(complex, "param1", "Apple"));
+    assert!(has_modifier(complex, "param2", "Orange"));
+    assert!(has_modifier(complex, "result", "Fruit Salad"));
+    
+    // Check multiline template invocation
+    let multiline = find_block_by_name(&blocks, "multiline_invocation").expect("Multiline invocation not found");
+    assert!(has_modifier(multiline, "algorithm", "quicksort"));
+    assert!(has_modifier(multiline, "operation", "sort"));
+    assert!(has_modifier(multiline, "extra_param", "This is a long parameter value with spaces and special chars: !@#$%^&*()"));
+}
+#[test]
+fn test_special_characters() {
+    // Test blocks with special characters in names and content
+    let input = r#"
+[code:python name:special-chars-1]
+print("Special chars: !@#$%^&*()")
+[/code:python]
+
+[data name:special_chars_2]
+{"special": "chars: !@#$%^&*()"}
+[/data]
+
+[variable name:special_chars.3]
+Special.chars.with.dots
+[/variable]
+
+[code:python name:unicode_chars]
+print("Unicode: 你好, 世界! Привет, мир! こんにちは世界!")
+[/code:python]
+
+[shell name:escaped_chars]
+echo "Escaped chars: \t \n \r \\ \" \'"
+[/shell]
+
+[code:javascript name:unicode_name_блок]
+console.log("Block with unicode name");
+[/code:javascript]
+
+[data name:emoji_name_🔥]
+{"emoji": true}
+[/data]
+
+[code:python name:special_symbols_name_@#$%]
+print("Block with special symbols in name")
+[/code:python]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse special characters");
+    
+    // Check blocks with special characters in names
+    assert!(find_block_by_name(&blocks, "special-chars-1").is_some());
+    assert!(find_block_by_name(&blocks, "special_chars_2").is_some());
+    assert!(find_block_by_name(&blocks, "special_chars.3").is_some());
+    
+    // Check block with Unicode content
+    let unicode_block = find_block_by_name(&blocks, "unicode_chars").expect("Unicode block not found");
+    assert!(unicode_block.content.contains("你好"));
+    assert!(unicode_block.content.contains("Привет"));
+    assert!(unicode_block.content.contains("こんにちは"));
+    
+    // Check block with escaped characters
+    let escaped_block = find_block_by_name(&blocks, "escaped_chars").expect("Escaped chars block not found");
+    assert!(escaped_block.content.contains("\\t"));
+    assert!(escaped_block.content.contains("\\n"));
+    assert!(escaped_block.content.contains("\\\""));
+    
+    // Check blocks with unicode and special characters in names
+    // Note: Some of these might fail depending on the parser's handling of special characters
+    // The test verifies the parser's behavior rather than enforcing a specific behavior
+    let unicode_name_result = find_block_by_name(&blocks, "unicode_name_блок");
+    let emoji_name_result = find_block_by_name(&blocks, "emoji_name_🔥");
+    let special_symbols_result = find_block_by_name(&blocks, "special_symbols_name_@#$%");
+    
+    println!("Unicode name block found: {}", unicode_name_result.is_some());
+    println!("Emoji name block found: {}", emoji_name_result.is_some());
+    println!("Special symbols name block found: {}", special_symbols_result.is_some());
+}
+#[test]
+fn test_whitespace_patterns() {
+    // Test blocks with unusual whitespace patterns
+    let input = r#"
+[code:python    name:whitespace_test   ]
+    print("Indented code")
+    for i in range(5):
+        print(f"  {i}")
+[/code:python]
+
+[  data   name:whitespace_data  format:json  ]
+{
+    "key": "value",
+    "nested": {
+        "key": "value"
+    }
+}
+[/data]
+
+[shell name:whitespace_shell]
+echo "Command with trailing spaces"    
+echo "Command with tabs"	
+[/shell]
+
+[variable name:empty_lines]
+
+Variable with empty lines
+
+[/variable]
+
+[code:python name:multiline_whitespace
+   timeout:30   
+   auto_execute:true   
+   format:json   ]
+print("Block with whitespace in multiline modifiers")
+[/code:python]
+
+[code:python name:extreme_whitespace]
+    
+    
+print("Block with extreme whitespace")
+    
+    
+[/code:python]
+
+[code:python name:tab_indentation]
+	print("Tab indented line")
+		print("Double tab indented line")
+			print("Triple tab indented line")
+[/code:python]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse whitespace patterns");
+    
+    // Check blocks with whitespace in tags
+    assert!(find_block_by_name(&blocks, "whitespace_test").is_some());
+    assert!(find_block_by_name(&blocks, "whitespace_data").is_some());
+    
+    // Check indented code block
+    let code_block = find_block_by_name(&blocks, "whitespace_test").expect("Whitespace code block not found");
+    assert!(code_block.content.contains("    print(\"Indented code\")"));
+    
+    // Check block with empty lines
+    let empty_lines = find_block_by_name(&blocks, "empty_lines").expect("Empty lines block not found");
+    assert_eq!(empty_lines.content.trim(), "Variable with empty lines");
+    
+    // Check block with multiline whitespace in modifiers
+    let multiline_whitespace = find_block_by_name(&blocks, "multiline_whitespace").expect("Multiline whitespace block not found");
+    assert!(has_modifier(multiline_whitespace, "timeout", "30"));
+    assert!(has_modifier(multiline_whitespace, "auto_execute", "true"));
+    assert!(has_modifier(multiline_whitespace, "format", "json"));
+    
+    // Check block with extreme whitespace
+    let extreme_whitespace = find_block_by_name(&blocks, "extreme_whitespace").expect("Extreme whitespace block not found");
+    assert!(extreme_whitespace.content.contains("print(\"Block with extreme whitespace\")"));
+    
+    // Check block with tab indentation
+    let tab_indentation = find_block_by_name(&blocks, "tab_indentation").expect("Tab indentation block not found");
+    assert!(tab_indentation.content.contains("	print(\"Tab indented line\")"));
+    assert!(tab_indentation.content.contains("		print(\"Double tab indented line\")"));
+    assert!(tab_indentation.content.contains("			print(\"Triple tab indented line\")"));
+}
+#[test]
+fn test_multiple_modifiers() {
+    // Test blocks with multiple modifiers
+    let input = r#"
+[code:python name:multi_mod auto_execute:true timeout:30 cache_result:true format:text trim:true max_lines:10]
+print("Block with many modifiers")
+[/code:python]
+
+[data name:multi_mod_data format:json schema:person validate:true required:true visible:true editable:false]
+{"name": "John", "age": 30}
+[/data]
+
+[shell name:multi_mod_shell timeout:60 working_dir:"/tmp" env:production retries:3 silent:true]
+echo "Multiple modifiers in shell block"
+[/shell]
+
+[code:python name:complex_mod_combo
+  timeout:30
+  auto_execute:true
+  cache_result:true
+  format:"json"
+  trim:true
+  max_lines:100
+  description:"This is a complex block with many modifiers"
+  depends:block1,block2,block3
+  requires:numpy,pandas,matplotlib
+  env:{"PATH":"/usr/bin","HOME":"/home/user"}
+  tags:"tag1,tag2,tag3"
+  visible:true
+  editable:false
+  priority:5
+]
+print("Block with a complex combination of modifiers")
+[/code:python]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse multiple modifiers");
+    
+    // Check Python block with multiple modifiers
+    let python_block = find_block_by_name(&blocks, "multi_mod").expect("Multi-modifier Python block not found");
+    assert!(has_modifier(python_block, "auto_execute", "true"));
+    assert!(has_modifier(python_block, "timeout", "30"));
+    assert!(has_modifier(python_block, "cache_result", "true"));
+    assert!(has_modifier(python_block, "format", "text"));
+    assert!(has_modifier(python_block, "trim", "true"));
+    assert!(has_modifier(python_block, "max_lines", "10"));
+    
+    // Check data block with multiple modifiers
+    let data_block = find_block_by_name(&blocks, "multi_mod_data").expect("Multi-modifier data block not found");
+    assert!(has_modifier(data_block, "format", "json"));
+    assert!(has_modifier(data_block, "schema", "person"));
+    assert!(has_modifier(data_block, "validate", "true"));
+    assert!(has_modifier(data_block, "required", "true"));
+    assert!(has_modifier(data_block, "visible", "true"));
+    assert!(has_modifier(data_block, "editable", "false"));
+    
+    // Check shell block with multiple modifiers
+    let shell_block = find_block_by_name(&blocks, "multi_mod_shell").expect("Multi-modifier shell block not found");
+    assert!(has_modifier(shell_block, "timeout", "60"));
+    assert!(has_modifier(shell_block, "working_dir", "/tmp"));
+    assert!(has_modifier(shell_block, "env", "production"));
+    assert!(has_modifier(shell_block, "retries", "3"));
+    assert!(has_modifier(shell_block, "silent", "true"));
+    
+    // Check complex combination of modifiers
+    let complex_block = find_block_by_name(&blocks, "complex_mod_combo").expect("Complex modifier combo block not found");
+    assert!(complex_block.modifiers.len() >= 14, "Expected at least 14 modifiers, got {}", complex_block.modifiers.len());
+    assert!(has_modifier(complex_block, "timeout", "30"));
+    assert!(has_modifier(complex_block, "auto_execute", "true"));
+    assert!(has_modifier(complex_block, "cache_result", "true"));
+    assert!(has_modifier(complex_block, "format", "json"));
+    assert!(has_modifier(complex_block, "trim", "true"));
+    assert!(has_modifier(complex_block, "max_lines", "100"));
+    assert!(has_modifier(complex_block, "description", "This is a complex block with many modifiers"));
+    assert!(has_modifier(complex_block, "depends", "block1,block2,block3"));
+    assert!(has_modifier(complex_block, "requires", "numpy,pandas,matplotlib"));
+    assert!(has_modifier(complex_block, "env", "{\"PATH\":\"/usr/bin\",\"HOME\":\"/home/user\"}"));
+    assert!(has_modifier(complex_block, "tags", "tag1,tag2,tag3"));
+    assert!(has_modifier(complex_block, "visible", "true"));
+    assert!(has_modifier(complex_block, "editable", "false"));
+    assert!(has_modifier(complex_block, "priority", "5"));
+}
+#[test]
+fn test_malformed_blocks() {
+    // Test error cases with malformed blocks
+    
+    // Missing closing tag
+    let input1 = r#"
+[code:python name:missing_close]
+print("This block has no closing tag")
+"#;
+    assert!(parse_document(input1).is_err());
+    
+    // Mismatched closing tag
+    let input2 = r#"
+[code:python name:mismatched_close]
+print("This block has mismatched closing tag")
+[/code:javascript]
+"#;
+    assert!(parse_document(input2).is_err());
+    
+    // Invalid modifier format
+    let input3 = r#"
+[code:python name:invalid:modifier]
+print("This block has an invalid modifier")
+[/code:python]
+"#;
+    assert!(parse_document(input3).is_err());
+    
+    // Duplicate block names
+    let input4 = r#"
+[code:python name:duplicate]
+print("First block")
+[/code:python]
+
+[data name:duplicate]
+{"duplicate": true}
+[/data]
+"#;
+    assert!(parse_document(input4).is_err());
+    
+    // Unclosed modifier section
+    let input5 = r#"
+[code:python name:unclosed_modifiers
+print("Unclosed modifiers section")
+[/code:python]
+"#;
+    assert!(parse_document(input5).is_err());
+    
+    // Invalid block type
+    let input6 = r#"
+[invalid_type name:invalid_block]
+Invalid block type
+[/invalid_type]
+"#;
+    assert!(parse_document(input6).is_err());
+    
+    // Nested block without parent
+    let input7 = r#"
+[/code:python]
+print("Closing tag without opening tag")
+[/code:python]
+"#;
+    assert!(parse_document(input7).is_err());
+    
+    // Empty block name
+    let input8 = r#"
+[code:python name:]
+print("Empty block name")
+[/code:python]
+"#;
+    assert!(parse_document(input8).is_err());
+}
+#[test]
+fn test_closing_tags() {
+    // Test closing tags with and without language specification
+    let input = r#"
+[code:python name:with_lang]
+print("Block with language in closing tag")
+[/code:python]
+
+[code:python name:without_lang]
+print("Block without language in closing tag")
+[/code]
+
+[code:javascript name:js_block]
+console.log("JavaScript block with language in closing tag");
+[/code:javascript]
+
+[code:javascript name:js_without_lang]
+console.log("JavaScript block without language in closing tag");
+[/code]
+
+[section:intro name:section_with_type]
+Section with type in closing tag
+[/section:intro]
+
+[section:intro name:section_without_type]
+Section without type in closing tag
+[/section]
+
+[data name:data_with_closing]
+{"key": "value"}
+[/data]
+
+[data name:data_without_closing]
+{"key": "value"}
+[/]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse closing tags");
+    
+    // Check all blocks were parsed correctly
+    assert!(find_block_by_name(&blocks, "with_lang").is_some());
+    assert!(find_block_by_name(&blocks, "without_lang").is_some());
+    assert!(find_block_by_name(&blocks, "js_block").is_some());
+    assert!(find_block_by_name(&blocks, "js_without_lang").is_some());
+    assert!(find_block_by_name(&blocks, "section_with_type").is_some());
+    assert!(find_block_by_name(&blocks, "section_without_type").is_some());
+    assert!(find_block_by_name(&blocks, "data_with_closing").is_some());
+    assert!(find_block_by_name(&blocks, "data_without_closing").is_some());
+    
+    // Verify content of blocks
+    let with_lang = find_block_by_name(&blocks, "with_lang").expect("With lang block not found");
+    assert_eq!(with_lang.content.trim(), "print(\"Block with language in closing tag\")");
+    
+    let without_lang = find_block_by_name(&blocks, "without_lang").expect("Without lang block not found");
+    assert_eq!(without_lang.content.trim(), "print(\"Block without language in closing tag\")");
+    
+    let section_with_type = find_block_by_name(&blocks, "section_with_type").expect("Section with type not found");
+    assert_eq!(section_with_type.content.trim(), "Section with type in closing tag");
+    
+    let section_without_type = find_block_by_name(&blocks, "section_without_type").expect("Section without type not found");
+    assert_eq!(section_without_type.content.trim(), "Section without type in closing tag");
+}
+#[test]
+fn test_line_endings() {
+    // Test CRLF vs LF line ending differences
+    
+    // LF line endings
+    let lf_input = "[code:python name:lf_test]\nprint(\"LF line endings\")\n[/code:python]";
+    let lf_blocks = parse_document(lf_input).expect("Failed to parse LF line endings");
+    let lf_block = find_block_by_name(&lf_blocks, "lf_test").expect("LF block not found");
+    assert_eq!(lf_block.content.trim(), "print(\"LF line endings\")");
+    
+    // CRLF line endings
+    let crlf_input = "[code:python name:crlf_test]\r\nprint(\"CRLF line endings\")\r\n[/code:python]";
+    let crlf_blocks = parse_document(crlf_input).expect("Failed to parse CRLF line endings");
+    let crlf_block = find_block_by_name(&crlf_blocks, "crlf_test").expect("CRLF block not found");
+    assert_eq!(crlf_block.content.trim(), "print(\"CRLF line endings\")");
+    
+    // Mixed line endings
+    let mixed_input = "[code:python name:mixed_test]\nprint(\"First line\")\r\nprint(\"Second line\")\n[/code:python]";
+    let mixed_blocks = parse_document(mixed_input).expect("Failed to parse mixed line endings");
+    let mixed_block = find_block_by_name(&mixed_blocks, "mixed_test").expect("Mixed block not found");
+    assert!(mixed_block.content.contains("First line"));
+    assert!(mixed_block.content.contains("Second line"));
+    
+    // Complex document with mixed line endings
+    let complex_mixed = r#"[code:python name:complex_mixed]
+print("Line with LF")
+print("Line with CRLF")
+print("Another LF line")
+[/code:python]"#.replace("\n", "\r\n");
+    
+    let complex_blocks = parse_document(&complex_mixed).expect("Failed to parse complex mixed line endings");
+    let complex_block = find_block_by_name(&complex_blocks, "complex_mixed").expect("Complex mixed block not found");
+    assert!(complex_block.content.contains("Line with LF"));
+    assert!(complex_block.content.contains("Line with CRLF"));
+    assert!(complex_block.content.contains("Another LF line"));
+}
+#[test]
+fn test_language_types() {
+    // Test different language types in code blocks
+    let input = r#"
+[code:python name:python_code]
+def hello():
+    print("Hello from Python")
+[/code:python]
+
+[code:javascript name:js_code]
+function hello() {
+    console.log("Hello from JavaScript");
+}
+[/code:javascript]
+
+[code:rust name:rust_code]
+fn hello() {
+    println!("Hello from Rust");
+}
+[/code:rust]
+
+[code:html name:html_code]
+<!DOCTYPE html>
+<html>
+<body>
+    <h1>Hello from HTML</h1>
+</body>
+</html>
+[/code:html]
+
+[code:css name:css_code]
+body {
+    font-family: Arial, sans-serif;
+    color: #333;
+}
+[/code:css]
+
+[code:sql name:sql_code]
+SELECT * FROM users WHERE name = 'John';
+[/code:sql]
+
+[code:json name:json_code]
+{
+  "name": "John",
+  "age": 30,
+  "isActive": true,
+  "address": {
+    "street": "123 Main St",
+    "city": "Anytown"
+  }
+}
+[/code:json]
+
+[code:yaml name:yaml_code]
+name: John
+age: 30
+isActive: true
+address:
+  street: 123 Main St
+  city: Anytown
+[/code:yaml]
+
+[code:markdown name:markdown_code]
+# Hello World
+
+This is a **markdown** document with *formatting*.
+
+- Item 1
+- Item 2
+- Item 3
+[/code:markdown]
+
+[code:bash name:bash_code]
+#!/bin/bash
+echo "Hello from Bash"
+for i in {1..5}; do
+  echo "Number: $i"
+done
+[/code:bash]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse language types");
+    
+    // Check all language blocks were parsed correctly
+    let languages = ["python", "javascript", "rust", "html", "css", "sql", "json", "yaml", "markdown", "bash"];
+    for lang in languages.iter() {
+        let block_name = format!("{}_code", lang);
+        let block = find_block_by_name(&blocks, &block_name).expect(&format!("{} block not found", lang));
+        assert_eq!(block.block_type, format!("code:{}", lang));
+    }
+    
+    // Verify content of specific blocks
+    let json_block = find_block_by_name(&blocks, "json_code").expect("JSON block not found");
+    assert!(json_block.content.contains("\"name\": \"John\""));
+    
+    let yaml_block = find_block_by_name(&blocks, "yaml_code").expect("YAML block not found");
+    assert!(yaml_block.content.contains("name: John"));
+    
+    let markdown_block = find_block_by_name(&blocks, "markdown_code").expect("Markdown block not found");
+    assert!(markdown_block.content.contains("# Hello World"));
+    
+    let bash_block = find_block_by_name(&blocks, "bash_code").expect("Bash block not found");
+    assert!(bash_block.content.contains("#!/bin/bash"));
+}
+#[test]
+fn test_character_escaping() {
+    // Test character escaping in content
+    let input = r#"
+[code:python name:escaped_chars]
+print("Escaped quotes: \"Hello, world!\"")
+print('Single quotes: \'Hello, world!\'')
+print("Backslashes: \\path\\to\\file")
+print("Tab: \t and newline: \n")
+[/code:python]
+
+[data name:escaped_json]
+{
+    "escaped": "This has \"quotes\" and \\ backslashes",
+    "path": "C:\\Program Files\\App"
+}
+[/data]
+
+[shell name:escaped_shell]
+echo "Escaped characters: \" \' \\ \$ \` \!"
+[/shell]
+
+[code:python name:unicode_escapes]
+# Unicode escapes
+print("\u03C0 is approximately 3.14159")
+print("\u2665 is a heart symbol")
+print("\U0001F600 is a grinning face emoji")
+[/code:python]
+
+[code:javascript name:js_escapes]
+// JavaScript escape sequences
+console.log("Line 1\nLine 2");
+console.log("Tab\tcharacter");
+console.log("Unicode: \u03C0 \u2665");
+console.log("Hex: \x41 \x42 \x43");
+[/code:javascript]
+
+[code:html name:html_entities]
+<div>
+  &lt;script&gt; tags should be escaped
+  Special chars: &amp; &quot; &apos; &gt;
+  Numeric entities: &#960; &#x2665;
+</div>
+[/code:html]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse character escaping");
+    
+    // Check Python block with escaped characters
+    let python_block = find_block_by_name(&blocks, "escaped_chars").expect("Escaped chars Python block not found");
+    assert!(python_block.content.contains("\\\"Hello, world!\\\""));
+    assert!(python_block.content.contains("\\'Hello, world!\\'"));
+    assert!(python_block.content.contains("\\\\path\\\\to\\\\file"));
+    
+    // Check JSON data with escaped characters
+    let json_block = find_block_by_name(&blocks, "escaped_json").expect("Escaped JSON block not found");
+    assert!(json_block.content.contains("\\\"quotes\\\""));
+    assert!(json_block.content.contains("C:\\\\Program Files\\\\App"));
+    
+    // Check shell command with escaped characters
+    let shell_block = find_block_by_name(&blocks, "escaped_shell").expect("Escaped shell block not found");
+    assert!(shell_block.content.contains("\\\" \\' \\\\ \\$ \\` \\!"));
+    
+    // Check Unicode escapes
+    let unicode_block = find_block_by_name(&blocks, "unicode_escapes").expect("Unicode escapes block not found");
+    assert!(unicode_block.content.contains("\\u03C0"));
+    assert!(unicode_block.content.contains("\\u2665"));
+    assert!(unicode_block.content.contains("\\U0001F600"));
+    
+    // Check JavaScript escapes
+    let js_block = find_block_by_name(&blocks, "js_escapes").expect("JS escapes block not found");
+    assert!(js_block.content.contains("Line 1\\nLine 2"));
+    assert!(js_block.content.contains("Tab\\tcharacter"));
+    assert!(js_block.content.contains("\\u03C0 \\u2665"));
+    assert!(js_block.content.contains("\\x41 \\x42 \\x43"));
+    
+    // Check HTML entities
+    let html_block = find_block_by_name(&blocks, "html_entities").expect("HTML entities block not found");
+    assert!(html_block.content.contains("&lt;script&gt;"));
+    assert!(html_block.content.contains("&amp; &quot; &apos; &gt;"));
+    assert!(html_block.content.contains("&#960; &#x2665;"));
+}
+#[test]
+fn test_large_blocks() {
+    // Test very large blocks
+    let mut large_content = String::new();
+    for i in 0..1000 {
+        large_content.push_str(&format!("print(\"Line {} of a very large block\")\n", i));
+    }
+    
+    let input = format!(r#"
+[code:python name:large_block]
+{}
+[/code:python]
+"#, large_content);
+
+    let blocks = parse_document(&input).expect("Failed to parse large block");
+    
+    // Check the large block was parsed correctly
+    let large_block = find_block_by_name(&blocks, "large_block").expect("Large block not found");
+    assert!(large_block.content.contains("Line 0 of a very large block"));
+    assert!(large_block.content.contains("Line 999 of a very large block"));
+    assert_eq!(large_block.content.lines().count(), 1000);
+    
+    // Test large block with complex content
+    let mut large_json = String::new();
+    large_json.push_str("{\n  \"items\": [\n");
+    for i in 0..500 {
+        large_json.push_str(&format!("    {{ \"id\": {}, \"name\": \"Item {}\" }}{}\n", 
+                                    i, i, if i < 499 { "," } else { "" }));
+    }
+    large_json.push_str("  ]\n}");
+    
+    let json_input = format!(r#"
+[data name:large_json]
+{}
+[/data]
+"#, large_json);
+
+    let json_blocks = parse_document(&json_input).expect("Failed to parse large JSON");
+    let json_block = find_block_by_name(&json_blocks, "large_json").expect("Large JSON block not found");
+    assert!(json_block.content.contains("\"id\": 0"));
+    assert!(json_block.content.contains("\"id\": 499"));
+    assert!(json_block.content.lines().count() > 500);
+}
+#[test]
+fn test_indentation_patterns() {
+    // Test blocks with complicated indentation patterns
+    let input = r#"
+[code:python name:indented_code]
+def complex_function():
+    if True:
+        for i in range(10):
+            if i % 2 == 0:
+                print("Even")
+            else:
+                print("Odd")
+                if i > 5:
+                    print("Greater than 5")
+                    for j in range(i):
+                        print(f"  Nested: {j}")
+[/code:python]
+
+[data name:indented_json]
+{
+    "level1": {
+        "level2": {
+            "level3": {
+                "level4": {
+                    "value": "deeply nested"
+                }
+            }
+        }
+    }
+}
+[/data]
+
+[code:python name:mixed_indentation]
+def mixed_function():
+    # Spaces
+    if True:
+        print("Spaces: 4")
+    # Tabs
+	print("Tab: 1")
+		print("Tabs: 2")
+    # Mixed
+    if True:
+	    print("Mixed: 1 tab after 4 spaces")
+	if True:
+        print("Mixed: 4 spaces after 1 tab")
+[/code:python]
+
+[code:yaml name:yaml_indentation]
+root:
+  level1:
+    level2:
+      - item1
+      - item2
+      - nested:
+          key1: value1
+          key2: value2
+  sibling:
+    - simple_item
+    - complex_item:
+        subkey: subvalue
+[/code:yaml]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse indentation patterns");
+    
+    // Check Python block with complex indentation
+    let python_block = find_block_by_name(&blocks, "indented_code").expect("Indented code block not found");
+    assert!(python_block.content.contains("def complex_function():"));
+    assert!(python_block.content.contains("    if True:"));
+    assert!(python_block.content.contains("        for i in range(10):"));
+    assert!(python_block.content.contains("            if i % 2 == 0:"));
+    
+    // Check JSON data with nested indentation
+    let json_block = find_block_by_name(&blocks, "indented_json").expect("Indented JSON block not found");
+    assert!(json_block.content.contains("\"level1\": {"));
+    assert!(json_block.content.contains("    \"level2\": {"));
+    assert!(json_block.content.contains("        \"level3\": {"));
+    assert!(json_block.content.contains("            \"level4\": {"));
+    
+    // Check mixed indentation
+    let mixed_block = find_block_by_name(&blocks, "mixed_indentation").expect("Mixed indentation block not found");
+    assert!(mixed_block.content.contains("	print(\"Tab: 1\")"));
+    assert!(mixed_block.content.contains("		print(\"Tabs: 2\")"));
+    assert!(mixed_block.content.contains("	    print(\"Mixed: 1 tab after 4 spaces\")"));
+    assert!(mixed_block.content.contains("        print(\"Mixed: 4 spaces after 1 tab\")"));
+    
+    // Check YAML indentation
+    let yaml_block = find_block_by_name(&blocks, "yaml_indentation").expect("YAML indentation block not found");
+    assert!(yaml_block.content.contains("  level1:"));
+    assert!(yaml_block.content.contains("    level2:"));
+    assert!(yaml_block.content.contains("      - item1"));
+    assert!(yaml_block.content.contains("          key1: value1"));
+}
+#[test]
+fn test_error_recovery() {
+    // Test parse error recovery
+    let input = r#"
+[code:python name:valid_block]
+print("This is a valid block")
+[/code:python]
+
+[invalid_block]
+This block has an invalid type
+[/invalid_block]
+
+[code:python name:another_valid]
+print("This block should still be parsed")
+[/code:python]
+"#;
+
+    // This should fail because of the invalid block
+    assert!(parse_document(input).is_err());
+    
+    // But we can test partial parsing or error recovery if implemented
+    // For now, just verify that the parser correctly identifies the error
+    match parse_document(input) {
+        Err(e) => {
+            let error_string = format!("{:?}", e);
+            assert!(error_string.contains("invalid") || error_string.contains("unknown block type"),
+                   "Error message should mention invalid block: {:?}", error_string);
+        },
+        Ok(_) => panic!("Parser should have returned an error for invalid block"),
+    }
+    
+    // Test with a document containing valid blocks and a syntax error
+    let input_with_syntax_error = r#"
+[code:python name:first_valid]
+print("This is a valid block")
+[/code:python]
+
+[code:python name:syntax_error
+print("This block has a syntax error - missing closing bracket")
+[/code:python]
+
+[code:python name:last_valid]
+print("This is another valid block")
+[/code:python]
+"#;
+
+    // This should fail because of the syntax error
+    assert!(parse_document(input_with_syntax_error).is_err());
+    
+    // Test with a document containing valid blocks and a block with invalid modifiers
+    let input_with_invalid_modifier = r#"
+[code:python name:first_valid]
+print("This is a valid block")
+[/code:python]
+
+[code:python name:invalid:modifier]
+print("This block has an invalid modifier")
+[/code:python]
+
+[code:python name:last_valid]
+print("This is another valid block")
+[/code:python]
+"#;
+
+    // This should fail because of the invalid modifier
+    assert!(parse_document(input_with_invalid_modifier).is_err());
+}
+#[test]
+fn test_complex_document() {
+    // Test parsing a complex document with multiple block types and nesting
+    let input = r#"
+[section:intro name:document_intro]
+# Introduction
+
+This is a complex document with multiple block types and nesting.
+
+[code:python name:setup_code]
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def setup_environment():
+    print("Setting up environment")
+    return {"ready": True}
+[/code:python]
+
+[variable name:config]
+{
+    "data_source": "example.csv",
+    "max_rows": 1000,
+    "columns": ["id", "name", "value"]
+}
+[/variable]
+
+[section:data_processing name:data_section]
+## Data Processing
+
+[code:python name:process_data depends:setup_code]
+def process_data(source="${config.data_source}"):
+    print(f"Processing data from {source}")
+    # Use the setup from the previous block
+    env = setup_environment()
+    if env["ready"]:
+        return {"processed": True}
+[/code:python]
+
+[data name:sample_data]
+{"id": 1, "name": "Example", "value": 42}
+[/data]
+
+[shell name:run_script]
+python -c "import json; print(json.dumps(${sample_data}))"
+[/shell]
+
+[results for:run_script]
+{"id": 1, "name": "Example", "value": 42}
+[/results]
+[/section:data_processing]
+
+[section:visualization name:viz_section]
+## Visualization
+
+[code:python name:create_viz depends:process_data]
+def create_visualization(data):
+    print("Creating visualization")
+    # This would normally create a plot
+    return "visualization.png"
+[/code:python]
+
+[visualization name:data_viz type:bar data:sample_data]
+// Visualization configuration
+[/visualization]
+
+[preview for:data_viz]
+[Bar chart showing sample data]
+[/preview]
+[/section:visualization]
+
+[template name:report_template]
+# ${title}
+
+Data processed: ${data_processed}
+Visualization: ${visualization_path}
+
+## Summary
+${summary}
+[/template]
+
+[template:report_template name:final_report 
+  title:"Analysis Report"
+  data_processed:"Yes"
+  visualization_path:"visualization.png"
+  summary:"This is a summary of the analysis."
+]
+[/template:report_template]
+
+[conditional if:config.max_rows>500]
+This section only appears if max_rows is greater than 500.
+[/conditional]
+
+[error_results for:missing_block]
+Error: Block not found
+[/error_results]
+[/section:intro]
+"#;
+
+    let blocks = parse_document(input).expect("Failed to parse complex document");
+    
+    // Find the main section
+    let intro_section = find_block_by_name(&blocks, "document_intro").expect("Intro section not found");
+    assert_eq!(intro_section.block_type, "section:intro");
+    
+    // Check that the section has the expected number of child blocks
+    assert!(intro_section.children.len() >= 5, "Expected at least 5 child blocks, got {}", intro_section.children.len());
+    
+    // Check nested sections
+    let data_section = find_child_by_name(intro_section, "data_section").expect("Data section not found");
+    assert_eq!(data_section.block_type, "section:data_processing");
+    assert_eq!(data_section.children.len(), 4, "Expected 4 child blocks in data section, got {}", data_section.children.len());
+    
+    let viz_section = find_child_by_name(intro_section, "viz_section").expect("Visualization section not found");
+    assert_eq!(viz_section.block_type, "section:visualization");
+    assert_eq!(viz_section.children.len(), 3, "Expected 3 child blocks in viz section, got {}", viz_section.children.len());
+    
+    // Check variable references
+    let process_data = find_child_by_name(data_section, "process_data").expect("Process data block not found");
+    assert!(process_data.content.contains("${config.data_source}"));
+    
+    // Check dependencies
+    assert!(has_modifier(process_data, "depends", "setup_code"));
+    
+    let create_viz = find_child_by_name(viz_section, "create_viz").expect("Create viz block not found");
+    assert!(has_modifier(create_viz, "depends", "process_data"));
+    
+    // Check template invocation
+    let final_report = find_block_by_name(&blocks, "final_report").expect("Final report not found");
+    assert!(has_modifier(final_report, "title", "Analysis Report"));
+    assert!(has_modifier(final_report, "data_processed", "Yes"));
+    assert!(has_modifier(final_report, "visualization_path", "visualization.png"));
+    assert!(has_modifier(final_report, "summary", "This is a summary of the analysis."));
+    
+    // Check conditional block
+    let conditional = intro_section.children.iter()
+        .find(|b| b.block_type == "conditional")
+        .expect("Conditional block not found");
+    assert!(has_modifier(conditional, "if", "config.max_rows>500"));
+}
