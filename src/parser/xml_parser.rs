@@ -171,36 +171,3 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
     
     Ok(blocks)
 }
-
-/// Detect if a string is likely an XML document
-pub fn is_xml_document(input: &str) -> bool {
-    let trimmed = input.trim();
-    
-    // Check for XML declaration
-    if trimmed.starts_with("<?xml") {
-        return true;
-    }
-    
-    // Check for root element with meta namespace
-    if trimmed.contains("<meta:document") || 
-       trimmed.contains("<document") ||
-       trimmed.contains("xmlns:meta=") {
-        return true;
-    }
-    
-    // Check for common block types as XML tags
-    let common_block_types = [
-        "<code", "<data", "<shell", "<visualization", "<template", 
-        "<variable", "<secret", "<filename", "<memory", "<api", 
-        "<question", "<response", "<results", "<error_results", 
-        "<error", "<preview", "<conditional", "<section"
-    ];
-    
-    for block_type in common_block_types {
-        if trimmed.contains(block_type) {
-            return true;
-        }
-    }
-    
-    false
-}

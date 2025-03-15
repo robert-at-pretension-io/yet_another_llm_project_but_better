@@ -22,7 +22,7 @@ pub use self::blocks::Block;
 pub use block_parser::{parse_single_block, extract_block_type};
 pub use utils::extractors::{extract_name, extract_modifiers, extract_variable_references};
 pub use utils::validators::check_duplicate_names;
-pub use xml_parser::{parse_xml_document, is_xml_document};
+pub use xml_parser::{parse_xml_document};
 
 // Define error type
 #[derive(Error, Debug)]
