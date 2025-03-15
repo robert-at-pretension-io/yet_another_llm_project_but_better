@@ -4,9 +4,12 @@ mod tests {
     
     #[test]
     fn test_simple_section() {
-        let input = r#"<section:test name="simple-section">
-This is a simple section with no child blocks.
-</section:test>"#;
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:section type="test" name="simple-section">
+    This is a simple section with no child blocks.
+  </meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse simple section: {:?}", result.err());
@@ -23,15 +26,18 @@ This is a simple section with no child blocks.
     
     #[test]
     fn test_section_with_one_child() {
-        let input = r#"<section:test name="parent">
-Some content before the child.
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:section type="test" name="parent">
+    Some content before the child.
 
-<data name="child-data">
-test data
-</data>
+    <meta:data name="child-data">
+    test data
+    </meta:data>
 
-Some content after the child.
-</section:test>"#;
+    Some content after the child.
+  </meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse section with child: {:?}", result.err());
@@ -57,22 +63,25 @@ Some content after the child.
     
     #[test]
     fn test_section_with_multiple_children() {
-        let input = r#"<section:document name="multi-child">
-# Header
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:section type="document" name="multi-child">
+    # Header
 
-<data name="first-child">
-data content
-</data>
+    <meta:data name="first-child">
+    data content
+    </meta:data>
 
-<code:python name="second-child">
-print("Hello")
-</code:python>
+    <meta:code language="python" name="second-child">
+    print("Hello")
+    </meta:code>
 
-<shell name="third-child">
-echo "Test"
-</shell>
+    <meta:shell name="third-child">
+    echo "Test"
+    </meta:shell>
 
-</section:document>"#;
+  </meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse section with multiple children: {:?}", result.err());
@@ -106,15 +115,18 @@ echo "Test"
     
     #[test]
     fn test_nested_sections() {
-        let input = r#"<section:outer name="parent">
-Outer content
+        let input = r#"<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <meta:section type="outer" name="parent">
+    Outer content
 
-<section:inner name="child">
-Inner content
-</section:inner>
+    <meta:section type="inner" name="child">
+    Inner content
+    </meta:section>
 
-More outer content
-</section:outer>"#;
+    More outer content
+  </meta:section>
+</meta:document>"#;
         
         let result = parse_document(input);
         assert!(result.is_ok(), "Failed to parse nested sections: {:?}", result.err());
