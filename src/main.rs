@@ -74,9 +74,32 @@ fn process_file(file_path: &str) -> Result<()> {
         Ok(_) => {
             println!("Successfully parsed document, found {} blocks", executor.blocks.len());
             
-            // Print all blocks found
+            // Print all blocks found with detailed information
             for (name, block) in &executor.blocks {
                 println!("Found block: '{}' of type '{}'", name, block.block_type);
+                
+                // Print block name attribute if available
+                if let Some(block_name) = &block.name {
+                    println!("  - Block name attribute: '{}'", block_name);
+                } else {
+                    println!("  - No name attribute");
+                }
+                
+                // Print modifiers
+                if !block.modifiers.is_empty() {
+                    println!("  - Modifiers:");
+                    for (key, value) in &block.modifiers {
+                        println!("    * {}={}", key, value);
+                    }
+                }
+                
+                // Print content preview
+                let content_preview = if block.content.len() > 50 {
+                    format!("{}... (length: {})", &block.content[..50], block.content.len())
+                } else {
+                    block.content.clone()
+                };
+                println!("  - Content: '{}'", content_preview);
             }
         },
         Err(e) => {
@@ -105,11 +128,26 @@ fn process_file(file_path: &str) -> Result<()> {
     }
     
     // Process question blocks without responses
+    println!("Searching for question blocks without responses...");
+    
+    // First, print all question blocks for debugging
+    let all_question_blocks: Vec<(&String, &Block)> = executor.blocks.iter()
+        .filter(|(_, block)| block.block_type == "question")
+        .collect();
+    
+    println!("Total question blocks found: {}", all_question_blocks.len());
+    for (name, block) in &all_question_blocks {
+        println!("Question block: '{}' with name attribute: {:?}", name, block.name);
+    }
+    
+    // Now find question blocks without responses
     let question_blocks: Vec<(String, Block)> = executor.blocks.iter()
         .filter(|(_, block)| block.block_type == "question")
         .filter(|(name, _)| {
             let response_name = format!("{}_response", name);
-            !executor.blocks.contains_key(&response_name)
+            let has_response = executor.blocks.contains_key(&response_name);
+            println!("Checking for response '{}': {}", response_name, if has_response { "Found" } else { "Not found" });
+            !has_response
         })
         .map(|(name, block)| (name.clone(), block.clone()))
         .collect();
@@ -117,14 +155,26 @@ fn process_file(file_path: &str) -> Result<()> {
     if !question_blocks.is_empty() {
         println!("Found {} question blocks without responses", question_blocks.len());
         
-        for (name, _) in &question_blocks {
-            println!("Processing question: '{}'", name);
+        for (name, block) in &question_blocks {
+            println!("Processing question: '{}' with content: '{}'", 
+                     name, 
+                     if block.content.len() > 50 { &block.content[..50] } else { &block.content });
+            
+            // Add test_mode modifier for testing
+            let mut test_block = block.clone();
+            test_block.add_modifier("test_mode", "true");
+            
+            // Update the block in the executor
+            executor.blocks.insert(name.clone(), test_block);
+            
             if let Err(e) = executor.execute_block(name) {
                 eprintln!("Error executing question block '{}': {}", name, e);
             } else {
                 println!("Successfully processed question: '{}'", name);
             }
         }
+    } else {
+        println!("No question blocks without responses found");
     }
     
     // Update the file with results
