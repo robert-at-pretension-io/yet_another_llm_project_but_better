@@ -59,12 +59,11 @@ fn is_valid_block_type(block_type: &str) -> bool {
 
 // Parse a document string into blocks
 pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
-    let mut blocks = Vec::new();
-    
     // Try parsing with the full document parser first
     let result = MetaLanguageParser::parse(Rule::document, input);
     
     if let Ok(pairs) = result {
+        let mut blocks = Vec::new();
         for pair in pairs {
             match pair.as_rule() {
                 Rule::document => {
@@ -80,42 +79,60 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 _ => {}
             }
         }
-    } else {
-        // If full document parsing fails, try parsing blocks individually
-        // This helps with nested blocks and partial documents
-        let mut content = input.trim();
         
-        while !content.is_empty() {
-            // Find the start of the next block
-            if let Some(open_bracket) = content.find('[') {
-                // Check if this is actually a block start and not just a bracket in text or JSON
-                // We need to check if it's a valid block type
-                let block_start = &content[open_bracket..];
-                
-                // Check for template invocation with [@template_name] syntax
-                if block_start.starts_with("[@") {
-                    if let Some(close_bracket) = block_start.find(']') {
-                        // Extract template name and modifiers
-                        let template_text = &block_start[2..close_bracket];
-                        
-                        // Split by space to separate name and modifiers
+        // Check for duplicate block names
+        check_duplicate_names(&blocks)?;
+        
+        return Ok(blocks);
+    }
+    
+    // If full document parsing fails, use a simpler direct approach
+    let mut blocks = Vec::new();
+    let mut remaining = input.trim();
+    
+    // Define valid block start patterns
+    let valid_block_starts = [
+        "[code:", "[data ", "[data]", "[shell ", "[shell]", 
+        "[visualization ", "[visualization]", "[section:", 
+        "[template ", "[template]", "[variable ", "[variable]", 
+        "[secret ", "[secret]", "[filename ", "[filename]", 
+        "[memory ", "[memory]", "[api ", "[api]", 
+        "[question ", "[question]", "[response ", "[response]", 
+        "[results ", "[results]", "[error_results ", "[error_results]", 
+        "[error ", "[error]", "[preview ", "[preview]", 
+        "[conditional ", "[conditional]"
+    ];
+    
+    while !remaining.is_empty() {
+        // Find the next potential block start
+        if let Some(start_pos) = remaining.find('[') {
+            let potential_block = &remaining[start_pos..];
+            
+            // Check if this is a valid block start
+            let is_valid_start = valid_block_starts.iter()
+                .any(|&pattern| potential_block.starts_with(pattern));
+            
+            // Special case for template invocation with [@template_name] syntax
+            let is_template_invocation = potential_block.starts_with("[@");
+            
+            if is_valid_start || is_template_invocation {
+                // Handle template invocation
+                if is_template_invocation {
+                    if let Some(close_bracket) = potential_block.find(']') {
+                        let template_text = &potential_block[2..close_bracket];
                         let parts: Vec<&str> = template_text.split_whitespace().collect();
+                        
                         if !parts.is_empty() {
                             let template_name = parts[0];
-                            
-                            // Create a template invocation block with "invoke-" prefix for the name
                             let mut block = Block::new("template_invocation", Some(&format!("invoke-{}", template_name)), "");
-                            
-                            // Add the original template name as a modifier
                             block.add_modifier("template", template_name);
                             
-                            // Process modifiers (parameters)
+                            // Process parameters
                             for part in &parts[1..] {
                                 if let Some(colon_pos) = part.find(':') {
                                     let key = &part[0..colon_pos];
                                     let value = &part[colon_pos+1..];
                                     
-                                    // Handle quoted values
                                     let clean_value = if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
                                         &value[1..value.len()-1]
                                     } else {
@@ -126,23 +143,19 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                                 }
                             }
                             
-                            // Find the closing tag [/@template_name]
+                            // Find closing tag
                             let closing_tag = format!("[/@{}]", template_name);
-                            if let Some(closing_pos) = content[open_bracket + close_bracket + 1..].find(&closing_tag) {
-                                // Extract content between opening and closing tags
-                                let content_start = open_bracket + close_bracket + 1;
-                                let content_end = content_start + closing_pos;
-                                let template_content = &content[content_start..content_end].trim();
-                                
-                                // Set the content
+                            if let Some(closing_pos) = potential_block[close_bracket + 1..].find(&closing_tag) {
+                                let content_end = close_bracket + 1 + closing_pos;
+                                let template_content = &potential_block[close_bracket + 1..content_end].trim();
                                 block.content = template_content.to_string();
                                 
-                                // Move past this template invocation including closing tag
-                                content = &content[content_end + closing_tag.len()..].trim_start();
+                                // Move past this template invocation
+                                remaining = &remaining[start_pos + content_end + closing_tag.len()..].trim_start();
                             } else {
-                                // No closing tag found, treat as self-closing
+                                // Self-closing
                                 block.content = "".to_string();
-                                content = &content[open_bracket + close_bracket + 1..].trim_start();
+                                remaining = &remaining[start_pos + close_bracket + 1..].trim_start();
                             }
                             
                             blocks.push(block);
@@ -151,215 +164,104 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     }
                 }
                 
-                // Check if this is a valid block start by looking for common block types
-                let is_valid_block_start = block_start.starts_with("[code:") || 
-                                          block_start.starts_with("[data ") || 
-                                          block_start.starts_with("[data]") || 
-                                          block_start.starts_with("[shell ") || 
-                                          block_start.starts_with("[shell]") || 
-                                          block_start.starts_with("[visualization ") || 
-                                          block_start.starts_with("[visualization]") || 
-                                          block_start.starts_with("[section:") ||
-                                          block_start.starts_with("[template ") ||
-                                          block_start.starts_with("[template]") ||
-                                          block_start.starts_with("[variable ") ||
-                                          block_start.starts_with("[variable]") ||
-                                          block_start.starts_with("[secret ") ||
-                                          block_start.starts_with("[secret]") ||
-                                          block_start.starts_with("[filename ") ||
-                                          block_start.starts_with("[filename]") ||
-                                          block_start.starts_with("[memory ") ||
-                                          block_start.starts_with("[memory]") ||
-                                          block_start.starts_with("[api ") ||
-                                          block_start.starts_with("[api]") ||
-                                          block_start.starts_with("[question ") ||
-                                          block_start.starts_with("[question]") ||
-                                          block_start.starts_with("[response ") ||
-                                          block_start.starts_with("[response]") ||
-                                          block_start.starts_with("[results ") ||
-                                          block_start.starts_with("[results]") ||
-                                          block_start.starts_with("[error_results ") ||
-                                          block_start.starts_with("[error_results]") ||
-                                          block_start.starts_with("[error ") && !block_start.starts_with("[error_results") ||
-                                          block_start.starts_with("[error]") ||
-                                          block_start.starts_with("[preview ") ||
-                                          block_start.starts_with("[preview]") ||
-                                          block_start.starts_with("[conditional ") ||
-                                          block_start.starts_with("[conditional]");
-                
-                if !is_valid_block_start {
-                    // This is not a valid block start, just a bracket in text or JSON
-                    // Skip to the next character and continue
-                    if open_bracket + 1 >= content.len() {
-                        break;
-                    }
-                    content = &content[open_bracket + 1..];
-                    continue;
-                }
-                
-                // Find the matching closing tag for regular blocks
-                if let Some(block) = try_parse_single_block(block_start) {
-                    // Successfully parsed a block
-                    blocks.push(block.0);
+                // Try to parse a regular block
+                if let Some((block, consumed)) = try_parse_single_block(potential_block) {
+                    blocks.push(block);
                     
-                    // Move past this block in the content
-                    let consumed_len = block.1;
-                    if open_bracket + consumed_len >= content.len() {
+                    // Move past this block
+                    if start_pos + consumed >= remaining.len() {
                         break;
                     }
-                    content = &content[open_bracket + consumed_len..].trim_start();
+                    remaining = &remaining[start_pos + consumed..].trim_start();
                 } else {
-                    // Try to parse the block directly based on its type
-                    let mut parsed = false;
-                    
-                    // Extract the block type
-                    if let Some(block_type_end) = block_start.find(']') {
-                        let block_type_raw = &block_start[1..block_type_end];
+                    // Try to extract block type and find matching closing tag
+                    if let Some(block_type_end) = potential_block.find(']') {
+                        let block_type_raw = &potential_block[1..block_type_end];
                         let block_type = block_type_raw.split_whitespace().next().unwrap_or("");
                         
-                        // Find the corresponding closing tag
-                        let closing_tag = format!("[/{}", block_type);
-                        if let Some(close_pos) = content[open_bracket..].find(&closing_tag) {
-                            let close_tag_start = open_bracket + close_pos;
-                            if let Some(close_tag_end) = content[close_tag_start..].find(']') {
-                                let close_tag_end = close_tag_start + close_tag_end + 1;
-                                
-                                // Extract the opening tag
-                                let open_tag_end = open_bracket + block_start[..block_type_end + 1].len();
-                                
-                                // Extract content between tags
-                                let block_content = &content[open_tag_end..close_tag_start].trim();
-                                
-                                // Extract name if present
-                                let mut name = None;
-                                if let Some(name_pos) = block_type_raw.find("name:") {
-                                    let name_start = name_pos + 5; // "name:".len()
-                                    let name_end = block_type_raw[name_start..].find(' ')
-                                        .map(|pos| name_start + pos)
-                                        .unwrap_or(block_type_raw.len() - name_start);
+                        if !block_type.is_empty() {
+                            // Find closing tag
+                            let closing_tag = format!("[/{}", block_type);
+                            if let Some(close_pos) = potential_block.find(&closing_tag) {
+                                if let Some(close_tag_end) = potential_block[close_pos..].find(']') {
+                                    let close_tag_end = close_pos + close_tag_end + 1;
                                     
-                                    if name_start + name_end <= block_type_raw.len() {
-                                        name = Some(block_type_raw[name_start..name_start + name_end].to_string());
-                                    }
-                                }
-                                
-                                // Create the block
-                                let mut block = Block::new(block_type, name.as_deref(), block_content);
-                                
-                                // Extract modifiers
-                                let opening_tag = &block_start[..block_type_end];
-                                if let Some(space_pos) = opening_tag.find(' ') {
-                                    let modifiers_text = &opening_tag[space_pos + 1..];
+                                    // Extract content
+                                    let open_tag_end = block_type_end + 1;
+                                    let block_content = &potential_block[open_tag_end..close_pos].trim();
                                     
-                                    // Extract format modifier
-                                    if let Some(format_pos) = modifiers_text.find("format:") {
-                                        let format_start = format_pos + 7; // "format:".len()
-                                        if format_start < modifiers_text.len() {
-                                            let format_end = modifiers_text[format_start..].find(' ')
-                                                .map(|pos| format_start + pos)
-                                                .unwrap_or(modifiers_text.len() - format_start);
-                                            
-                                            if format_start + format_end <= modifiers_text.len() {
-                                                let format = &modifiers_text[format_start..format_start + format_end];
-                                                block.add_modifier("format", format);
-                                            }
-                                        }
+                                    // Extract name if present
+                                    let mut name = None;
+                                    if let Some(name_pos) = block_type_raw.find("name:") {
+                                        let name_start = name_pos + 5;
+                                        let name_end = block_type_raw[name_start..].find(' ')
+                                            .map(|pos| name_start + pos)
+                                            .unwrap_or(block_type_raw.len());
+                                        
+                                        name = Some(block_type_raw[name_start..name_end].trim().to_string());
                                     }
                                     
-                                    // Extract depends modifier
-                                    if let Some(depends_pos) = modifiers_text.find("depends:") {
-                                        let depends_start = depends_pos + 8; // "depends:".len()
-                                        if depends_start < modifiers_text.len() {
-                                            let depends_end = modifiers_text[depends_start..].find(' ')
-                                                .map(|pos| depends_start + pos)
-                                                .unwrap_or(modifiers_text.len() - depends_start);
-                                            
-                                            if depends_start + depends_end <= modifiers_text.len() {
-                                                let depends = &modifiers_text[depends_start..depends_start + depends_end];
-                                                block.add_modifier("depends", depends);
-                                            }
-                                        }
-                                    }
+                                    // Create block
+                                    let mut block = Block::new(block_type, name.as_deref(), block_content);
                                     
-                                    // Extract fallback modifier
-                                    if let Some(fallback_pos) = modifiers_text.find("fallback:") {
-                                        let fallback_start = fallback_pos + 9; // "fallback:".len()
-                                        if fallback_start < modifiers_text.len() {
-                                            let fallback_end = modifiers_text[fallback_start..].find(' ')
-                                                .map(|pos| fallback_start + pos)
-                                                .unwrap_or(modifiers_text.len() - fallback_start);
-                                            
-                                            if fallback_start + fallback_end <= modifiers_text.len() {
-                                                let fallback = &modifiers_text[fallback_start..fallback_start + fallback_end];
-                                                block.add_modifier("fallback", fallback);
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Extract other common modifiers
-                                    for modifier_name in &["cache_result", "timeout", "retry", "method", "always_include"] {
-                                        let search = format!("{}:", modifier_name);
-                                        if let Some(mod_pos) = modifiers_text.find(&search) {
-                                            let mod_start = mod_pos + search.len();
-                                            if mod_start < modifiers_text.len() {
+                                    // Extract modifiers
+                                    if let Some(space_pos) = block_type_raw.find(' ') {
+                                        let modifiers_text = &block_type_raw[space_pos + 1..];
+                                        
+                                        // Use a more systematic approach to extract modifiers
+                                        for modifier_name in &["format", "depends", "fallback", "cache_result", 
+                                                             "timeout", "retry", "method", "always_include"] {
+                                            let search = format!("{}:", modifier_name);
+                                            if let Some(mod_pos) = modifiers_text.find(&search) {
+                                                let mod_start = mod_pos + search.len();
                                                 let mod_end = modifiers_text[mod_start..].find(' ')
                                                     .map(|pos| mod_start + pos)
-                                                    .unwrap_or(modifiers_text.len() - mod_start);
+                                                    .unwrap_or(modifiers_text.len());
                                                 
-                                                if mod_start + mod_end <= modifiers_text.len() {
-                                                    let mod_value = &modifiers_text[mod_start..mod_start + mod_end];
-                                                    block.add_modifier(modifier_name, mod_value);
-                                                }
+                                                let mod_value = modifiers_text[mod_start..mod_end].trim();
+                                                block.add_modifier(modifier_name, mod_value);
                                             }
                                         }
                                     }
+                                    
+                                    blocks.push(block);
+                                    
+                                    // Move past this block
+                                    remaining = &remaining[start_pos + close_tag_end..].trim_start();
+                                    continue;
                                 }
-                                
-                                blocks.push(block);
-                                content = &content[close_tag_end..].trim_start();
-                                parsed = true;
                             }
                         }
                     }
                     
-                    if !parsed {
-                        // Failed to parse a block - skip to the next potential block start
-                        if open_bracket + 1 >= content.len() {
-                            break;
-                        }
-                        content = &content[open_bracket + 1..];
-                    }
+                    // If we couldn't parse the block, move ahead one character
+                    remaining = &remaining[start_pos + 1..];
                 }
             } else {
-                // No more blocks found
-                break;
+                // Not a valid block start, move ahead
+                remaining = &remaining[start_pos + 1..];
             }
-        }
-        
-        if blocks.is_empty() {
-            return Err(ParserError::ParseError(format!("Failed to parse any blocks from: {}", input)));
-        }
-        
-        // Check for invalid block types
-        for block in &blocks {
-            if !is_valid_block_type(&block.block_type) {
-                return Err(ParserError::InvalidBlockType(block.block_type.clone()));
-            }
+        } else {
+            // No more potential block starts
+            break;
         }
     }
     
-    // Process nested sections - ensure children are properly attached to parents
-    let mut top_level_blocks = Vec::new();
+    if blocks.is_empty() {
+        return Err(ParserError::ParseError(format!("Failed to parse any blocks from: {}", input)));
+    }
     
-    // Add all blocks to top_level_blocks, including section blocks
-    for block in blocks {
-        top_level_blocks.push(block);
+    // Check for invalid block types
+    for block in &blocks {
+        if !is_valid_block_type(&block.block_type) {
+            return Err(ParserError::InvalidBlockType(block.block_type.clone()));
+        }
     }
     
     // Check for duplicate block names
-    check_duplicate_names(&top_level_blocks)?;
+    check_duplicate_names(&blocks)?;
     
-    Ok(top_level_blocks)
+    Ok(blocks)
 }
 
 // Try to parse a single block from the start of the content
