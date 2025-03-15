@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use tempfile::TempDir;
 
-use metalang::{
+use yet_another_llm_project_but_better::{
     executor::MetaLanguageExecutor,
     file_watcher::{FileWatcher, FileEvent, FileEventType},
     llm_client::{LlmClient, LlmRequestConfig, LlmProvider},
@@ -17,9 +17,13 @@ use metalang::{
 // Mock implementation of LlmClient for testing
 struct MockLlmClient;
 
-impl MockLlmClient {
-    fn mock_response(_prompt: &str) -> String {
-        "This is a mock LLM response for testing purposes.".to_string()
+impl LlmClient for MockLlmClient {
+    fn send_request(&self, _prompt: &str, _config: &LlmRequestConfig) -> Result<String, String> {
+        Ok("This is a mock LLM response for testing purposes.".to_string())
+    }
+    
+    fn get_provider(&self) -> LlmProvider {
+        LlmProvider::OpenAI
     }
 }
 
@@ -49,15 +53,9 @@ What is the capital of France?
     // Create executor with mocked LLM client
     let mut executor = MetaLanguageExecutor::new();
     
-    // Patch the executor to use our mock LLM client
-    // In a real implementation, we would inject the mock client
-    // For this test, we'll rely on the executor's fallback mechanism
-    
-    // Add a fallback for the question block
-    executor.fallbacks.insert(
-        "test-question".to_string(),
-        MockLlmClient::mock_response("What is the capital of France?".to_string())
-    );
+    // Create a mock LLM client and register it with the executor
+    let mock_client = Box::new(MockLlmClient);
+    executor.register_llm_client("gpt-3.5-turbo", mock_client);
     
     // Modify the file to trigger the watcher
     let modified_content = r#"# Test Question Block
