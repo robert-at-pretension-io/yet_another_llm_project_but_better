@@ -76,29 +76,11 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                         .unwrap_or_default()
                         .to_string();
                     
-                    // Get the raw tag with all attributes
-                    let raw_tag_with_attrs = str::from_utf8(e.raw())
-                        .unwrap_or_default()
-                        .to_string();
+                    // We can't use e.raw() as it doesn't exist in this version of quick-xml
+                    // Instead, we'll rely on the attribute parsing below
+                    println!("DEBUG:   Processing attributes for tag: {}", raw_tag);
                     
-                    println!("DEBUG:   Raw tag with attributes: '{}'", raw_tag_with_attrs);
-                    
-                    // Check for name:value format in the raw tag
-                    if let Some(name_pos) = raw_tag_with_attrs.find("name:") {
-                        let name_start = name_pos + 5; // skip "name:"
-                        let name_end = raw_tag_with_attrs[name_start..].find(']')
-                            .map(|pos| name_start + pos)
-                            .unwrap_or_else(|| raw_tag_with_attrs[name_start..].find('>')
-                                .map(|pos| name_start + pos)
-                                .unwrap_or_else(|| raw_tag_with_attrs[name_start..].find(' ')
-                                    .map(|pos| name_start + pos)
-                                    .unwrap_or(raw_tag_with_attrs.len())));
-                        
-                        let name_value = raw_tag_with_attrs[name_start..name_end].trim().to_string();
-                        println!("DEBUG:   Found name attribute in raw tag: '{}'", name_value);
-                        block_name = Some(name_value);
-                    }
-                    
+                    // Process all attributes
                     for attr_result in e.attributes() {
                         if let Ok(attr) = attr_result {
                             let raw_key = str::from_utf8(attr.key.as_ref())
@@ -109,6 +91,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                                 .to_string();
                             
                             // Handle special case for attributes with format "name:value"
+                            // This is now our primary way to detect name:value format
                             let (key, actual_value) = if raw_key.contains(':') {
                                 let parts: Vec<&str> = raw_key.splitn(2, ':').collect();
                                 (parts[0].to_string(), parts[1].to_string())
