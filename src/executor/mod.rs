@@ -5,12 +5,13 @@ use std::io::{self, Write};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-
 use anyhow::Result;
 use tempfile;
 use thiserror::Error;
+use tokio::runtime::Runtime;
 
 use crate::parser::{Block, parse_document, extract_variable_references};
+use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
 
 // Define error type
 #[derive(Error, Debug)]
@@ -29,6 +30,12 @@ pub enum ExecutorError {
     
     #[error("IO error: {0}")]
     IoError(#[from] io::Error),
+    
+    #[error("LLM API error: {0}")]
+    LlmApiError(String),
+    
+    #[error("Missing API key: {0}")]
+    MissingApiKey(String),
 }
 
 // Executor for processing blocks
@@ -43,6 +50,8 @@ pub struct MetaLanguageExecutor {
     pub current_document: String,
     // Track blocks being processed to detect circular dependencies
     processing_blocks: Vec<String>,
+    // Tokio runtime for async operations
+    runtime: Runtime,
 }
 
 impl MetaLanguageExecutor {
@@ -54,6 +63,7 @@ impl MetaLanguageExecutor {
             cache: HashMap::new(),
             current_document: String::new(),
             processing_blocks: Vec::new(),
+            runtime: Runtime::new().expect("Failed to create Tokio runtime"),
         }
     }
 
@@ -144,7 +154,7 @@ impl MetaLanguageExecutor {
     pub fn is_executable_block(&self, block: &Block) -> bool {
         matches!(block.block_type.as_str(), 
                 "code:python" | "code:javascript" | "code:rust" | 
-                "shell" | "api")
+                "shell" | "api" | "question")
     }
     
     // Check if a block is a data block
@@ -215,6 +225,7 @@ impl MetaLanguageExecutor {
             "code:rust" => self.execute_rust(&processed_content),
             "shell" => self.execute_shell(&processed_content),
             "api" => self.execute_api(&processed_content),
+            "question" => self.execute_question(&block, &processed_content),
             _ => Ok(processed_content),
         };
         
@@ -662,6 +673,75 @@ impl MetaLanguageExecutor {
         }
     }
     
+    // Execute a question block by sending it to an LLM API
+    pub fn execute_question(&self, block: &Block, question: &str) -> Result<String, ExecutorError> {
+        println!("Executing question block: {}", question);
+        
+        // Create LLM client from block modifiers
+        let llm_client = LlmClient::from_block_modifiers(&block.modifiers);
+        
+        // Check if we have an API key
+        if llm_client.config.api_key.is_empty() {
+            return Err(ExecutorError::MissingApiKey(
+                "No API key provided for LLM. Set via block modifier or environment variable.".to_string()
+            ));
+        }
+        
+        // Prepare the prompt
+        let mut prompt = question.to_string();
+        
+        // Check if there's a system prompt modifier
+        if let Some(system_prompt) = block.get_modifier("system_prompt") {
+            // For OpenAI, we'd format this differently, but for simplicity we'll just prepend
+            prompt = format!("{}\n\n{}", system_prompt, prompt);
+        }
+        
+        // Check if there's a context modifier that references other blocks
+        if let Some(context_block) = block.get_modifier("context") {
+            if let Some(context_content) = self.outputs.get(context_block) {
+                prompt = format!("Context:\n{}\n\nQuestion:\n{}", context_content, prompt);
+            }
+        }
+        
+        // Execute the LLM request in the runtime
+        let result = self.runtime.block_on(async {
+            match llm_client.send_prompt(&prompt).await {
+                Ok(response) => Ok(response),
+                Err(e) => Err(ExecutorError::LlmApiError(e.to_string())),
+            }
+        });
+        
+        // Process the result
+        match result {
+            Ok(response) => {
+                // Create a response block if the question block has a name
+                if let Some(name) = &block.name {
+                    let response_block_name = format!("{}_response", name);
+                    let mut response_block = Block::new("response", Some(&response_block_name), &response);
+                    
+                    // Copy relevant modifiers from the question block
+                    for (key, value) in &block.modifiers {
+                        if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
+                            response_block.add_modifier(key, value);
+                        }
+                    }
+                    
+                    // Add reference back to the question block
+                    response_block.add_modifier("for", name);
+                    
+                    // Store the response block
+                    self.blocks.insert(response_block_name.clone(), response_block);
+                    
+                    // Store the response in outputs
+                    self.outputs.insert(response_block_name, response.clone());
+                }
+                
+                Ok(response)
+            },
+            Err(e) => Err(e),
+        }
+    }
+    
     // Generate a results block for an executed block
     pub fn generate_results_block(&self, block: &Block, output: &str, format_type: Option<&str>) -> Block {
         let mut results_block = Block::new("results", None, output);
@@ -704,6 +784,36 @@ impl MetaLanguageExecutor {
         }
         
         error_block
+    }
+    
+    // Generate a response block from a question block
+    pub fn generate_response_block(&self, question_block: &Block, response_text: &str) -> Block {
+        let response_name = if let Some(name) = &question_block.name {
+            Some(format!("{}_response", name))
+        } else {
+            None
+        };
+        
+        let mut response_block = Block::new("response", response_name.as_deref(), response_text);
+        
+        // Add "for" modifier pointing to the original question block
+        if let Some(block_name) = &question_block.name {
+            response_block.add_modifier("for", block_name);
+        }
+        
+        // Copy relevant modifiers from the question block
+        for (key, value) in &question_block.modifiers {
+            if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
+                response_block.add_modifier(key, value);
+            }
+        }
+        
+        // Set default format to markdown if not specified
+        if !question_block.modifiers.iter().any(|(k, _)| k == "format") {
+            response_block.add_modifier("format", "markdown");
+        }
+        
+        response_block
     }
     
     // Determine if a results block should be displayed inline
@@ -928,6 +1038,15 @@ impl MetaLanguageExecutor {
             let response_replacement = format!("[response for:{}]\n{}\n[/response]", name, output);
             
             updated_doc = updated_doc.replace(&response_marker, &response_replacement);
+            
+            // Also handle question-response pairs
+            if name.ends_with("_response") {
+                let question_name = name.trim_end_matches("_response");
+                let question_response_marker = format!("[response for:{}]", question_name);
+                let question_response_replacement = format!("[response for:{}]\n{}\n[/response]", question_name, output);
+                
+                updated_doc = updated_doc.replace(&question_response_marker, &question_response_replacement);
+            }
         }
         
         Ok(updated_doc)
