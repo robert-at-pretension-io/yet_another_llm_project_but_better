@@ -548,6 +548,7 @@ impl MetaLanguageExecutor {
     pub fn execute_python(&self, block: &Block, code: &str) -> Result<String, ExecutorError> {
         // Process <meta:reference> tags in the Python code
         let processed_code = self.process_variable_references(code);
+        println!("DEBUG: Processed Python code:\n{}", processed_code);
         
         // Create a temporary Python file
         let mut tmpfile = tempfile::NamedTempFile::new().map_err(|e| ExecutorError::IoError(e))?;
