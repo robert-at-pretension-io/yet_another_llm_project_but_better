@@ -3617,4 +3617,55 @@ impl Default for MetaLanguageExecutor {
 }
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_new_executor() {
+        let executor = MetaLanguageExecutor::new();
+        assert!(!executor.instance_id.is_empty());
+        assert!(executor.instance_id.starts_with("executor_"));
+    }
+    
+    #[test]
+    fn test_apply_limit() {
+        let executor = MetaLanguageExecutor::new();
+        
+        // Test with content that has fewer lines than the limit
+        let content = "Line 1\nLine 2\nLine 3";
+        let result = executor.apply_limit(content, 5);
+        assert_eq!(result, content);
+        
+        // Test with content that has more lines than the limit
+        let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7";
+        let result = executor.apply_limit(content, 3);
+        assert!(result.contains("Line 1"));
+        assert!(result.contains("Line 2"));
+        assert!(result.contains("Line 3"));
+        assert!(!result.contains("Line 4"));
+        assert!(result.contains("truncated"));
+    }
+    
+    #[test]
+    fn test_process_variable_references() {
+        let mut executor = MetaLanguageExecutor::new();
+        
+        // Add a test variable
+        executor.outputs.insert("test_var".to_string(), "test_value".to_string());
+        
+        // Test simple variable reference
+        let content = "This is a ${test_var} reference";
+        let result = executor.process_variable_references(content);
+        assert_eq!(result, "This is a test_value reference");
+        
+        // Test with limit modifier
+        executor.outputs.insert("large_var".to_string(), "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6".to_string());
+        let content = "Limited: ${large_var:limit=3}";
+        let result = executor.process_variable_references(content);
+        assert!(result.contains("Line 1"));
+        assert!(result.contains("Line 2"));
+        assert!(result.contains("Line 3"));
+        assert!(!result.contains("Line 4"));
+        assert!(result.contains("truncated"));
+    }
+}
