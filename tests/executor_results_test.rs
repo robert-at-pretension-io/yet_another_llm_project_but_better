@@ -4,7 +4,7 @@ mod executor_results_tests {
     use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
     
     /// Test executor's handling of results in context building
-    #[ignore]
+    
     #[test]
     fn test_executor_includes_results_in_context() {
         let mut executor = MetaLanguageExecutor::new();
@@ -34,7 +34,7 @@ mod executor_results_tests {
     }
     
     /// Test executor application of display modifiers
-    #[ignore]
+    
     #[test]
     fn test_executor_applies_display_modifiers() {
         let mut executor = MetaLanguageExecutor::new();
@@ -78,7 +78,7 @@ mod executor_results_tests {
     }
     
     /// Test executor application of format modifiers
-    #[ignore]
+    
     #[test]
     fn test_executor_applies_format_modifiers() {
         let mut executor = MetaLanguageExecutor::new();
@@ -123,7 +123,7 @@ mod executor_results_tests {
     }
     
     /// Test executor application of content modifiers
-    #[ignore]
+    
     #[test]
     fn test_executor_applies_content_modifiers() {
         let mut executor = MetaLanguageExecutor::new();
@@ -160,7 +160,7 @@ mod executor_results_tests {
     }
     
     /// Test processing chain of results with multiple modifiers
-    #[ignore]
+    
     #[test]
     fn test_executor_results_processing_chain() {
         let mut executor = MetaLanguageExecutor::new();
@@ -192,7 +192,7 @@ mod executor_results_tests {
     }
     
     /// Test integration of results in workflow
-    #[ignore]
+    
     #[test]
     fn test_results_integration_in_workflow() {
         let document = r#"
@@ -228,7 +228,7 @@ mod executor_results_tests {
     }
     
     /// Test handling of error results
-    #[ignore]
+    
     #[test]
     fn test_executor_handles_error_results() {
         let document = r#"
