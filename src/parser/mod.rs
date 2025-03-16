@@ -84,7 +84,7 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
             
             // Process variable references in all blocks before dependency resolution.
             for (i, block) in blocks.iter().enumerate() {
-                let variable_refs = utils::extractors::extract_variable_references(&block.content);
+                let variable_refs = crate::parser::utils::extractors::extract_variable_references(&block.content);
                 if !variable_refs.is_empty() {
                     println!("DEBUG: Block {} has variable references: {:?}", i, variable_refs);
                     // Further processing of variable references can be added here if needed
