@@ -350,6 +350,11 @@ impl MetaLanguageExecutor {
             "shell" => self.execute_shell(&processed_content),
             "api" => self.execute_api(&processed_content),
             "question" => self.execute_question(&block, &processed_content),
+            "code:python" => self.execute_python(&block, &processed_content),
+            code if code.starts_with("code:") => {
+                println!("DEBUG: Unsupported code block type '{}'. Returning processed content.", code);
+                Ok(processed_content)
+            }
             _ => {
                 // Default to returning the processed content
                 Ok(processed_content)
