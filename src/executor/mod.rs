@@ -156,6 +156,16 @@ impl MetaLanguageExecutor {
             }
         }
         
+        // Process data blocks first to update variable references
+        for (name, block) in self.blocks.iter_mut() {
+            if self.is_data_block(block) {
+                let processed = self.process_variable_references(&block.content)?;
+                block.content = processed.clone();
+                self.outputs.insert(name.clone(), processed);
+                println!("DEBUG: Processed data block '{}' variable references", name);
+            }
+        }
+        
         // Restore previous responses that aren't in the current document
         // This preserves LLM responses between document edits
         let mut restored_count = 0;
