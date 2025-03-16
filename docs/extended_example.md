@@ -36,19 +36,6 @@ This document provides examples of Meta Programming Language documents in XML fo
 
 ## Variable References
 
-### Original Format
-
-```
-[data name:numbers format:json]
-[1, 2, 3, 4, 5]
-[/data]
-
-[code:python name:sum-numbers]
-import json
-numbers = json.loads('''${numbers}''')
-total = sum(numbers)
-print(f"The sum is {total}")
-[/code:python]
 ```
 
 ### XML Format
