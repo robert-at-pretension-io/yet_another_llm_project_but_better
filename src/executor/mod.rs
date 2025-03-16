@@ -927,4 +927,64 @@ impl MetaLanguageExecutor {
         
         error_block
     }
+
+    pub fn update_document(&self) -> Result<String, ExecutorError> {
+        // Start with the original document content
+        let mut updated_content = self.current_document.clone();
+        
+        // Keep track of replacements we've made to avoid duplicates or conflicts
+        let mut replacements = HashMap::new();
+        
+        // Process each block that has output
+        for (name, output) in &self.outputs {
+            // Skip special outputs like errors or results
+            if name.ends_with("_error") || name.ends_with(".results") || name.ends_with("_results") {
+                continue;
+            }
+            
+            // Only replace blocks that exist in the document
+            if let Some(block) = self.blocks.get(name) {
+                // Only update blocks that have changed
+                if block.content != *output {
+                    println!("DEBUG: Updating block '{}' in document", name);
+                    
+                    // Simple replacement - in a real implementation, would use a more robust XML update approach
+                    // This is just a basic implementation for this code example
+                    if let Some(start_tag) = updated_content.find(&format!("<meta:{}", &block.block_type)) {
+                        if let Some(end_tag) = updated_content[start_tag..].find(&format!("</meta:{}>", &block.block_type)) {
+                            let end_pos = start_tag + end_tag + format!("</meta:{}>", &block.block_type).len();
+                            let full_tag = &updated_content[start_tag..end_pos];
+                            
+                            // Only replace if we haven't already replaced this exact text
+                            if !replacements.contains_key(full_tag) {
+                                // Create the replacement block with the same attributes but updated content
+                                let mut replacement = full_tag.to_string();
+                                
+                                // Find the content part (after ">")
+                                if let Some(content_start) = replacement.find('>') {
+                                    let content_start = content_start + 1;
+                                    if let Some(content_end) = replacement[content_start..].find(&format!("</meta:{}", &block.block_type)) {
+                                        // Replace just the content part
+                                        let prefix = &replacement[0..content_start];
+                                        let suffix = &replacement[content_start+content_end..];
+                                        replacement = format!("{}{}{}", prefix, output, suffix);
+                                        
+                                        // Store the replacement
+                                        replacements.insert(full_tag.to_string(), replacement.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Apply all replacements
+        for (original, replacement) in replacements {
+            updated_content = updated_content.replace(&original, &replacement);
+        }
+        
+        Ok(updated_content)
+    }
 }
