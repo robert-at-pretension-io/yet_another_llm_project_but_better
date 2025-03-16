@@ -531,32 +531,49 @@ impl MetaLanguageExecutor {
                 content.to_string()
             });
             println!("DEBUG: ===== CONTENT END =====");
+            println!("DEBUG: Starting XML parsing for references");
         }
 
         // Create a reader that doesn't trim whitespace
         let mut reader = Reader::from_str(content);
         reader.trim_text(false);
         reader.check_end_names(false); // Don't validate end tag names
+        reader.expand_empty_elements(true); // Convert empty elements to start-end pairs
 
         let mut writer = Writer::new(Cursor::new(Vec::new()));
         let mut buf = Vec::new();
 
         loop {
             match reader.read_event_into(&mut buf) {
-                Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                    // Process meta:reference tag
-                    let mut target = None;
+                Ok(Event::Start(ref e)) => {
+                    let name = e.name();
+                    let name_str = std::str::from_utf8(name.as_ref()).unwrap_or("");
+                    
+                    if debug_enabled {
+                        println!("DEBUG: Processing start tag: '{}'", name_str);
+                    }
+                    
+                    // Check for meta:reference tag with proper namespace handling
+                    if name_str == "meta:reference" || name_str.ends_with(":reference") {
+                        if debug_enabled {
+                            println!("DEBUG: Found meta:reference start tag");
+                        }
+                        
+                        // Process meta:reference tag
+                        let mut target = None;
 
-                    // Extract the target attribute
-                    for attr_result in e.attributes() {
-                        let attr = attr_result?;
-                        if attr.key.as_ref() == b"target" {
-                            target = Some(String::from_utf8_lossy(&attr.value).to_string());
-                            if debug_enabled {
-                                println!("DEBUG: Found reference with target: {}", target.as_ref().unwrap());
+                        // Extract the target attribute
+                        for attr_result in e.attributes() {
+                            let attr = attr_result?;
+                            let attr_key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
+                            
+                            if attr_key == "target" {
+                                target = Some(String::from_utf8_lossy(&attr.value).to_string());
+                                if debug_enabled {
+                                    println!("DEBUG: Found reference with target: {}", target.as_ref().unwrap());
+                                }
                             }
                         }
-                    }
 
                     if let Some(target_str) = target {
                         // Look up the target in outputs
@@ -673,20 +690,35 @@ impl MetaLanguageExecutor {
                         }
                     }
                 }
-                Ok(Event::Empty(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                    // Process self-closing meta:reference tag
-                    let mut target = None;
+                Ok(Event::Empty(ref e)) => {
+                    let name = e.name();
+                    let name_str = std::str::from_utf8(name.as_ref()).unwrap_or("");
                     
-                    // Extract the target attribute
-                    for attr_result in e.attributes() {
-                        let attr = attr_result?;
-                        if attr.key.as_ref() == b"target" {
-                            target = Some(String::from_utf8_lossy(&attr.value).to_string());
-                            if debug_enabled {
-                                println!("DEBUG: Found self-closing reference with target: {}", target.as_ref().unwrap());
+                    if debug_enabled {
+                        println!("DEBUG: Processing empty tag: '{}'", name_str);
+                    }
+                    
+                    // Check for meta:reference tag with proper namespace handling
+                    if name_str == "meta:reference" || name_str.ends_with(":reference") {
+                        if debug_enabled {
+                            println!("DEBUG: Found meta:reference empty tag");
+                        }
+                        
+                        // Process self-closing meta:reference tag
+                        let mut target = None;
+                        
+                        // Extract the target attribute
+                        for attr_result in e.attributes() {
+                            let attr = attr_result?;
+                            let attr_key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
+                            
+                            if attr_key == "target" {
+                                target = Some(String::from_utf8_lossy(&attr.value).to_string());
+                                if debug_enabled {
+                                    println!("DEBUG: Found self-closing reference with target: {}", target.as_ref().unwrap());
+                                }
                             }
                         }
-                    }
                     
                     if let Some(target_str) = target {
                         // Look up the target in outputs
@@ -731,10 +763,26 @@ impl MetaLanguageExecutor {
                         writer.write_event(Event::Empty(e.to_owned()))?;
                     }
                 }
-                Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                    // This should only happen for badly formed XML where an end tag appears
-                    // without a matching start tag. We'll handle it by writing it out.
-                    writer.write_event(Event::End(e.to_owned()))?;
+                Ok(Event::End(ref e)) => {
+                    let name = e.name();
+                    let name_str = std::str::from_utf8(name.as_ref()).unwrap_or("");
+                    
+                    if debug_enabled {
+                        println!("DEBUG: Processing end tag: '{}'", name_str);
+                    }
+                    
+                    // Check for meta:reference tag with proper namespace handling
+                    if name_str == "meta:reference" || name_str.ends_with(":reference") {
+                        if debug_enabled {
+                            println!("DEBUG: Found meta:reference end tag");
+                        }
+                        
+                        // This should only happen for badly formed XML where an end tag appears
+                        // without a matching start tag. We'll handle it by writing it out.
+                        writer.write_event(Event::End(e.to_owned()))?;
+                    } else {
+                        writer.write_event(Event::End(e.to_owned()))?;
+                    }
                 }
                 Ok(Event::Eof) => break,
                 Ok(event) => writer.write_event(event)?,
@@ -762,6 +810,17 @@ impl MetaLanguageExecutor {
                 result_str.clone() 
             });
             println!("DEBUG: ===== RESULT END =====");
+            
+            // Detailed checks for unresolved references
+            if result_str.contains("<meta:reference") {
+                println!("DEBUG: WARNING: Result still contains meta:reference tags!");
+                
+                // Find and print all remaining references
+                let re = regex::Regex::new(r"<meta:reference[^>]*>").unwrap();
+                for cap in re.captures_iter(&result_str) {
+                    println!("DEBUG: Unresolved reference: {}", &cap[0]);
+                }
+            }
         }
     
         // If there are still nested references, process them recursively
