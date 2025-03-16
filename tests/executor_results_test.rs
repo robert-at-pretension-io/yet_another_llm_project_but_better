@@ -16,7 +16,7 @@ mod executor_results_tests {
         results_block.add_modifier("for", "data-generator");
         results_block.add_modifier("format", "plain");
         
-        let question_block = Block::new("question", Some("analyze-data"), "Analyze this data: ${data-generator.results}");
+        let question_block = Block::new("question", Some("analyze-data"), "Analyze this data: <meta:ref for=\"data-generator.results\"/>");
         
         // Add blocks to executor
         executor.blocks.insert("data-generator".to_string(), code_block);
@@ -63,9 +63,9 @@ mod executor_results_tests {
         executor.outputs.insert("none-example.results".to_string(), "This result is not displayed.".to_string());
         
         // Test references with different display modifiers
-        let inline_ref = "${inline-example.results}";
-        let block_ref = "${block-example.results}";
-        let none_ref = "${none-example.results}";
+        let inline_ref = "<meta:ref for=\"inline-example.results\"/>";
+        let block_ref = "<meta:ref for=\"block-example.results\"/>";
+        let none_ref = "<meta:ref for=\"none-example.results\"/>";
         
         let processed_inline = executor.process_variable_references(inline_ref);
         let processed_block = executor.process_variable_references(block_ref);
@@ -108,9 +108,9 @@ mod executor_results_tests {
         executor.outputs.insert("plain-example.results".to_string(), "Plain text result.".to_string());
         
         // Test references with different format modifiers
-        let markdown_ref = "${markdown-example.results}";
-        let code_ref = "${code-example.results}";
-        let plain_ref = "${plain-example.results}";
+        let markdown_ref = "<meta:ref for=\"markdown-example.results\"/>";
+        let code_ref = "<meta:ref for=\"code-example.results\"/>";
+        let plain_ref = "<meta:ref for=\"plain-example.results\"/>";
         
         let processed_markdown = executor.process_variable_references(markdown_ref);
         let processed_code = executor.process_variable_references(code_ref);
@@ -148,8 +148,8 @@ mod executor_results_tests {
                                "This is a full result without truncation.".to_string());
         
         // Test references with different content modifiers
-        let preview_ref = "${preview-example.results}";
-        let full_ref = "${full-example.results}";
+        let preview_ref = "<meta:ref for=\"preview-example.results\"/>";
+        let full_ref = "<meta:ref for=\"full-example.results\"/>";
         
         let processed_preview = executor.process_variable_references(preview_ref);
         let processed_full = executor.process_variable_references(full_ref);
@@ -181,7 +181,7 @@ mod executor_results_tests {
                                "def example():\n    # This is an example function\n    return True".to_string());
         
         // Test reference with multiple modifiers
-        let complex_ref = "${complex-example.results}";
+        let complex_ref = "<meta:ref for=\"complex-example.results\"/>";
         
         let processed = executor.process_variable_references(complex_ref);
         
@@ -201,14 +201,14 @@ mod executor_results_tests {
         </meta:data>
 
         <meta:code name="processor" language="python">
-        data = ${initial-data}
+        data = <meta:ref for="initial-data"/>
         print(f"Initial data: {data}")
         processed = [x * 2 for x in data]
         print(f"Processed data: {processed}")
         </meta:code>
 
         <meta:question name="analysis">
-        Initial data: ${processor.results}
+        Initial data: <meta:ref for="processor.results"/>
         What patterns can you see in the data transformation?
         </meta:question>
         "#;
@@ -239,7 +239,7 @@ mod executor_results_tests {
 
         <meta:question name="error-analysis">
         What went wrong with the code execution?
-        ${error-code.error_results}
+        <meta:ref for="error-code.error_results"/>
         </meta:question>
         "#;
         
