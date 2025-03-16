@@ -736,7 +736,7 @@ impl MetaLanguageExecutor {
     }
     
     // Generate a results block for an executed block
-    pub fn generate_results_block(&self, block: &Block, output: &str) -> Block {
+    pub fn generate_results_block(&self, block: &Block, output: &str, format: Option<String>) -> Block {
         let mut results_block = Block::new("results", None, output);
         
         // Add "for" modifier pointing to the original block
@@ -747,7 +747,14 @@ impl MetaLanguageExecutor {
         // Apply default display setting
         results_block.add_modifier("display", "block");
         
-        // Inherit relevant modifiers from the original block
+        // Use specified format or inherit from the original block
+        if let Some(format_val) = format {
+            results_block.add_modifier("format", &format_val);
+        } else if let Some(display) = block.get_modifier("format") {
+            results_block.add_modifier("format", display);
+        }
+        
+        // Inherit other relevant modifiers from the original block
         if let Some(display) = block.get_modifier("display") {
             results_block.add_modifier("display", display);
         }
