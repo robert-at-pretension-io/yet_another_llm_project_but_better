@@ -1344,5 +1344,28 @@ impl MetaLanguageExecutor {
         
         Ok(result)
     }
-
+    
+    pub fn process_variable_references(&self, content: &str) -> String {
+        // Use extract_variable_references to find variable references in the content.
+        let refs = extract_variable_references(content);
+        let mut processed = content.to_string();
+        for var in refs {
+            // Replace ${var} with value from outputs if present.
+            if let Some(value) = self.outputs.get(&var) {
+                processed = processed.replace(&format!("${{{}}}", var), value);
+            }
+        }
+        processed
+    }
+    
+    pub fn apply_block_modifiers_to_variable(&self, block_name: &str, content: &str) -> String {
+        if let Some(block) = self.blocks.get(block_name) {
+            let trimmed = self.apply_trim(block, content);
+            let truncated = self.apply_max_lines(block, &trimmed);
+            truncated
+        } else {
+            content.to_string()
+        }
+    }
+    
 }
