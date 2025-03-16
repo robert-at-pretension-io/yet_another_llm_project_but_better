@@ -501,7 +501,15 @@ impl MetaLanguageExecutor {
                                        content.contains(":transform=") || 
                                        content.contains(":highlight"));
         
-        if (preserve_refs && !process_refs_in_executor) || contains_format_modifier {
+        // Special handling for limit modifier - we want to process this even if other modifiers are preserved
+        let contains_limit_modifier = content.contains("${") && content.contains(":limit=");
+        
+        if debug_enabled && contains_limit_modifier {
+            println!("DEBUG: Content contains limit modifier: {}", content);
+        }
+        
+        if (preserve_refs && !process_refs_in_executor && !contains_limit_modifier) || 
+           (contains_format_modifier && !contains_limit_modifier) {
             if debug_enabled {
                 println!("DEBUG: Preserving original variable references in block content");
                 if contains_format_modifier {
@@ -779,6 +787,16 @@ impl MetaLanguageExecutor {
                 
                 if debug_enabled {
                     println!("DEBUG: Found modifiers: '{}'", modifier_str);
+                }
+                
+                // Special handling for limit modifier
+                if modifier_str.starts_with("limit=") {
+                    let limit_value = modifier_str.trim_start_matches("limit=");
+                    if debug_enabled {
+                        println!("DEBUG: Found limit modifier with value: '{}'", limit_value);
+                    }
+                    modifiers.insert("limit".to_string(), limit_value.to_string());
+                    return (var_name, modifiers);
                 }
                 
                 // Simple fallback value without key
@@ -1114,6 +1132,11 @@ impl MetaLanguageExecutor {
         if let Some(limit_str) = modifiers.get("limit") {
             if debug_enabled {
                 println!("DEBUG: Applying limit modifier: {}", limit_str);
+                println!("DEBUG: Original content has {} lines", result.lines().count());
+                println!("DEBUG: First few lines of content before limiting:");
+                for (i, line) in result.lines().take(3).enumerate() {
+                    println!("DEBUG:   Line {}: {}", i+1, line);
+                }
             }
             
             if let Ok(limit) = limit_str.parse::<usize>() {
@@ -1123,13 +1146,27 @@ impl MetaLanguageExecutor {
                     if debug_enabled {
                         println!("DEBUG: Limiting from {} lines to {} lines", lines.len(), limit);
                     }
-                    result = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
+                    
+                    // Take only the first 'limit' lines
+                    let limited_lines: Vec<&str> = lines.iter().take(limit).cloned().collect();
+                    result = limited_lines.join("\n");
+                    
+                    // Add truncation indicator
                     result.push_str("\n...(truncated)");
                     
                     if debug_enabled {
                         println!("DEBUG: After limiting, result has {} lines", result.lines().count());
+                        println!("DEBUG: Limited content:");
+                        for (i, line) in result.lines().take(limit + 1).enumerate() {
+                            println!("DEBUG:   Line {}: {}", i+1, line);
+                        }
                     }
+                } else if debug_enabled {
+                    println!("DEBUG: Content has {} lines, which is <= limit of {}, not truncating", 
+                             lines.len(), limit);
                 }
+            } else if debug_enabled {
+                println!("DEBUG: Failed to parse limit value '{}' as integer", limit_str);
             }
         }
         
@@ -2397,14 +2434,37 @@ impl MetaLanguageExecutor {
     
     /// Apply limit modifier to truncate content
     fn apply_limit(&self, content: &str, limit: usize) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: apply_limit called with limit={}", limit);
+            println!("DEBUG: Content has {} lines before limiting", content.lines().count());
+        }
+        
         let lines: Vec<&str> = content.lines().collect();
         if lines.len() <= limit {
+            if debug_enabled {
+                println!("DEBUG: Content has fewer lines ({}) than limit ({}), not truncating", 
+                         lines.len(), limit);
+            }
             return content.to_string();
         }
         
         // Take only the first 'limit' lines
         let limited = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
-        format!("{}\n...(truncated, showing {} of {} lines)", limited, limit, lines.len())
+        let result = format!("{}\n...(truncated, showing {} of {} lines)", limited, limit, lines.len());
+        
+        if debug_enabled {
+            println!("DEBUG: Limited content from {} to {} lines", lines.len(), limit);
+            println!("DEBUG: First few lines after limiting:");
+            for (i, line) in result.lines().take(3).enumerate() {
+                println!("DEBUG:   Line {}: {}", i+1, line);
+            }
+            println!("DEBUG: Final line count after limiting: {}", result.lines().count());
+        }
+        
+        result
     }
     
     /// Apply transformation modifiers (uppercase, lowercase, substring, etc.)
@@ -3259,6 +3319,19 @@ impl MetaLanguageExecutor {
         // Set environment variables to control variable reference processing
         std::env::set_var("LLM_PROCESS_REFS_IN_EXECUTOR", "1");
         std::env::remove_var("LLM_PRESERVE_REFS");
+        
+        // Check if the document contains any limit modifiers
+        let contains_limit_modifier = self.current_document.contains("${") && 
+                                     self.current_document.contains(":limit=");
+        
+        if contains_limit_modifier {
+            println!("DEBUG: Document contains limit modifiers, ensuring they are processed");
+            // We'll process the document to handle limit modifiers specifically
+            let processed_document = self.process_variable_references(&self.current_document);
+            println!("DEBUG: Processed document for limit modifiers, new length: {}", processed_document.len());
+            
+            // Update the current document with the processed version
+            let mut updated_doc = processed_document;
         
         // Debug: Print all outputs
         println!("DEBUG: All outputs:");
