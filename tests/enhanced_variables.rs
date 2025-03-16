@@ -15,12 +15,12 @@ fn test_enhanced_variable_reference_basic() {
     }
     </meta:data>
 
-    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response=r#"# John Doe
+    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response="# John Doe
 
 - Age: 30
 - Skills: Programming, Data Analysis, Machine Learning
 
-Format: markdown"#>
+Format: markdown">
     Here is the data in markdown format: ${test-data:format=markdown}
     </meta:question>
 </meta:document>"#;
@@ -320,7 +320,9 @@ fn test_enhanced_variable_reference_highlighting() {
     ORDER BY order_count DESC;
     </meta:code>
 
-    <meta:question name="highlight-question" model="gpt-4" test_mode="true" test_response="The Python code implements a recursive factorial function that calculates 5! (5 factorial) which equals 120. It demonstrates recursion with a base case (n <= 1) and a recursive case.\\n\\nThe SQL query retrieves users and counts their orders, filtering to only show users with more than 5 orders. It demonstrates joins, aggregation with GROUP BY, filtering aggregated results with HAVING, and sorting with ORDER BY.">
+    <meta:question name="highlight-question" model="gpt-4" test_mode="true" test_response="The Python code implements a recursive factorial function that calculates 5! (5 factorial) which equals 120. It demonstrates recursion with a base case (n <= 1) and a recursive case.
+
+The SQL query retrieves users and counts their orders, filtering to only show users with more than 5 orders. It demonstrates joins, aggregation with GROUP BY, filtering aggregated results with HAVING, and sorting with ORDER BY.">
     Python code with syntax highlighting:
     ${example-python:highlight=true}
     
