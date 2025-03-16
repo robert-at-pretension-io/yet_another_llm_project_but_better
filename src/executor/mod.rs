@@ -702,19 +702,34 @@ impl MetaLanguageExecutor {
                     return (var_name, modifiers);
                 }
                 
-                // Parse key-value modifiers
+                // Parse key-value modifiers with support for nested structures
                 let mut current_pos = 0;
-                let mut in_parentheses = false;
+                let mut nesting_level = 0;
+                let mut in_quotes = false;
                 let mut start_pos = 0;
+                let mut escape_next = false;
                 
                 for (i, c) in modifier_str.char_indices() {
+                    if escape_next {
+                        escape_next = false;
+                        continue;
+                    }
+                    
                     match c {
-                        '(' => in_parentheses = true,
-                        ')' => in_parentheses = false,
-                        ',' if !in_parentheses => {
-                            // Found a comma outside parentheses, process this modifier
-                            let single_modifier = &modifier_str[start_pos..i];
-                            self.parse_single_modifier(single_modifier, &mut modifiers);
+                        '\\' => escape_next = true,
+                        '"' => in_quotes = !in_quotes,
+                        '(' | '[' | '{' if !in_quotes => nesting_level += 1,
+                        ')' | ']' | '}' if !in_quotes => {
+                            if nesting_level > 0 {
+                                nesting_level -= 1;
+                            }
+                        },
+                        ',' if !in_quotes && nesting_level == 0 => {
+                            // Found a comma outside quotes and nested structures
+                            let single_modifier = &modifier_str[start_pos..i].trim();
+                            if !single_modifier.is_empty() {
+                                self.parse_single_modifier(single_modifier, &mut modifiers);
+                            }
                             start_pos = i + 1;
                         },
                         _ => {}
@@ -724,8 +739,10 @@ impl MetaLanguageExecutor {
                 
                 // Process the last modifier
                 if start_pos < current_pos {
-                    let single_modifier = &modifier_str[start_pos..current_pos];
-                    self.parse_single_modifier(single_modifier, &mut modifiers);
+                    let single_modifier = &modifier_str[start_pos..current_pos].trim();
+                    if !single_modifier.is_empty() {
+                        self.parse_single_modifier(single_modifier, &mut modifiers);
+                    }
                 }
             }
             
@@ -754,7 +771,20 @@ impl MetaLanguageExecutor {
         
         if let Some(pos) = modifier.find('=') {
             let key = modifier[..pos].trim().to_string();
-            let value = modifier[pos+1..].trim().to_string();
+            let raw_value = modifier[pos+1..].trim();
+            
+            // Handle quoted values
+            let value = if (raw_value.starts_with('"') && raw_value.ends_with('"')) || 
+                          (raw_value.starts_with('\'') && raw_value.ends_with('\'')) {
+                // Remove the quotes
+                let quote_char = raw_value.chars().next().unwrap();
+                let mut chars = raw_value.chars();
+                chars.next(); // Skip first quote
+                chars.next_back(); // Skip last quote
+                chars.collect::<String>()
+            } else {
+                raw_value.to_string()
+            };
             
             if debug_enabled {
                 println!("DEBUG:   Key-value pair: '{}' = '{}'", key, value);
@@ -1698,6 +1728,9 @@ impl MetaLanguageExecutor {
         if debug_enabled {
             println!("DEBUG: Applying modifiers to variable '{}' with {} modifiers", 
                      var_name, modifiers.len());
+            for (k, v) in modifiers {
+                println!("DEBUG:   '{}' = '{}'", k, v);
+            }
         }
         
         // Start with the original value
@@ -1705,33 +1738,61 @@ impl MetaLanguageExecutor {
         
         // Apply modifiers in a specific order for predictable results
         
-        // 1. Apply transformations first (uppercase, lowercase, substring)
+        // 1. Apply transformations first (uppercase, lowercase, substring, etc.)
         if let Some(transform) = modifiers.get("transform") {
             result = self.apply_transformation(&result, transform);
         }
         
-        // 2. Apply limit modifier to truncate content
+        // 2. Apply regex replacements if specified
+        if let Some(regex_pattern) = modifiers.get("regex") {
+            if let Some(replacement) = modifiers.get("replacement") {
+                result = self.apply_regex_replacement(&result, regex_pattern, replacement);
+            }
+        }
+        
+        // 3. Apply limit modifier to truncate content
         if let Some(limit_str) = modifiers.get("limit") {
             if let Ok(limit) = limit_str.parse::<usize>() {
                 result = self.apply_limit(&result, limit);
             }
         }
         
-        // 3. Apply format modifier (markdown, json, code, plain)
+        // 4. Apply format modifier (markdown, json, code, plain)
         if let Some(format) = modifiers.get("format") {
             result = self.apply_format(var_name, &result, format);
         }
         
-        // 4. Apply highlighting for code blocks
+        // 5. Apply highlighting for code blocks
         if modifiers.get("highlight").map_or(false, |v| v == "true") {
             result = self.apply_highlighting(var_name, &result);
         }
         
-        // 5. Apply include modifiers (include_code, include_results)
+        // 6. Apply include modifiers (include_code, include_results)
         result = self.apply_include_modifiers(var_name, &result, modifiers);
         
-        // 6. Apply conditional modifiers (include_sensitive)
+        // 7. Apply conditional modifiers (include_sensitive)
         result = self.apply_conditional_modifiers(var_name, &result, modifiers);
+        
+        // 8. Apply JSON path extraction if specified
+        if let Some(json_path) = modifiers.get("json_path") {
+            result = self.extract_json_path(&result, json_path);
+        }
+        
+        // 9. Apply trim operations
+        if let Some(trim_type) = modifiers.get("trim") {
+            result = self.apply_trim_modifier(&result, trim_type);
+        }
+        
+        // 10. Apply line operations (head, tail)
+        if let Some(head_str) = modifiers.get("head") {
+            if let Ok(head) = head_str.parse::<usize>() {
+                result = self.apply_head(&result, head);
+            }
+        } else if let Some(tail_str) = modifiers.get("tail") {
+            if let Ok(tail) = tail_str.parse::<usize>() {
+                result = self.apply_tail(&result, tail);
+            }
+        }
         
         // Apply any block-level modifiers if they exist and weren't explicitly overridden
         if let Some(block) = self.blocks.get(var_name) {
@@ -1837,11 +1898,33 @@ impl MetaLanguageExecutor {
         format!("{}\n...(truncated, showing {} of {} lines)", limited, limit, lines.len())
     }
     
-    /// Apply transformation modifiers (uppercase, lowercase, substring)
+    /// Apply transformation modifiers (uppercase, lowercase, substring, etc.)
     fn apply_transformation(&self, content: &str, transform: &str) -> String {
         match transform {
             "uppercase" => content.to_uppercase(),
             "lowercase" => content.to_lowercase(),
+            "capitalize" => {
+                let mut result = String::new();
+                let mut capitalize_next = true;
+                
+                for c in content.chars() {
+                    if c.is_alphabetic() {
+                        if capitalize_next {
+                            result.extend(c.to_uppercase());
+                            capitalize_next = false;
+                        } else {
+                            result.push(c);
+                        }
+                    } else {
+                        result.push(c);
+                        if c.is_whitespace() || c == '.' || c == '!' || c == '?' {
+                            capitalize_next = true;
+                        }
+                    }
+                }
+                result
+            },
+            "trim" => content.trim().to_string(),
             transform if transform.starts_with("substring(") && transform.ends_with(")") => {
                 // Parse substring parameters
                 let params = transform.trim_start_matches("substring(").trim_end_matches(")");
@@ -1859,8 +1942,188 @@ impl MetaLanguageExecutor {
                 // If parsing failed or parameters are invalid, return original content
                 content.to_string()
             },
+            transform if transform.starts_with("replace(") && transform.ends_with(")") => {
+                // Parse replace parameters: replace(old,new)
+                let params = transform.trim_start_matches("replace(").trim_end_matches(")");
+                
+                // Split by comma, but respect nested parentheses
+                let mut parts = Vec::new();
+                let mut current = String::new();
+                let mut nesting = 0;
+                let mut in_quotes = false;
+                
+                for c in params.chars() {
+                    match c {
+                        '(' => {
+                            nesting += 1;
+                            current.push(c);
+                        },
+                        ')' => {
+                            nesting -= 1;
+                            current.push(c);
+                        },
+                        '"' => {
+                            in_quotes = !in_quotes;
+                            current.push(c);
+                        },
+                        ',' if nesting == 0 && !in_quotes => {
+                            parts.push(current);
+                            current = String::new();
+                        },
+                        _ => current.push(c)
+                    }
+                }
+                
+                if !current.is_empty() {
+                    parts.push(current);
+                }
+                
+                if parts.len() == 2 {
+                    let old = parts[0].trim();
+                    let new = parts[1].trim();
+                    
+                    // Remove quotes if present
+                    let old = if (old.starts_with('"') && old.ends_with('"')) || 
+                               (old.starts_with('\'') && old.ends_with('\'')) {
+                        &old[1..old.len()-1]
+                    } else {
+                        old
+                    };
+                    
+                    let new = if (new.starts_with('"') && new.ends_with('"')) || 
+                               (new.starts_with('\'') && new.ends_with('\'')) {
+                        &new[1..new.len()-1]
+                    } else {
+                        new
+                    };
+                    
+                    return content.replace(old, new);
+                }
+                
+                content.to_string()
+            },
             _ => content.to_string()
         }
+    }
+    
+    /// Apply regex replacement
+    fn apply_regex_replacement(&self, content: &str, pattern: &str, replacement: &str) -> String {
+        match regex::Regex::new(pattern) {
+            Ok(re) => re.replace_all(content, replacement).to_string(),
+            Err(_) => {
+                println!("WARNING: Invalid regex pattern: {}", pattern);
+                content.to_string()
+            }
+        }
+    }
+    
+    /// Apply trim modifier with different options
+    fn apply_trim_modifier(&self, content: &str, trim_type: &str) -> String {
+        match trim_type {
+            "true" | "yes" | "1" | "both" => content.trim().to_string(),
+            "start" | "left" => content.trim_start().to_string(),
+            "end" | "right" => content.trim_end().to_string(),
+            "lines" => {
+                // Trim each line individually
+                content.lines()
+                    .map(|line| line.trim())
+                    .collect::<Vec<&str>>()
+                    .join("\n")
+            },
+            "empty_lines" => {
+                // Remove empty lines
+                content.lines()
+                    .filter(|line| !line.trim().is_empty())
+                    .collect::<Vec<&str>>()
+                    .join("\n")
+            },
+            _ => content.to_string()
+        }
+    }
+    
+    /// Extract data using JSON path
+    fn extract_json_path(&self, content: &str, json_path: &str) -> String {
+        // Try to parse the content as JSON
+        match serde_json::from_str::<serde_json::Value>(content) {
+            Ok(json_value) => {
+                // Split the path by dots and navigate the JSON structure
+                let path_parts: Vec<&str> = json_path.split('.').collect();
+                let mut current = &json_value;
+                
+                for part in path_parts {
+                    // Handle array indexing
+                    if part.ends_with(']') && part.contains('[') {
+                        let bracket_pos = part.find('[').unwrap();
+                        let object_key = &part[..bracket_pos];
+                        let index_str = &part[bracket_pos+1..part.len()-1];
+                        
+                        // Navigate to the object first
+                        if !object_key.is_empty() {
+                            if let Some(obj) = current.get(object_key) {
+                                current = obj;
+                            } else {
+                                return format!("JSON path error: key '{}' not found", object_key);
+                            }
+                        }
+                        
+                        // Then get the array element
+                        if let Ok(index) = index_str.parse::<usize>() {
+                            if let Some(array) = current.as_array() {
+                                if index < array.len() {
+                                    current = &array[index];
+                                } else {
+                                    return format!("JSON path error: index {} out of bounds", index);
+                                }
+                            } else {
+                                return "JSON path error: not an array".to_string();
+                            }
+                        } else {
+                            return format!("JSON path error: invalid array index '{}'", index_str);
+                        }
+                    } else {
+                        // Regular object property
+                        if let Some(obj) = current.get(part) {
+                            current = obj;
+                        } else {
+                            return format!("JSON path error: key '{}' not found", part);
+                        }
+                    }
+                }
+                
+                // Convert the final value to string
+                match current {
+                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::Number(n) => n.to_string(),
+                    serde_json::Value::Bool(b) => b.to_string(),
+                    serde_json::Value::Null => "null".to_string(),
+                    _ => serde_json::to_string_pretty(current).unwrap_or_else(|_| current.to_string()),
+                }
+            },
+            Err(_) => {
+                // Not valid JSON
+                format!("JSON path error: content is not valid JSON")
+            }
+        }
+    }
+    
+    /// Apply head operation (take first N lines)
+    fn apply_head(&self, content: &str, n: usize) -> String {
+        content.lines()
+            .take(n)
+            .collect::<Vec<&str>>()
+            .join("\n")
+    }
+    
+    /// Apply tail operation (take last N lines)
+    fn apply_tail(&self, content: &str, n: usize) -> String {
+        let lines: Vec<&str> = content.lines().collect();
+        let start = if lines.len() > n { lines.len() - n } else { 0 };
+        
+        lines[start..]
+            .iter()
+            .cloned()
+            .collect::<Vec<&str>>()
+            .join("\n")
     }
     
     /// Apply highlighting modifier for code blocks
