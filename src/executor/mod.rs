@@ -508,7 +508,16 @@ impl MetaLanguageExecutor {
             println!("DEBUG: Content contains limit modifier: {}", content);
         }
         
-        if (preserve_refs && !process_refs_in_executor && !contains_limit_modifier) || 
+        // Always process limit modifiers, even if other modifiers would normally be preserved
+        if contains_limit_modifier {
+            // Process only limit modifiers, preserving other modifiers
+            let result = self.process_limit_modifiers_only(content);
+            if result != content {
+                return result;
+            }
+        }
+        
+        if (preserve_refs && !process_refs_in_executor) || 
            (contains_format_modifier && !contains_limit_modifier) {
             if debug_enabled {
                 println!("DEBUG: Preserving original variable references in block content");
@@ -624,6 +633,61 @@ impl MetaLanguageExecutor {
         
         // Check fallbacks
         self.fallbacks.get(var_name).cloned()
+    }
+    
+    // Process only limit modifiers, preserving other modifiers
+    fn process_limit_modifiers_only(&self, content: &str) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Processing only limit modifiers in: '{}'", 
+                     if content.len() > 100 { &content[..100] } else { content });
+        }
+        
+        // Regular expression to find variable references with limit modifier
+        let re = regex::Regex::new(r"\$\{([^}]+):limit=(\d+)\}").unwrap();
+        
+        let mut result = content.to_string();
+        let mut last_end = 0;
+        let mut processed_content = String::new();
+        
+        for cap in re.captures_iter(content) {
+            let whole_match = cap.get(0).unwrap();
+            let var_name = cap.get(1).unwrap().as_str();
+            let limit_value = cap.get(2).unwrap().as_str().parse::<usize>().unwrap_or(10);
+            
+            if debug_enabled {
+                println!("DEBUG: Found limit modifier: var='{}', limit={}", var_name, limit_value);
+            }
+            
+            // Look up the variable value
+            let replacement = if let Some(value) = self.lookup_variable(var_name) {
+                // Apply limit modifier
+                self.apply_limit(&value, limit_value)
+            } else {
+                // Variable not found
+                if debug_enabled {
+                    println!("DEBUG: Variable not found: {}", var_name);
+                }
+                format!("${{UNDEFINED:{}}}", var_name)
+            };
+            
+            processed_content.push_str(&content[last_end..whole_match.start()]);
+            processed_content.push_str(&replacement);
+            last_end = whole_match.end();
+        }
+        
+        // Add any remaining content
+        if last_end < content.len() {
+            processed_content.push_str(&content[last_end..]);
+        }
+        
+        if processed_content != content && debug_enabled {
+            println!("DEBUG: Processed limit modifiers, result length: {}", processed_content.len());
+        }
+        
+        processed_content
     }
     
     // Internal implementation that tracks processing variables to detect circular references
@@ -2453,7 +2517,7 @@ impl MetaLanguageExecutor {
         
         // Take only the first 'limit' lines
         let limited = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
-        let result = format!("{}\n...(truncated, showing {} of {} lines)", limited, limit, lines.len());
+        let result = format!("{}\n...(truncated)", limited);
         
         if debug_enabled {
             println!("DEBUG: Limited content from {} to {} lines", lines.len(), limit);
@@ -3331,7 +3395,7 @@ impl MetaLanguageExecutor {
             println!("DEBUG: Processed document for limit modifiers, new length: {}", processed_document.len());
             
             // Update the current document with the processed version
-            let mut updated_doc = processed_document;
+            updated_doc = processed_document;
         }
         
         // Debug: Print all outputs
