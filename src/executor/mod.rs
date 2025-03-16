@@ -491,9 +491,18 @@ impl MetaLanguageExecutor {
         let preserve_refs = std::env::var("LLM_PRESERVE_REFS").unwrap_or_default() == "1" || 
                            std::env::var("LLM_PRESERVE_REFS").unwrap_or_default().to_lowercase() == "true";
         
-        if preserve_refs {
+        // Also check if the content contains a format modifier, which should be preserved
+        let contains_format_modifier = content.contains("${") && 
+                                      (content.contains(":format=") || 
+                                       content.contains(":transform=") || 
+                                       content.contains(":highlight"));
+        
+        if preserve_refs || contains_format_modifier {
             if debug_enabled {
                 println!("DEBUG: Preserving original variable references in block content");
+                if contains_format_modifier {
+                    println!("DEBUG: Content contains format modifiers that should be preserved");
+                }
             }
             return content.to_string();
         }
