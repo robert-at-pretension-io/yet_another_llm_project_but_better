@@ -29,14 +29,26 @@ fn test_enhanced_variable_reference_basic() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with enhanced variable reference");
+    assert!(process_result.is_ok(), format!("Failed to process document with enhanced variable reference: {:?}", process_result.err()));
     
     // Check that the variable reference was expanded correctly with the specified format
-    let question_block = executor.blocks.get("format-test").unwrap();
+    let question_block = match executor.blocks.get("format-test") {
+        Some(block) => block,
+        None => {
+            println!("DEBUG: Available blocks: {:?}", executor.blocks.keys().collect::<Vec<_>>());
+            panic!("Could not find 'format-test' block in executor");
+        }
+    };
     assert!(question_block.content.contains("${test-data:format=markdown}"));
     
     // After processing, the reference should be replaced with the formatted content
-    let updated_content = executor.update_document().unwrap();
+    let updated_content = match executor.update_document() {
+        Ok(content) => content,
+        Err(e) => {
+            println!("DEBUG: Executor outputs: {:?}", executor.outputs);
+            panic!("Failed to update document: {:?}", e);
+        }
+    };
     assert!(updated_content.contains("John Doe"), "Content should include data from the referenced block");
     assert!(updated_content.contains("Format: markdown"), "Formatting instruction should be applied");
 }
@@ -78,7 +90,7 @@ fn test_enhanced_variable_reference_include_modifiers() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with include modifiers");
+    assert!(process_result.is_ok(), format!("Failed to process document with include modifiers: {:?}", process_result.err()));
     
     // Check that the variable reference includes both code and results
     let updated_content = executor.update_document().unwrap();
@@ -129,7 +141,7 @@ fn test_enhanced_variable_reference_multiple_modifiers() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with multiple variable references");
+    assert!(process_result.is_ok(), format!("Failed to process document with multiple variable references: {:?}", process_result.err()));
     
     // Check that different modifiers are applied correctly
     let updated_content = executor.update_document().unwrap();
@@ -174,7 +186,7 @@ id,name,value
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with limit modifier");
+    assert!(process_result.is_ok(), format!("Failed to process document with limit modifier: {:?}", process_result.err()));
     
     // Check that the content is limited to the specified number of lines
     let updated_content = executor.update_document().unwrap();
@@ -218,7 +230,7 @@ fn test_enhanced_variable_reference_conditional_inclusion() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with conditional inclusion");
+    assert!(process_result.is_ok(), format!("Failed to process document with conditional inclusion: {:?}", process_result.err()));
     
     // Check that sensitive information is included based on the condition
     let updated_content = executor.update_document().unwrap();
@@ -268,7 +280,7 @@ fn test_enhanced_variable_reference_transformation() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with transformation modifiers");
+    assert!(process_result.is_ok(), format!("Failed to process document with transformation modifiers: {:?}", process_result.err()));
     
     // Check that transformations are applied correctly
     let updated_content = executor.update_document().unwrap();
@@ -323,7 +335,7 @@ fn test_enhanced_variable_reference_highlighting() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with highlighting modifiers");
+    assert!(process_result.is_ok(), format!("Failed to process document with highlighting modifiers: {:?}", process_result.err()));
     
     // Check that syntax highlighting markers are added
     let updated_content = executor.update_document().unwrap();
@@ -375,7 +387,7 @@ fn test_enhanced_variable_reference_nesting() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with nested variable references");
+    assert!(process_result.is_ok(), format!("Failed to process document with nested variable references: {:?}", process_result.err()));
     
     // Check that nested references are resolved correctly
     let updated_content = executor.update_document().unwrap();
@@ -416,7 +428,7 @@ fn test_enhanced_variable_reference_error_handling() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), "Failed to process document with error handling");
+    assert!(process_result.is_ok(), format!("Failed to process document with error handling: {:?}", process_result.err()));
     
     // Check that errors are handled gracefully with fallbacks
     let updated_content = executor.update_document().unwrap();
