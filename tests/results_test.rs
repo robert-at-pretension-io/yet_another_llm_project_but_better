@@ -70,7 +70,7 @@ mod tests {
         executor.outputs.insert("generate-data.results".to_string(), "[1, 2, 3, 4, 5]".to_string());
         
         // Test variable resolution with the mock data
-        let content = "import json\ndata = ${generate-data.results}\nprint(f\"Sum: {sum(data)}\")";
+        let content = "import json\ndata = <results ref=\"generate-data\" />\nprint(f\"Sum: {sum(data)}\")";
         
         // Print the output map for debugging
         println!("Output map contents:");
