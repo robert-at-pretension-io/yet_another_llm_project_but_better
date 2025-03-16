@@ -939,61 +939,6 @@ impl MetaLanguageExecutor {
         truncated
     }
     
-    // Update the execution method to automatically create results blocks
-    pub fn execute_block_with_results(&mut self, name: &str) -> Result<Block, ExecutorError> {
-        match self.execute_block(name) {
-            Ok(output) => {
-                // Get the original block
-                let block = self.blocks.get(name).unwrap().clone();
-                
-                // Create a results block
-                let results_block = self.generate_results_block(&block, &output);
-                
-                // Process the results content with all modifiers
-                let processed_content = self.process_results_content(&results_block, &output);
-                
-                // Create the final results block with processed content
-                let final_block = self.generate_results_block(&block, &processed_content);
-                
-                // Store the results in outputs if the block has a name
-                if let Some(block_name) = &block.name {
-                    let results_name = format!("{}_results", block_name);
-                    self.outputs.insert(results_name, processed_content);
-                }
-                
-                Ok(final_block)
-            },
-            Err(err) => {
-                // Get the original block
-                if let Some(block) = self.blocks.get(name) {
-                    // Create an error results block
-                    let _error_block = self.generate_error_results_block(block, &err.to_string());
-                    
-                    // Store the error in outputs if the block has a name
-                    if let Some(block_name) = &block.name {
-                        let error_name = format!("{}_error", block_name);
-                        self.outputs.insert(error_name, err.to_string());
-                    }
-                    
-                    // If there's a fallback, try to execute it
-                    let fallback_to_execute = if let Some(fallback_name) = self.fallbacks.get(name) {
-                        println!("Trying fallback block: {}", fallback_name);
-                        Some(fallback_name.clone())
-                    } else {
-                        None
-                    };
-                    
-                    // Execute the fallback if we found one
-                    if let Some(fallback_name) = fallback_to_execute {
-                        return self.execute_block_with_results(&fallback_name);
-                    }
-                }
-                
-                // Return the error anyway so the caller knows execution failed
-                Err(err)
-            }
-        }
-    }
     
     // Update document with execution results
     pub fn update_document(&self) -> Result<String, ExecutorError> {
