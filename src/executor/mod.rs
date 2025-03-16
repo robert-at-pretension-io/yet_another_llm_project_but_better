@@ -13,6 +13,8 @@ use crate::parser::{Block, parse_document, extract_variable_references};
 use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
 
 // mod enhanced_variables;  // Module was deleted
+mod reference_resolver;
+use reference_resolver::ReferenceResolver;
 
 // Define error type
 #[derive(Error, Debug)]
