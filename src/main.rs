@@ -208,8 +208,13 @@ fn process_file(file_path: &str) -> Result<()> {
 }
 
 // Start the file watcher
-fn start_file_watcher() -> Result<()> {
+fn start_file_watcher(config: &Config) -> Result<()> {
     println!("Starting file watcher...");
+    
+    // Setup debounce: store last processed times for each file
+    use std::collections::HashMap;
+    let mut last_processed_times: HashMap<String, Instant> = HashMap::new();
+    let debounce_duration = Duration::from_millis(250);
     
     let (tx, rx) = channel();
     let mut watcher = FileWatcher::new(tx);
@@ -241,20 +246,39 @@ fn start_file_watcher() -> Result<()> {
         // Wait for file events with timeout to allow checking for interrupts
         match rx.recv_timeout(Duration::from_millis(500)) {
             Ok(event) => {
-                // Only process XML files
-                if event.path.to_lowercase().ends_with(".xml") &&
+                // Process files with .xml or .meta extension
+                let path_lower = event.path.to_lowercase();
+                if (path_lower.ends_with(".xml") || path_lower.ends_with(".meta")) &&
                    (event.event_type == FileEventType::Modified || 
                     event.event_type == FileEventType::Created) {
                     
+                    let now = Instant::now();
+                    if let Some(prev) = last_processed_times.get(&event.path) {
+                        if now.duration_since(*prev) < debounce_duration {
+                            if config.verbose {
+                                println!("Debouncing rapid events for file: {}", event.path);
+                            }
+                            continue;
+                        }
+                    }
+                    last_processed_times.insert(event.path.clone(), now);
+                    
                     let path = Path::new(&event.path);
                     if path.exists() && path.is_file() {
-                        println!("File changed: {}", event.path);
+                        println!("Detected change in file: {}", event.path);
                         
                         // Small delay to ensure the file is fully written
                         std::thread::sleep(Duration::from_millis(100));
                         
+                        // Process the file with detailed error handling
                         if let Err(e) = process_file(&event.path) {
                             eprintln!("Error processing file {}: {}", event.path, e);
+                        } else if config.verbose {
+                            println!("Successfully processed file: {}", event.path);
+                        }
+                    } else {
+                        if config.verbose {
+                            println!("Skipped non-existing or non-file path: {}", event.path);
                         }
                     }
                 }
@@ -301,7 +325,7 @@ fn main() -> Result<()> {
         }
     } else if config.watch_mode {
         // Start file watcher if --watch flag is provided
-        if let Err(e) = start_file_watcher() {
+        if let Err(e) = start_file_watcher(&config) {
             eprintln!("Error in file watcher: {}", e);
             process::exit(1);
         }
