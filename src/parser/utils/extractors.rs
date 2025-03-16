@@ -8,7 +8,6 @@ pub fn extract_name(pair: pest::iterators::Pair<Rule>) -> Option<String> {
             return Some(inner_pair.as_str().to_string());
         }
    }
-    }
     None
 }
 
