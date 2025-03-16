@@ -20,7 +20,7 @@ mod debug_utils;
 // Re-export important types
 pub use self::blocks::Block;
 pub use block_parser::{parse_single_block, extract_block_type};
-pub use utils::extractors::{extract_name, extract_modifiers, extract_variable_references};
+pub use utils::extractors::{extract_name, extract_modifiers};
 pub use utils::validators::check_duplicate_names;
 pub use xml_parser::{parse_xml_document};
 
@@ -84,7 +84,7 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
             
             // Process variable references in all blocks before dependency resolution.
             for (i, block) in blocks.iter().enumerate() {
-                let variable_refs = extract_variable_references(&block.content);
+                let variable_refs = utils::extractors::extract_variable_references(&block.content);
                 if !variable_refs.is_empty() {
                     println!("DEBUG: Block {} has variable references: {:?}", i, variable_refs);
                     // Further processing of variable references can be added here if needed
