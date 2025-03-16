@@ -115,6 +115,14 @@ pub fn parse_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 }
             }
             
+            // Process variable references in all blocks before dependency resolution.
+            for (i, block) in blocks.iter().enumerate() {
+                let variable_refs = extract_variable_references(&block.content);
+                if !variable_refs.is_empty() {
+                    println!("DEBUG: Block {} has variable references: {:?}", i, variable_refs);
+                    // Further processing of variable references can be added here if needed
+                }
+            }
             println!("DEBUG: All blocks validated successfully");
             Ok(blocks)
         },
