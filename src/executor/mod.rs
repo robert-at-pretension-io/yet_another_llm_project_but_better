@@ -3418,7 +3418,7 @@ impl MetaLanguageExecutor {
                         if code_block.contains(&format!("<meta:results for=\"{}\"", name)) {
                             code_block.to_string()
                         } else {
-                            format!("{}<meta:results for=\"{}\"><![CDATA[{}]]></meta:results>", code_block, name, output)
+                            format!("{}<meta:results name=\"{}_results\" for=\"{}\"><![CDATA[{}]]></meta:results>", code_block, name, name, output)
                         }
                     }).to_string();
                     if new_doc != updated_doc {
@@ -3436,7 +3436,7 @@ impl MetaLanguageExecutor {
                             if code_block.contains(&format!("<meta:results for=\"{}\"", name)) {
                                 code_block.to_string()
                             } else {
-                                format!("{}<meta:results for=\"{}\"><![CDATA[{}]]></meta:results>", code_block, name, output)
+                                format!("{}<meta:results name=\"{}_results\" for=\"{}\"><![CDATA[{}]]></meta:results>", code_block, name, name, output)
                             }
                         }).to_string();
                     } else {
