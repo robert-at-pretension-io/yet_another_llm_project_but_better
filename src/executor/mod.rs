@@ -295,11 +295,12 @@ impl MetaLanguageExecutor {
             return Ok(content.to_string());
         }
 
-        println!("DEBUG: process_variable_references processing content:\n{}", content);
         println!("DEBUG: Processing variable references with quick_xml");
 
+        // Create a reader that doesn't trim whitespace
         let mut reader = Reader::from_str(content);
         reader.trim_text(false);
+        reader.check_end_names(false); // Don't validate end tag names
 
         let mut writer = Writer::new(Cursor::new(Vec::new()));
         let mut buf = Vec::new();
@@ -307,52 +308,37 @@ impl MetaLanguageExecutor {
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                    println!("DEBUG: Entering meta:reference Start tag processing");
                     // Process meta:reference tag
                     let mut target = None;
 
-                    println!("DEBUG: Extracting attributes for meta:reference tag");
                     // Extract the target attribute
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
-                        println!("DEBUG: Found attribute with key: {:?}, value: {:?}", attr.key.as_ref(), String::from_utf8_lossy(&attr.value));
                         if attr.key.as_ref() == b"target" {
                             target = Some(String::from_utf8_lossy(&attr.value).to_string());
-                            println!("DEBUG: Extracted target attribute: {}", target.as_ref().unwrap());
+                            println!("DEBUG: Found reference with target: {}", target.as_ref().unwrap());
                         }
                     }
 
                     if let Some(target_str) = target {
-                        println!("DEBUG: Found reference tag with target: {}", target_str);
-
                         // Look up the target in outputs
                         if let Some(value) = self.outputs.get(&target_str) {
-                            println!(
-                                "DEBUG: Found target '{}' in outputs, length: {}",
-                                target_str,
-                                value.len()
-                            );
+                            println!("DEBUG: Found target in outputs: {}", target_str);
+                            
                             // Write the value instead of the reference tag
                             writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
-
-                            // Skip to the closing tag with detailed debug logging
+                            
+                            // Skip to the closing tag
                             let mut depth = 1;
                             while depth > 0 {
-                                println!("DEBUG: In skip loop for meta:reference, current depth: {}", depth);
                                 match reader.read_event_into(&mut buf) {
-                                    Ok(Event::Start(ref _e))
-                                        if _e.name().as_ref() == b"meta:reference" =>
-                                    {
+                                    Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
                                         depth += 1;
                                     }
-                                    Ok(Event::End(ref _e))
-                                        if _e.name().as_ref() == b"meta:reference" =>
-                                    {
+                                    Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
                                         depth -= 1;
                                     }
-                                    Ok(Event::Empty(ref _e))
-                                        if _e.name().as_ref() == b"meta:reference" =>
-                                    {
+                                    Ok(Event::Empty(ref _)) => {
                                         // Empty tag doesn't affect depth
                                     }
                                     Ok(Event::Eof) => break,
@@ -364,30 +350,23 @@ impl MetaLanguageExecutor {
                                 buf.clear();
                             }
                         } else {
-                            println!("DEBUG: Target '{}' not found in outputs", target_str);
+                            println!("DEBUG: Target not found in outputs: {}", target_str);
+                            
                             // Target not found, insert a placeholder
                             let placeholder = format!("${{{}}}", target_str);
-                            writer
-                                .write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
-
-                            // Skip to the closing tag with detailed debug logging
+                            writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
+                            
+                            // Skip to the closing tag
                             let mut depth = 1;
                             while depth > 0 {
-                                println!("DEBUG: In skip loop for meta:reference (else branch), current depth: {}", depth);
                                 match reader.read_event_into(&mut buf) {
-                                    Ok(Event::Start(ref _e))
-                                        if _e.name().as_ref() == b"meta:reference" =>
-                                    {
+                                    Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
                                         depth += 1;
                                     }
-                                    Ok(Event::End(ref _e))
-                                        if _e.name().as_ref() == b"meta:reference" =>
-                                    {
+                                    Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
                                         depth -= 1;
                                     }
-                                    Ok(Event::Empty(ref _e))
-                                        if _e.name().as_ref() == b"meta:reference" =>
-                                    {
+                                    Ok(Event::Empty(ref _)) => {
                                         // Empty tag doesn't affect depth
                                     }
                                     Ok(Event::Eof) => break,
@@ -400,56 +379,74 @@ impl MetaLanguageExecutor {
                             }
                         }
                     } else {
-                        println!("DEBUG: Reference tag missing target attribute");
                         // No target attribute, preserve the original tag
                         writer.write_event(Event::Start(e.to_owned()))?;
-                        writer.write_event(Event::End(BytesEnd::new("meta:reference")))?;
+                        
+                        // Process content between start and end tags
+                        let mut inner_content = String::new();
+                        let mut depth = 1;
+                        
+                        while depth > 0 {
+                            match reader.read_event_into(&mut buf) {
+                                Ok(Event::Text(ref text)) => {
+                                    inner_content.push_str(&text.unescape()?);
+                                }
+                                Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                                    depth += 1;
+                                }
+                                Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                                    depth -= 1;
+                                    if depth == 0 {
+                                        // Write closing tag when we reach the matching end tag
+                                        writer.write_event(Event::End(BytesEnd::new("meta:reference")))?;
+                                    }
+                                }
+                                Ok(Event::Eof) => break,
+                                Ok(event) => writer.write_event(event.clone())?,
+                                Err(e) => {
+                                    return Err(ExecutorError::XmlParsingError(e));
+                                }
+                            }
+                            buf.clear();
+                        }
                     }
                 }
                 Ok(Event::Empty(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                    println!("DEBUG: Processing self-closing meta:reference tag");
+                    // Process self-closing meta:reference tag
                     let mut target = None;
-    
-                    // Extract the target attribute and log each attribute
+                    
+                    // Extract the target attribute
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
-                        println!("DEBUG: Found attribute: key='{:?}', value='{}'", attr.key.as_ref(), String::from_utf8_lossy(&attr.value));
                         if attr.key.as_ref() == b"target" {
                             target = Some(String::from_utf8_lossy(&attr.value).to_string());
+                            println!("DEBUG: Found self-closing reference with target: {}", target.as_ref().unwrap());
                         }
                     }
-    
+                    
                     if let Some(target_str) = target {
-                        println!(
-                            "DEBUG: Found self-closing reference tag with target: {}",
-                            target_str
-                        );
-    
                         // Look up the target in outputs
                         if let Some(value) = self.outputs.get(&target_str) {
-                            println!(
-                                "DEBUG: Found target '{}' in outputs, length: {}",
-                                target_str,
-                                value.len()
-                            );
+                            println!("DEBUG: Found target in outputs: {}", target_str);
+                            
                             // Write the value instead of the reference tag
                             writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
                         } else {
-                            println!("DEBUG: Target '{}' not found in outputs", target_str);
+                            println!("DEBUG: Target not found in outputs: {}", target_str);
+                            
                             // Target not found, insert a placeholder
                             let placeholder = format!("${{{}}}", target_str);
-                            writer
-                                .write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
+                            writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
                         }
                     } else {
-                        println!("DEBUG: Self-closing reference tag missing target attribute");
                         // No target attribute, preserve the original tag
                         writer.write_event(Event::Empty(e.to_owned()))?;
                     }
                 }
                 Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                    // Skip the end tag as we've already handled it
-                    continue;
+                    // This should only happen for badly formed XML where an end tag appears
+                    // without a matching start tag. We'll handle it by writing it out.
+                    writer.write_event(Event::End(e.to_owned()))?;
                 }
                 Ok(Event::Eof) => break,
                 Ok(event) => writer.write_event(event)?,
@@ -458,25 +455,22 @@ impl MetaLanguageExecutor {
                     return Err(ExecutorError::XmlParsingError(e));
                 }
             }
-
+            
             buf.clear();
         }
-
+        
         // Get the result as a string
         let result = writer.into_inner().into_inner();
         let result_str = String::from_utf8_lossy(&result).to_string();
-
-        println!(
-            "DEBUG: Finished processing variable references, result length: {}",
-            result_str.len()
-        );
-
+        
+        println!("DEBUG: Finished processing variable references, result length: {}", result_str.len());
+        
         // If there are still nested references, process them recursively
         if result_str.contains("<meta:reference") {
             println!("DEBUG: Detected nested references, processing recursively");
             return self.process_variable_references(&result_str);
         }
-
+        
         Ok(result_str)
     }
 
@@ -593,17 +587,9 @@ impl MetaLanguageExecutor {
             block.content.clone()
         };
 
-        // Process variable references with XML parser - potentially multiple passes
-        // If we have refs like A -> B -> C, we need multiple passes to resolve them all
-        for _ in 0..3 {
-            // Limit to 3 recursive passes to avoid infinite loops
-            let processed_content = self.process_variable_references(&block_content)?;
-            if processed_content == block_content {
-                // No more replacements to make, exit early
-                break;
-            }
-            block_content = processed_content;
-        }
+        // Process variable references with XML parser
+        let processed_content = self.process_variable_references(&block_content)?;
+        block_content = processed_content;
 
         // Always update the block with the processed content
         if let Some(updated_block) = self.blocks.get_mut(name) {
