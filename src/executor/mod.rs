@@ -295,6 +295,7 @@ impl MetaLanguageExecutor {
             return Ok(content.to_string());
         }
 
+        println!("DEBUG: process_variable_references processing content:\n{}", content);
         println!("DEBUG: Processing variable references with quick_xml");
 
         let mut reader = Reader::from_str(content);
