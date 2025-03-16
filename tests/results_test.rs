@@ -62,7 +62,7 @@ mod tests {
     }
     
     /// Test variable references to results blocks
-    #[ignore]
+    
     #[test]
     fn test_variable_reference_to_results() {
         // Mock executor outputs directly
