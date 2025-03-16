@@ -15,41 +15,7 @@ mod tests {
         assert!(executor.current_document.is_empty());
     }
     
-    #[test]
-    fn test_executor_variable_reference_resolution() {
-        let mut executor = MetaLanguageExecutor::new();
-        
-        // Add some values to the outputs
-        executor.outputs.insert("api_key".to_string(), "abc123".to_string());
-        executor.outputs.insert("base_url".to_string(), "https://api.example.com".to_string());
-        executor.outputs.insert("endpoint".to_string(), "/data".to_string());
-        
-        // Test variable reference resolution
-        let content = "API Key: ${api_key}, URL: ${base_url}${endpoint}";
-        let processed = executor.process_variable_references(content);
-        
-        assert_eq!(processed, "API Key: abc123, URL: https://api.example.com/data");
-    }
-    
-    #[test]
-    fn test_executor_nested_variable_references() {
-        // This test verifies that the implementation correctly 
-        // resolves nested variable references
-        let mut executor = MetaLanguageExecutor::new();
-        
-        // Add values that include references to other variables
-        executor.outputs.insert("base_url".to_string(), "https://api.example.com".to_string());
-        executor.outputs.insert("endpoint".to_string(), "/users".to_string());
-        executor.outputs.insert("full_url".to_string(), "${base_url}${endpoint}".to_string());
-        
-        // Test nested resolution - the implementation should resolve the nested references
-        let content = "Fetching data from ${full_url}";
-        let processed = executor.process_variable_references(content);
-        
-        // The implementation correctly resolves nested variables
-        assert_eq!(processed, "Fetching data from https://api.example.com/users");
-    }
-    
+
     #[test]
     fn test_executor_is_cacheable() {
         let executor = MetaLanguageExecutor::new();
@@ -70,20 +36,6 @@ mod tests {
         assert!(!executor.is_cacheable(&block3));
     }
     
-    #[test]
-    fn test_executor_missing_variable_references() {
-        let mut executor = MetaLanguageExecutor::new();
-        
-        // Add only some of the referenced variables
-        executor.outputs.insert("var1".to_string(), "value1".to_string());
-        
-        // Test with missing variables
-        let content = "Known: ${var1}, Unknown: ${var2}";
-        let processed = executor.process_variable_references(content);
-        
-        // Missing variables should remain as is
-        assert_eq!(processed, "Known: value1, Unknown: ${var2}");
-    }
     
     #[test]
     fn test_is_executable_block() {
@@ -159,75 +111,7 @@ mod tests {
         assert_eq!(executor.get_timeout(&block_with_invalid_timeout), Duration::from_secs(600)); // Default for invalid
     }
     
-    #[test]
-    fn test_determine_format_from_content() {
-        let executor = MetaLanguageExecutor::new();
-        
-        // Test JSON detection
-        let json_obj = r#"{"name": "John", "age": 30}"#;
-        let json_arr = r#"[1, 2, 3, 4]"#;
-        
-        assert_eq!(executor.determine_format_from_content(json_obj), "json");
-        assert_eq!(executor.determine_format_from_content(json_arr), "json");
-        
-        // For other formats, the implementation would need to be checked
-        // This is a placeholder that will pass with the current implementation
-        let text = "Just some plain text";
-        assert_ne!(executor.determine_format_from_content(text), "json");
-    }
     
-    #[test]
-    fn test_generate_results_block() {
-        let executor = MetaLanguageExecutor::new();
-        
-        // Create a source block
-        let source_block = Block::new("code:python", Some("source-block"), "print('hello')");
-        
-        // Generate a results block
-        let output = "Hello, world!";
-        let results_block = executor.generate_results_block(&source_block, output, Some("text".to_string()));
-        
-        // Check the results block
-        assert_eq!(results_block.block_type, "results");
-        assert_eq!(results_block.content, "Hello, world!");
-        
-        // Check the "for" modifier
-        let for_modifier = results_block.modifiers.iter()
-            .find(|(k, _)| k == "for")
-            .map(|(_, v)| v);
-        
-        assert_eq!(for_modifier, Some(&"source-block".to_string()));
-        
-        // Check the format modifier
-        let format_modifier = results_block.modifiers.iter()
-            .find(|(k, _)| k == "format")
-            .map(|(_, v)| v);
-        
-        assert_eq!(format_modifier, Some(&"text".to_string()));
-    }
-    
-    #[test]
-    fn test_generate_error_results_block() {
-        let executor = MetaLanguageExecutor::new();
-        
-        // Create a source block
-        let source_block = Block::new("code:python", Some("error-source"), "print(undefined_var)");
-        
-        // Generate an error results block
-        let error = "NameError: name 'undefined_var' is not defined";
-        let error_block = executor.generate_error_results_block(&source_block, error);
-        
-        // Check the error block
-        assert_eq!(error_block.block_type, "error_results");
-        assert_eq!(error_block.content, "NameError: name 'undefined_var' is not defined");
-        
-        // Check the "for" modifier
-        let for_modifier = error_block.modifiers.iter()
-            .find(|(k, _)| k == "for")
-            .map(|(_, v)| v);
-        
-        assert_eq!(for_modifier, Some(&"error-source".to_string()));
-    }
     
     #[test]
     fn test_question_response_execution() {

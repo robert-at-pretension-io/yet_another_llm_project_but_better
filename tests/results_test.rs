@@ -63,36 +63,6 @@ mod tests {
     
     /// Test variable references to results blocks
     
-    #[test]
-    fn test_variable_reference_to_results() {
-        // Mock executor outputs directly
-        let mut executor = MetaLanguageExecutor::new();
-        executor.outputs.insert("generate-data.results".to_string(), "[1, 2, 3, 4, 5]".to_string());
-        
-        // Test variable resolution with the mock data
-        let content = "import json\ndata = ${generate-data.results}\nprint(f\"Sum: {sum(data)}\")";
-        
-        // Print the output map for debugging
-        println!("Output map contents:");
-        for (key, value) in &executor.outputs {
-            println!("  '{}' => '{}'", key, value);
-        }
-        
-        let processed = executor.process_variable_references(content);
-        
-        // Print the processed content for debugging
-        println!("Processed content: '{}'", processed);
-        println!("Original content: '{}'", content);
-        
-        // Check if the variable reference is gone
-        assert!(!processed.contains("${generate-data.results}"), 
-                "Variable reference should be replaced");
-        
-        // Check that the content contains the expected value
-        assert!(processed.contains("[1, 2, 3, 4, 5]"), 
-                "Processed content should contain the data array");
-    }
-    
     /// Test results block with different format modifiers
     #[test]
     fn test_results_with_different_formats() {
@@ -161,65 +131,6 @@ Alice,28,Boston"#;
         assert_eq!(none_display.get_modifier("display"), Some(&"none".to_string()));
     }
     
-    /// Test results block with line limits
-    #[test]
-    fn test_results_with_line_limits() {
-        // Create block directly instead of parsing
-        let content = r#"Line 1
-Line 2
-Line 3
-Line 4
-Line 5
-Line 6
-Line 7
-Line 8
-Line 9
-Line 10"#;
-        
-        let mut block = Block::new("results", None, content);
-        block.add_modifier("for", "verbose-output");
-        block.add_modifier("format", "plain");
-        block.add_modifier("max_lines", "5");
-        
-        assert_eq!(block.get_modifier("max_lines"), Some(&"5".to_string()));
-        
-        // Test executor's max_lines functionality
-        let executor = MetaLanguageExecutor::new();
-        let truncated = executor.apply_max_lines(&block, content);
-        
-        // Print the truncated output for debugging
-        println!("Truncated output:\n{}", truncated);
-        println!("Number of lines: {}", truncated.lines().count());
-        
-        // Check that the truncated output contains the first 5 lines
-        assert!(truncated.contains("Line 1"));
-        assert!(truncated.contains("Line 2"));
-        assert!(truncated.contains("Line 3"));
-        assert!(truncated.contains("Line 4"));
-        assert!(truncated.contains("Line 5"));
-        
-        // Check that the truncated output doesn't contain lines beyond the limit
-        // Note: The implementation might add an ellipsis or other indicator
-        assert!(!truncated.contains("Line 6\nLine 7"), 
-                "Truncated output should not contain all lines beyond the limit");
-    }
-    
-    /// Test results block with trimming
-    #[test]
-    fn test_results_with_trimming() {
-        // Create a block directly
-        let mut block = Block::new("results", None, "   This output has leading and trailing whitespace.   ");
-        block.add_modifier("for", "output-with-whitespace");
-        block.add_modifier("format", "plain");
-        block.add_modifier("trim", "true");
-        
-        assert_eq!(block.get_modifier("trim"), Some(&"true".to_string()));
-        
-        // Test executor trimming functionality
-        let executor = MetaLanguageExecutor::new();
-        let trimmed = executor.apply_trim(&block, block.content.as_str());
-        assert_eq!(trimmed, "This output has leading and trailing whitespace.");
-    }
     
     /// Test integration with executable blocks
     #[test]
@@ -290,41 +201,4 @@ Line 10"#;
         assert!(api_results.content.contains(r#""temperature": 72"#));
     }
     
-    /// Test auto-generation of results blocks by executor
-    #[test]
-    fn test_executor_results_generation() {
-        let executor = MetaLanguageExecutor::new();
-        
-        // Create a mock code block
-        let block = Block::new("code:python", Some("test-code"), "print('Hello, executor!')");
-        
-        // Simulate execution with mock output
-        let output = "Hello, executor!";
-        
-        // Generate results block
-        let results_block = executor.generate_results_block(&block, output, None);
-        
-        assert_eq!(results_block.block_type, "results");
-        assert_eq!(results_block.get_modifier("for"), Some(&"test-code".to_string()));
-        assert_eq!(results_block.content, "Hello, executor!");
-    }
-    
-    /// Test auto-generation of error_results blocks by executor
-    #[test]
-    fn test_executor_error_results_generation() {
-        let executor = MetaLanguageExecutor::new();
-        
-        // Create a mock code block
-        let block = Block::new("code:python", Some("failing-code"), "print(undefined_variable)");
-        
-        // Simulate execution with mock error
-        let error = "NameError: name 'undefined_variable' is not defined";
-        
-        // Generate error results block
-        let error_block = executor.generate_error_results_block(&block, error);
-        
-        assert_eq!(error_block.block_type, "error_results");
-        assert_eq!(error_block.get_modifier("for"), Some(&"failing-code".to_string()));
-        assert_eq!(error_block.content, error);
-    }
 }

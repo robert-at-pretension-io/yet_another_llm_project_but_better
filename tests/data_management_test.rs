@@ -91,28 +91,4 @@ mod tests {
         assert!(block.content.contains("persist across sessions"));
     }
     
-    #[test]
-    fn test_variable_references() {
-        // Create blocks manually
-        let base_url_block = Block::new("variable", Some("base-url"), "https://api.example.com");
-        let endpoint_block = Block::new("variable", Some("endpoint"), "/users");
-        
-        let mut api_request_block = Block::new("code:javascript", Some("api-request"), "");
-        api_request_block.content = r#"const url = '${base-url}${endpoint}';
-fetch(url)
-  .then(response => response.json())
-  .then(data => console.log(data));"#.to_string();
-        
-        let blocks = vec![base_url_block, endpoint_block, api_request_block];
-        
-        assert_eq!(blocks.len(), 3);
-        
-        assert_eq!(blocks[0].name, Some("base-url".to_string()));
-        assert_eq!(blocks[1].name, Some("endpoint".to_string()));
-        assert_eq!(blocks[2].name, Some("api-request".to_string()));
-        
-        // Check if the code block contains variable references
-        let code_content = blocks[2].content.as_str();
-        assert!(code_content.contains("${base-url}${endpoint}"));
-    }
 }

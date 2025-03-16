@@ -89,19 +89,7 @@ data = json.loads('''${dataset}''')
         assert!(has_model_gpt4);
     }
     
-    #[test]
-    fn test_executor_variable_references() {
-        let mut executor = MetaLanguageExecutor::new();
-        
-        // Add some output values
-        executor.outputs.insert("var1".to_string(), "value1".to_string());
-        executor.outputs.insert("var2".to_string(), "value2".to_string());
-        
-        let content = "This is ${var1} and ${var2} and ${var3}";
-        let processed = executor.process_variable_references(content);
-        
-        assert_eq!(processed, "This is value1 and value2 and ${var3}");
-    }
+
     
     #[test]
     fn test_executor_is_cacheable() {

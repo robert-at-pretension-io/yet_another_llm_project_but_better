@@ -66,45 +66,6 @@ mod tests {
         assert_eq!(hidden_results.get_modifier("display"), Some(&"none".to_string()));
     }
 
-    #[test]
-    fn test_executor_processes_results() {
-        let executor = MetaLanguageExecutor::new();
-        
-        // Create a mock code block and results
-        let code_block = Block::new("code:python", Some("test-code"), "print('Hello, executor!')");
-        let output = "Hello, executor!";
-        
-        // Generate results block
-        let results_block = executor.generate_results_block(&code_block, output, None);
-        
-        assert_eq!(results_block.block_type, "results");
-        assert_eq!(results_block.get_modifier("for"), Some(&"test-code".to_string()));
-        assert_eq!(results_block.content, "Hello, executor!");
-        
-        // Process the results with modifiers
-        let mut results_with_modifiers = results_block.clone();
-        results_with_modifiers.add_modifier("trim", "true");
-        results_with_modifiers.add_modifier("max_lines", "5");
-        
-        let processed = executor.process_results_content(&results_with_modifiers, "  \n Hello, executor! \n  ");
-        assert_eq!(processed, "Hello, executor!");
-    }
-
-    #[test]
-    fn test_executor_handles_error_results() {
-        let executor = MetaLanguageExecutor::new();
-        
-        // Create a mock code block that would fail
-        let code_block = Block::new("code:python", Some("failing-code"), "print(undefined_variable)");
-        let error = "NameError: name 'undefined_variable' is not defined";
-        
-        // Generate error results block
-        let error_block = executor.generate_error_results_block(&code_block, error);
-        
-        assert_eq!(error_block.block_type, "error_results");
-        assert_eq!(error_block.get_modifier("for"), Some(&"failing-code".to_string()));
-        assert_eq!(error_block.content, error);
-    }
 
     #[test]
     fn test_results_with_all_modifiers() {

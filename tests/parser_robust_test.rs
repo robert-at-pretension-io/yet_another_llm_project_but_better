@@ -176,18 +176,6 @@ fn find_child_by_name<'a>(block: &'a Block, name: &str) -> Option<&'a Block> {
     block.children.iter().find(|b| b.name.as_ref().map_or(false, |n| n == name))
 }
 
-/// Extract variable references from text
-fn extract_variable_references(text: &str) -> HashSet<String> {
-    let reference_regex = regex::Regex::new(r"\$\{([^}]+)\}").unwrap();
-    
-    let mut references = HashSet::new();
-    for cap in reference_regex.captures_iter(text) {
-        let ref_name = cap[1].to_string();
-        references.insert(ref_name);
-    }
-    
-    references
-}
 
 /// Test all block types defined in the language specification
 #[test]
