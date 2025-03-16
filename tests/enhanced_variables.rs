@@ -15,7 +15,12 @@ fn test_enhanced_variable_reference_basic() {
     }
     </meta:data>
 
-    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response="# John Doe\\n\\n- Age: 30\\n- Skills: Programming, Data Analysis, Machine Learning\\n\\nFormat: markdown">
+    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response=r#"# John Doe
+
+- Age: 30
+- Skills: Programming, Data Analysis, Machine Learning
+
+Format: markdown"#>
     Here is the data in markdown format: ${test-data:format=markdown}
     </meta:question>
 </meta:document>"#;
