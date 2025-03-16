@@ -12,7 +12,7 @@ use thiserror::Error;
 use crate::parser::{Block, parse_document, extract_variable_references};
 use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
 
-mod enhanced_variables;
+// mod enhanced_variables;  // Module was deleted
 
 // Define error type
 #[derive(Error, Debug)]
@@ -935,7 +935,7 @@ impl MetaLanguageExecutor {
         
         // Apply standard modifiers from the block
         if let Some(block) = self.blocks.get(var_name) {
-            result = self.apply_modifiers_to_variable(var_name, &result);
+            result = self.apply_modifiers_to_variable(var_name, &result, &HashMap::new());
         }
         
         result
