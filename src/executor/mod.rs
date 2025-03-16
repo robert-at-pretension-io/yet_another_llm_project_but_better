@@ -8,13 +8,14 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use tempfile;
 use thiserror::Error;
+use quick_xml::events::{Event, BytesStart, BytesEnd, BytesText};
+use quick_xml::reader::Reader;
+use quick_xml::writer::Writer;
+use std::io::Cursor;
 
 use crate::parser::{Block, parse_document, extract_variable_references};
 use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
 
-// mod enhanced_variables;  // Module was deleted
-mod reference_resolver;
-use reference_resolver::ReferenceResolver;
 
 // Define error type
 #[derive(Error, Debug)]
@@ -41,7 +42,10 @@ pub enum ExecutorError {
     MissingApiKey(String),
     
     #[error("Failed to resolve reference: {0}")]
-    ReferenceResolutionFailed(String)
+    ReferenceResolutionFailed(String),
+    
+    #[error("XML parsing error: {0}")]
+    XmlParsingError(#[from] quick_xml::Error)
 }
 
 // Executor for processing blocks
@@ -82,25 +86,6 @@ impl MetaLanguageExecutor {
         }
     }
     
-    // Debug method to print the current state of outputs
-    pub fn debug_print_outputs(&self, context: &str) {
-        println!("\nDEBUG: [{}] Executor {} outputs state:", context, self.instance_id);
-        println!("DEBUG: Total outputs: {}", self.outputs.len());
-        
-        if self.outputs.is_empty() {
-            println!("DEBUG: No outputs stored.");
-        } else {
-            for (key, value) in &self.outputs {
-                let preview = if value.len() > 50 {
-                    format!("{}... (length: {})", &value[..50], value.len())
-                } else {
-                    format!("{} (length: {})", value, value.len())
-                };
-                println!("DEBUG:   '{}' => '{}'", key, preview);
-            }
-        }
-        println!("DEBUG: End of outputs state\n");
-    }
 
     // Process a document
     pub fn process_document(&mut self, content: &str) -> Result<(), ExecutorError> {
@@ -183,18 +168,20 @@ impl MetaLanguageExecutor {
         }
         println!("DEBUG: Restored {} previous responses", restored_count);
         
-        // Process variable references in all registered blocks using a two-phase approach
+        // Process variable references in all registered blocks using XML parsing
         let mut ops = Vec::new();
         for (name, _) in self.blocks.iter() {
             ops.push(name.clone());
         }
         
-        // Now process each block's content and update both the block and outputs
+        // Now process each block's content with XML parsing and update both the block and outputs
         for name in ops {
             if let Some(block) = self.blocks.get(&name) {
                 let content = block.content.clone();
-                let processed_content = self.process_variable_references(&content);
                 let is_executable = self.is_executable_block(block);
+                
+                // Process the content with XML parsing
+                let processed_content = self.process_variable_references(&content)?;
                 
                 // Only update if content changed
                 if processed_content != content {
@@ -246,7 +233,117 @@ impl MetaLanguageExecutor {
         Ok(())
     }
     
-    /// Helper function to process <meta:reference> tags using XML parsing
+    /// Process variable references using quick_xml
+    pub fn process_variable_references(&self, content: &str) -> Result<String, ExecutorError> {
+        // Check if the content might contain XML
+        if !content.contains("<meta:reference") {
+            return Ok(content.to_string());
+        }
+        
+        println!("DEBUG: Processing variable references with quick_xml");
+        
+        let mut reader = Reader::from_str(content);
+        reader.trim_text(false);
+        
+        let mut writer = Writer::new(Cursor::new(Vec::new()));
+        let mut buf = Vec::new();
+        
+        loop {
+            match reader.read_event_into(&mut buf) {
+                Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                    // Process meta:reference tag
+                    let mut target = None;
+                    
+                    // Extract the target attribute
+                    for attr_result in e.attributes() {
+                        let attr = attr_result?;
+                        if attr.key.as_ref() == b"target" {
+                            target = Some(String::from_utf8_lossy(&attr.value).to_string());
+                        }
+                    }
+                    
+                    if let Some(target_str) = target {
+                        println!("DEBUG: Found reference tag with target: {}", target_str);
+                        
+                        // Look up the target in outputs
+                        if let Some(value) = self.outputs.get(&target_str) {
+                            println!("DEBUG: Found target '{}' in outputs, length: {}", target_str, value.len());
+                            // Write the value instead of the reference tag
+                            writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
+                        } else {
+                            println!("DEBUG: Target '{}' not found in outputs", target_str);
+                            // Target not found, preserve the original tag
+                            writer.write_event(Event::Start(e.to_owned()))?;
+                            writer.write_event(Event::End(BytesEnd::new("meta:reference")))?;
+                        }
+                    } else {
+                        println!("DEBUG: Reference tag missing target attribute");
+                        // No target attribute, preserve the original tag
+                        writer.write_event(Event::Start(e.to_owned()))?;
+                        writer.write_event(Event::End(BytesEnd::new("meta:reference")))?;
+                    }
+                },
+                Ok(Event::Empty(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                    // Process self-closing meta:reference tag
+                    let mut target = None;
+                    
+                    // Extract the target attribute
+                    for attr_result in e.attributes() {
+                        let attr = attr_result?;
+                        if attr.key.as_ref() == b"target" {
+                            target = Some(String::from_utf8_lossy(&attr.value).to_string());
+                        }
+                    }
+                    
+                    if let Some(target_str) = target {
+                        println!("DEBUG: Found self-closing reference tag with target: {}", target_str);
+                        
+                        // Look up the target in outputs
+                        if let Some(value) = self.outputs.get(&target_str) {
+                            println!("DEBUG: Found target '{}' in outputs, length: {}", target_str, value.len());
+                            // Write the value instead of the reference tag
+                            writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
+                        } else {
+                            println!("DEBUG: Target '{}' not found in outputs", target_str);
+                            // Target not found, preserve the original tag
+                            writer.write_event(Event::Empty(e.to_owned()))?;
+                        }
+                    } else {
+                        println!("DEBUG: Self-closing reference tag missing target attribute");
+                        // No target attribute, preserve the original tag
+                        writer.write_event(Event::Empty(e.to_owned()))?;
+                    }
+                },
+                Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                    // Skip the end tag as we've already handled it
+                    continue;
+                },
+                Ok(Event::Eof) => break,
+                Ok(event) => writer.write_event(event)?,
+                Err(e) => {
+                    println!("DEBUG: XML parsing error: {}", e);
+                    return Err(ExecutorError::XmlParsingError(e));
+                },
+            }
+            
+            buf.clear();
+        }
+        
+        // Get the result as a string
+        let result = writer.into_inner().into_inner();
+        let result_str = String::from_utf8_lossy(&result).to_string();
+        
+        println!("DEBUG: Finished processing variable references, result length: {}", result_str.len());
+        
+        // If there are still nested references, process them recursively
+        if result_str.contains("<meta:reference") {
+            println!("DEBUG: Detected nested references, processing recursively");
+            return self.process_variable_references(&result_str);
+        }
+        
+        Ok(result_str)
+    }
+    
     // Check if a block is executable
     pub fn is_executable_block(&self, block: &Block) -> bool {
         matches!(block.block_type.as_str(), 
@@ -343,8 +440,9 @@ impl MetaLanguageExecutor {
             block.content.clone()
         };
     
-        // Process variable references and conditional blocks
-        let processed_content =block_content;      
+        // Process variable references with XML parser
+        let processed_content = self.process_variable_references(&block_content)?;
+        
         // Execute based on block type
         let result = match block.block_type.as_str() {
             "shell" => self.execute_shell(&processed_content),
@@ -486,28 +584,7 @@ impl MetaLanguageExecutor {
         Duration::from_secs(600)
     }
     
-    pub fn determine_format_from_content(&self, content: &str) -> &'static str {
-        // Trim whitespace
-        let trimmed = content.trim();
-        
-        // Check if it looks like JSON (object or array)
-        if (trimmed.starts_with('{') && trimmed.ends_with('}')) || 
-           (trimmed.starts_with('[') && trimmed.ends_with(']')) {
-            // Try to parse as JSON to validate
-            if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
-                return "json";
-            }
-        }
-        
-        // Check for other formats (could be expanded)
-        if trimmed.starts_with('<') && trimmed.ends_with('>') {
-            return "xml";
-        }
-        
-        // Default to plain text
-        "text"
-    }
-    
+    // Execute a shell command
     pub fn execute_shell(&self, command: &str) -> Result<String, ExecutorError> {
         let output = if cfg!(target_os = "windows") {
             Command::new("cmd")
@@ -528,6 +605,7 @@ impl MetaLanguageExecutor {
         }
     }
     
+    // Execute an API call
     pub fn execute_api(&self, url: &str) -> Result<String, ExecutorError> {
         // In a real implementation, this would use a proper HTTP client
         // and handle different HTTP methods, headers, etc.
@@ -545,9 +623,10 @@ impl MetaLanguageExecutor {
         }
     }
     
+    // Execute Python code
     pub fn execute_python(&self, block: &Block, code: &str) -> Result<String, ExecutorError> {
-        // Process <meta:reference> tags in the Python code
-        let processed_code = self.process_variable_references(code);
+        // Process variable references in the Python code using XML parsing
+        let processed_code = self.process_variable_references(code)?;
         println!("DEBUG: Processed Python code:\n{}", processed_code);
         
         // Create a temporary Python file
@@ -661,6 +740,7 @@ impl MetaLanguageExecutor {
         
         // Process the result
         match result {
+
             Ok(response) => {
                 println!("DEBUG: Processing successful response");
                 
@@ -772,627 +852,4 @@ impl MetaLanguageExecutor {
             },
         }
     }
-    
-    // Generate a results block for an executed block
-    pub fn generate_results_block(&self, block: &Block, output: &str, format: Option<String>) -> Block {
-        let mut results_block = Block::new("results", None, output);
-        
-        // Add "for" modifier pointing to the original block
-        if let Some(block_name) = &block.name {
-            results_block.add_modifier("for", block_name);
-        }
-        
-        // Apply default display setting
-        results_block.add_modifier("display", "block");
-        
-        // Use specified format or inherit from the original block
-        if let Some(format_val) = format {
-            results_block.add_modifier("format", &format_val);
-        } else if let Some(display) = block.get_modifier("format") {
-            results_block.add_modifier("format", display);
-        }
-        
-        // Inherit other relevant modifiers from the original block
-        if let Some(display) = block.get_modifier("display") {
-            results_block.add_modifier("display", display);
-        }
-        
-        if let Some(max_lines) = block.get_modifier("max_lines") {
-            results_block.add_modifier("max_lines", max_lines);
-        }
-        
-        if let Some(trim_value) = block.get_modifier("trim") {
-            results_block.add_modifier("trim", trim_value);
-        }
-        
-        results_block
-    }
-    
-    // Generate an error results block for a failed execution
-    pub fn generate_error_results_block(&self, block: &Block, error: &str) -> Block {
-        let mut error_block = Block::new("error_results", None, error);
-        
-        // Add "for" modifier pointing to the original block
-        if let Some(block_name) = &block.name {
-            error_block.add_modifier("for", block_name);
-        }
-        
-        error_block
-    }
-    
-    // Generate an error-response block from a question or code block
-    pub fn generate_error_response_block(&self, original_block: &Block, error_text: &str) -> Block {
-        println!("DEBUG: generate_error_response_block called");
-        println!("DEBUG: Original block name: {:?}", original_block.name);
-        println!("DEBUG: Error text length: {}", error_text.len());
-        
-        let response_name = if let Some(name) = &original_block.name {
-            let name = format!("{}_error_response", name);
-            println!("DEBUG: Generated error response name: {}", name);
-            Some(name)
-        } else {
-            println!("DEBUG: No name for original block, error response will be unnamed");
-            None
-        };
-        
-        let mut error_response_block = Block::new("error-response", response_name.as_deref(), error_text);
-        println!("DEBUG: Created error-response block with type: {}", error_response_block.block_type);
-        
-        // Add "for" modifier pointing to the original block
-        if let Some(block_name) = &original_block.name {
-            println!("DEBUG: Adding 'for' modifier with value: {}", block_name);
-            error_response_block.add_modifier("for", block_name);
-        }
-        
-        // Copy relevant modifiers from the original block
-        for (key, value) in &original_block.modifiers {
-            if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
-                println!("DEBUG: Copying modifier: {}={}", key, value);
-                error_response_block.add_modifier(key, value);
-            }
-        }
-        
-        // Set default format to markdown if not specified
-        if !original_block.modifiers.iter().any(|(k, _)| k == "format") {
-            println!("DEBUG: Setting default format to markdown");
-            error_response_block.add_modifier("format", "markdown");
-        }
-        
-        println!("DEBUG: Final error-response block modifiers: {:?}", error_response_block.modifiers);
-        error_response_block
-    }
-
-    // Generate a response block from a question block
-    pub fn generate_response_block(&self, question_block: &Block, response_text: &str) -> Block {
-        println!("DEBUG: generate_response_block called");
-        println!("DEBUG: Question block name: {:?}", question_block.name);
-        println!("DEBUG: Response text length: {}", response_text.len());
-        
-        let response_name = if let Some(name) = &question_block.name {
-            let name = format!("{}_response", name);
-            println!("DEBUG: Generated response name: {}", name);
-            Some(name)
-        } else {
-            println!("DEBUG: No name for question block, response will be unnamed");
-            None
-        };
-        
-        let mut response_block = Block::new("response", response_name.as_deref(), response_text);
-        println!("DEBUG: Created response block with type: {}", response_block.block_type);
-        
-        // Add "for" modifier pointing to the original question block
-        if let Some(block_name) = &question_block.name {
-            println!("DEBUG: Adding 'for' modifier with value: {}", block_name);
-            response_block.add_modifier("for", block_name);
-        }
-        
-        // Copy relevant modifiers from the question block
-        for (key, value) in &question_block.modifiers {
-            if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
-                println!("DEBUG: Copying modifier: {}={}", key, value);
-                response_block.add_modifier(key, value);
-            }
-        }
-        
-        // Set default format to markdown if not specified
-        if !question_block.modifiers.iter().any(|(k, _)| k == "format") {
-            println!("DEBUG: Setting default format to markdown");
-            response_block.add_modifier("format", "markdown");
-        }
-        
-        println!("DEBUG: Final response block modifiers: {:?}", response_block.modifiers);
-        response_block
-    }
-    
-    // Apply trim modifier to results content
-    pub fn apply_trim(&self, block: &Block, content: &str) -> String {
-        if let Some(trim_value) = block.get_modifier("trim") {
-            match trim_value.as_str() {
-                "true" | "yes" | "1" => return content.trim().to_string(),
-                "start" | "left" => return content.trim_start().to_string(),
-                "end" | "right" => return content.trim_end().to_string(),
-                "lines" => {
-                    // Trim each line individually
-                    return content.lines()
-                        .map(|line| line.trim())
-                        .collect::<Vec<&str>>()
-                        .join("\n");
-                }
-                _ => {}
-            }
-        }
-        
-        content.to_string()
-    }
-    
-    // Apply max_lines modifier to results content
-    pub fn apply_max_lines(&self, block: &Block, content: &str) -> String {
-        if let Some(max_lines_str) = block.get_modifier("max_lines") {
-            if let Ok(max_lines) = max_lines_str.parse::<usize>() {
-                if max_lines > 0 {
-                    let lines: Vec<&str> = content.lines().collect();
-                    if lines.len() > max_lines {
-                        let mut result = lines[..max_lines].join("\n");
-                        
-                        // Add ellipsis indicator if truncated
-                        if let Some(ellipsis) = block.get_modifier("ellipsis") {
-                            result.push_str(&format!("\n{}", ellipsis));
-                        } else {
-                            result.push_str("\n...");
-                        }
-                        
-                        return result;
-                    }
-                }
-            }
-        }
-        
-        content.to_string()
-    }
-    
-    // Process results content with all applicable modifiers
-    pub fn process_results_content(&self, block: &Block, content: &str) -> String {
-        // Apply modifiers in sequence
-        let trimmed = self.apply_trim(block, content);
-        let truncated = self.apply_max_lines(block, &trimmed);
-        
-        // Apply additional formatting based on modifiers
-        if let Some(format_type) = block.get_modifier("format") {
-            match format_type.as_str() {
-                "json" => {
-                    // Try to pretty-print JSON if requested
-                    if block.has_modifier("pretty") {
-                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&truncated) {
-                            if let Ok(pretty) = serde_json::to_string_pretty(&parsed) {
-                                return pretty;
-                            }
-                        }
-                    }
-                }
-                // Add other format-specific processing as needed
-                _ => {}
-            }
-        }
-        
-        truncated
-    }
-    
-    
-    // Update document with execution results
-    pub fn update_document(&self) -> Result<String, ExecutorError> {
-        // This is a simplified version - a real implementation would be more sophisticated
-        // to properly handle block updates without losing formatting
-        
-        println!("DEBUG: update_document called");
-        println!("DEBUG: Current document length: {}", self.current_document.len());
-        println!("DEBUG: Number of outputs: {}", self.outputs.len());
-        
-        // Set environment variables to control variable reference processing
-        std::env::set_var("LLM_PROCESS_REFS_IN_EXECUTOR", "1");
-        std::env::remove_var("LLM_PRESERVE_REFS");
-        
-        // Check if the document contains any limit modifiers
-        let contains_limit_modifier = self.current_document.contains("${") && 
-                                     self.current_document.contains(":limit=");
-        
-        let mut updated_doc = self.current_document.clone();
-        
-        if contains_limit_modifier {
-            println!("DEBUG: Document contains limit modifiers, ensuring they are processed");
-            // Process the document to handle limit modifiers specifically
-            updated_doc = self.process_variable_references(&self.current_document);
-            println!("DEBUG: Processed document for limit modifiers, new length: {}", updated_doc.len());
-        }
-        
-        // Debug: Print all outputs
-        println!("DEBUG: All outputs:");
-        for (k, v) in &self.outputs {
-            println!("DEBUG:   '{}' => '{}' (length: {})", k, 
-                     if v.len() > 30 { &v[..30] } else { v }, v.len());
-        }
-        
-        // Process any reference blocks in the document
-        // First, let's check if there are any reference blocks in the document
-        let contains_references = updated_doc.contains("<meta:reference");
-        
-        if contains_references {
-            println!("DEBUG: Document contains reference elements, replacing them with content");
-            
-            // Get all blocks that are references
-            let reference_blocks: Vec<(String, &Block)> = self.blocks.iter()
-                .filter(|(_, b)| b.block_type == "reference")
-                .map(|(n, b)| (n.clone(), b))
-                .collect();
-            
-            // Process each reference block
-            for (name, block) in reference_blocks {
-                if let Some(target) = block.get_modifier("target") {
-                    // Look for a specific reference tag pattern
-                    let reference_pattern = format!("<meta:reference[^>]*target=\"{}\"[^>]*/>", regex::escape(target));
-                    
-                    // Create a regex to find this pattern
-                    if let Ok(re) = regex::Regex::new(&reference_pattern) {
-                        // Get the content to replace with
-                        if let Some(content) = self.outputs.get(&name) {
-                            println!("DEBUG: Replacing reference to '{}' with content (length: {})", target, content.len());
-                            
-                            // Replace the reference tag with the content
-                            updated_doc = re.replace_all(&updated_doc, content).to_string();
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Debug: Print the current state of outputs after processing
-        self.debug_print_outputs("AFTER PROCESSING");
-        if updated_doc.contains("<meta:") {
-            println!("DEBUG: Detected XML document, updating <meta:results> blocks.");
-            for (name, output) in &self.outputs {
-                let double_quote_pattern = format!(r#"(?s)(<meta:code[^>]*name\s*=\s*"{}"[^>]*>.*?</meta:code>)"#, regex::escape(name));
-                let mut found_match = false;
-                if let Ok(re_double) = regex::Regex::new(&double_quote_pattern) {
-                    let new_doc = re_double.replace_all(&updated_doc, |caps: &regex::Captures| {
-                        let code_block = caps.get(1).unwrap().as_str();
-                        let re_results = regex::Regex::new(&format!(r#"(?s)(<meta:results\s+name=["']{}_results["']\s+for=["']{}["'][^>]*><!\[CDATA\[).*?(]]></meta:results>)"#, regex::escape(name), regex::escape(name))).unwrap();
-                        if re_results.is_match(code_block) {
-                            re_results.replace_all(code_block, |caps: &regex::Captures| {
-                                format!("{}{}{}", &caps[1], output, &caps[2])
-                            }).to_string()
-                        } else {
-                            format!("{}<meta:results name='{}_results' for='{}'><![CDATA[{}]]></meta:results>", code_block, name, name, output)
-                        }
-                    }).to_string();
-                    if new_doc != updated_doc {
-                        updated_doc = new_doc;
-                        found_match = true;
-                    }
-                } else {
-                    println!("DEBUG: Regex error for double quote pattern");
-                }
-                if !found_match {
-                    let single_quote_pattern = format!(r#"(?s)(<meta:code[^>]*name\s*=\s*'{}'[^>]*>.*?</meta:code>)"#, regex::escape(name));
-                    if let Ok(re_single) = regex::Regex::new(&single_quote_pattern) {
-                        updated_doc = re_single.replace_all(&updated_doc, |caps: &regex::Captures| {
-                            let code_block = caps.get(1).unwrap().as_str();
-                            let re_results = regex::Regex::new(&format!(r#"(?s)(<meta:results\s+name=["']{}_results["']\s+for=["']{}["'][^>]*><!\[CDATA\[).*?(]]></meta:results>)"#, regex::escape(name), regex::escape(name))).unwrap();
-                            if re_results.is_match(code_block) {
-                                re_results.replace_all(code_block, |caps: &regex::Captures| {
-                                    format!("{}{}{}", &caps[1], output, &caps[2])
-                                }).to_string()
-                            } else {
-                                format!("{}<meta:results name='{}_results' for='{}'><![CDATA[{}]]></meta:results>", code_block, name, name, output)
-                            }
-                        }).to_string();
-                    } else {
-                        println!("DEBUG: Regex error for single quote pattern");
-                    }
-                }
-            }
-            println!("DEBUG: Updated XML document with <meta:results> blocks. New length: {}", updated_doc.len());
-            return Ok(updated_doc);
-        }
-        
-        // Replace response blocks with execution results
-        for (name, output) in &self.outputs {
-            println!("DEBUG: Processing output for '{}' (length: {})", name, output.len());
-            
-            // Very simple replacement - in a real implementation, this would be more robust
-            let response_marker = format!("[response for:{}]", name);
-            let response_replacement = format!("[response for:{}]\n{}\n[/response]", name, output);
-            
-            println!("DEBUG: Looking for marker: '{}'", response_marker);
-            let marker_count = updated_doc.matches(&response_marker).count();
-            println!("DEBUG: Found {} instances of marker", marker_count);
-            
-            updated_doc = updated_doc.replace(&response_marker, &response_replacement);
-            
-            // Handle error-response markers
-            let error_response_marker = format!("[error-response for:{}]", name);
-            if updated_doc.contains(&error_response_marker) {
-                let error_response_replacement = format!("[error-response for:{}]\n{}\n[/error-response]", name, output);
-                println!("DEBUG: Looking for error-response marker: '{}'", error_response_marker);
-                updated_doc = updated_doc.replace(&error_response_marker, &error_response_replacement);
-            }
-            
-            // Also handle question-response pairs
-            if name.ends_with("_response") {
-                let question_name = name.trim_end_matches("_response");
-                println!("DEBUG: Found response for question: '{}'", question_name);
-                
-                let question_response_marker = format!("[response for:{}]", question_name);
-                let question_response_replacement = format!("[response for:{}]\n{}\n[/response]", question_name, output);
-                
-                println!("DEBUG: Looking for question marker: '{}'", question_response_marker);
-                let q_marker_count = updated_doc.matches(&question_response_marker).count();
-                println!("DEBUG: Found {} instances of question marker", q_marker_count);
-                
-                updated_doc = updated_doc.replace(&question_response_marker, &question_response_replacement);
-            }
-            // Handle error-response for question blocks
-            else if name.ends_with("_error_response") {
-                let block_name = name.trim_end_matches("_error_response");
-                println!("DEBUG: Found error-response for block: '{}'", block_name);
-                
-                let error_response_marker = format!("[error-response for:{}]", block_name);
-                let error_response_replacement = format!("[error-response for:{}]\n{}\n[/error-response]", block_name, output);
-                
-                println!("DEBUG: Looking for error-response marker: '{}'", error_response_marker);
-                updated_doc = updated_doc.replace(&error_response_marker, &error_response_replacement);
-            }
-        }
-        
-        // Check if the document already contains response blocks
-        let has_response_block = updated_doc.contains("[response]") || updated_doc.contains("[/response]") ||
-                                updated_doc.contains("<meta:response") || updated_doc.contains("</meta:response>") ||
-                                updated_doc.contains("[error-response]") || updated_doc.contains("[/error-response]") ||
-                                updated_doc.contains("<meta:error-response") || updated_doc.contains("</meta:error-response>");
-        println!("DEBUG: Document already contains response blocks: {}", has_response_block);
-        println!("DEBUG: Executor {} has {} outputs available for insertion", 
-                 self.instance_id, self.outputs.len());
-        
-        // If there are already response blocks, don't add new ones
-        if has_response_block {
-            println!("DEBUG: Returning document with existing response blocks");
-            return Ok(updated_doc);
-        }
-        
-        // Handle question blocks by adding response blocks after them
-        println!("DEBUG: Adding response blocks after question blocks");
-        let mut result = String::new();
-        let mut lines = updated_doc.lines().collect::<Vec<_>>();
-        println!("DEBUG: Document has {} lines", lines.len());
-        
-        // First pass: identify question blocks and their names
-        let mut question_blocks = Vec::new();
-        let mut current_question_name = None;
-        let mut in_question_block = false;
-        
-        for (i, line) in lines.iter().enumerate() {
-            let trimmed = line.trim();
-            
-            // Check for question block start with name attribute - handle both XML and markdown formats
-            if trimmed.starts_with("[question") || trimmed.starts_with("<meta:question") || trimmed.starts_with("<question") {
-                in_question_block = true;
-                
-                // Try to extract name from the opening tag
-                if let Some(name_start) = trimmed.find("name:") {
-                    let name_start = name_start + 5; // skip "name:"
-                    // For markdown-style blocks, find the end of the name before any space, bracket or other attribute
-                    let name_end = trimmed[name_start..].find(|c: char| c == ' ' || c == ']' || c == '>')
-                        .map(|pos| name_start + pos)
-                        .unwrap_or(trimmed.len());
-                    
-                    current_question_name = Some(trimmed[name_start..name_end].trim().to_string());
-                    println!("DEBUG: Found question block with name: {:?}", current_question_name);
-                } else if let Some(name_start) = trimmed.find("name=\"") {
-                    let name_start = name_start + 6; // skip "name=\""
-                    // For XML-style blocks, find the closing quote for just the name attribute
-                    let name_end = trimmed[name_start..].find('"')
-                        .map(|pos| name_start + pos)
-                        .unwrap_or(trimmed.len());
-                    
-                    current_question_name = Some(trimmed[name_start..name_end].trim().to_string());
-                    println!("DEBUG: Found question block with XML name attribute: {:?}", current_question_name);
-                }
-            }
-            
-            // Check for question block end - handle both XML and markdown formats
-            if (trimmed == "[/question]" || trimmed == "</meta:question>" || trimmed == "</question>") && in_question_block {
-                in_question_block = false;
-                
-                // Store the question block info
-                if let Some(name) = current_question_name.take() {
-                    question_blocks.push((i, name.clone()));
-                    println!("DEBUG: Recorded question block '{}' ending at line {}", name, i);
-                } else {
-                    println!("DEBUG: Found unnamed question block ending at line {}", i);
-                }
-            }
-        }
-        
-        // Second pass: insert responses after their corresponding question blocks
-        let mut i = 0;
-        let mut response_blocks_added = 0;
-        let mut unnamed_question_count = 0;
-        
-        while i < lines.len() {
-            let line = lines[i];
-            result.push_str(line);
-            result.push('\n');
-            
-            // Check if this is the end of a question block - handle both XML and markdown formats
-            let trimmed_line = line.trim();
-            if trimmed_line == "[/question]" || trimmed_line == "</meta:question>" || trimmed_line == "</question>" {
-                // Check if this is a named question block we identified
-                let named_question_pos = question_blocks.iter().position(|(line_idx, _)| *line_idx == i);
-                
-                // Check if the next line is already a response block
-                let next_is_response = i + 1 < lines.len() && 
-                    (lines[i + 1].trim().starts_with("[response") || 
-                     lines[i + 1].trim().starts_with("<meta:response"));
-                println!("DEBUG: Next line is already a response block: {}", next_is_response);
-                
-                // If there's no response block following, try to add the corresponding one
-                if !next_is_response {
-                    if let Some(pos) = named_question_pos {
-                        // Handle named question block
-                        let (_, question_name) = &question_blocks[pos];
-                        println!("DEBUG: Processing end of named question block '{}' at line {}", question_name, i);
-                        
-                        // Look for a response to this specific question in the outputs
-                        // Try multiple possible formats for the response name
-                        let response_name = format!("{}_response", question_name);
-                        let error_response_name = format!("{}_error_response", question_name);
-                        let response_results_name = format!("{}_results", question_name);
-                        let response_dot_results_name = format!("{}.results", question_name);
-                        
-                        println!("DEBUG: Looking for response with names: '{}', '{}', '{}', '{}', or '{}'", 
-                                 question_name, response_name, error_response_name, response_results_name, response_dot_results_name);
-                        
-                        // First check for error-response
-                        let error_output = self.outputs.get(&error_response_name);
-                        
-                        if let Some(output) = error_output {
-                            println!("DEBUG: Found matching error-response for '{}' (length: {})", question_name, output.len());
-                            // Insert the error-response block after the question block
-                            // Use the same format (XML or markdown) as the question block
-                            if trimmed_line.starts_with("<") {
-                                // XML format
-                                result.push_str("  <meta:error-response>\n  ");
-                                result.push_str(&output.replace("\n", "\n  ")); // Indent response content
-                                result.push_str("\n  </meta:error-response>\n\n");
-                            } else {
-                                // Markdown format
-                                result.push_str("[error-response]\n");
-                                result.push_str(output);
-                                result.push_str("\n[/error-response]\n\n");
-                            }
-                            response_blocks_added += 1;
-                            println!("DEBUG: Added error-response block #{} for question '{}'", response_blocks_added, question_name);
-                        } else {
-                            // Try all possible regular response name formats
-                            let output = self.outputs.get(&response_name)
-                                .or_else(|| self.outputs.get(question_name))
-                                .or_else(|| self.outputs.get(&response_results_name))
-                                .or_else(|| self.outputs.get(&response_dot_results_name));
-                            
-                            if let Some(output) = output {
-                                println!("DEBUG: Found matching response for '{}' (length: {})", question_name, output.len());
-                                // Insert the response block after the question block
-                                // Use the same format (XML or markdown) as the question block
-                                if trimmed_line.starts_with("<") {
-                                    // XML format
-                                    result.push_str("  <meta:response>\n  ");
-                                    result.push_str(&output.replace("\n", "\n  ")); // Indent response content
-                                    result.push_str("\n  </meta:response>\n\n");
-                                } else {
-                                    // Markdown format
-                                    result.push_str("[response]\n");
-                                    result.push_str(output);
-                                    result.push_str("\n[/response]\n\n");
-                                }
-                                response_blocks_added += 1;
-                                println!("DEBUG: Added response block #{} for question '{}'", response_blocks_added, question_name);
-                            } else {
-                                println!("DEBUG: No matching response found for question '{}'", question_name);
-                            }
-                        }
-                    } else {
-                        // Handle unnamed question block
-                        unnamed_question_count += 1;
-                        println!("DEBUG: Processing end of unnamed question block #{} at line {}", unnamed_question_count, i);
-                        
-                        // First check for error-response for unnamed question blocks
-                        if let Some(output) = self.outputs.get("question_error_response") {
-                            println!("DEBUG: Found generic question_error_response (length: {})", output.len());
-                            // Insert the error-response block after the question block
-                            // Use the same format (XML or markdown) as the question block
-                            if trimmed_line.starts_with("<") {
-                                // XML format
-                                result.push_str("  <meta:error-response>\n  ");
-                                result.push_str(&output.replace("\n", "\n  ")); // Indent response content
-                                result.push_str("\n  </meta:error-response>\n\n");
-                            } else {
-                                // Markdown format
-                                result.push_str("[error-response]\n");
-                                result.push_str(output);
-                                result.push_str("\n[/error-response]\n\n");
-                            }
-                            response_blocks_added += 1;
-                            println!("DEBUG: Added error-response block #{} for unnamed question", response_blocks_added);
-                        } 
-                        // For unnamed question blocks, check the generic "question_response" key
-                        else if let Some(output) = self.outputs.get("question_response") {
-                            println!("DEBUG: Found generic question_response (length: {})", output.len());
-                            // Insert the response block after the question block
-                            // Use the same format (XML or markdown) as the question block
-                            if trimmed_line.starts_with("<") {
-                                // XML format
-                                result.push_str("  <meta:response>\n  ");
-                                result.push_str(&output.replace("\n", "\n  ")); // Indent response content
-                                result.push_str("\n  </meta:response>\n\n");
-                            } else {
-                                // Markdown format
-                                result.push_str("[response]\n");
-                                result.push_str(output);
-                                result.push_str("\n[/response]\n\n");
-                            }
-                            response_blocks_added += 1;
-                            println!("DEBUG: Added response block #{} for unnamed question", response_blocks_added);
-                        } else {
-                            println!("DEBUG: No generic question_response found for unnamed question");
-                        }
-                    }
-                }
-            }
-            
-            i += 1;
-        }
-        
-        println!("DEBUG: Found {} named question blocks, {} unnamed question blocks, added {} response blocks", 
-                 question_blocks.len(), unnamed_question_count, response_blocks_added);
-        println!("DEBUG: Final document length: {}", result.len());
-        
-        Ok(result)
-    }
-    
-    pub fn process_variable_references(&self, content: &str) -> String {
-        let mut processed = content.to_string();
-
-        // Process old ${variable} syntax using regex replacement
-        let re_old = regex::Regex::new(r"\$\{([^}]+)\}").unwrap();
-        processed = re_old.replace_all(&processed, |caps: &regex::Captures| {
-            let var = &caps[1];
-            if let Some(value) = self.outputs.get(var) {
-                value.to_string()
-            } else {
-                caps[0].to_string()
-            }
-        }).to_string();
-
-        // Process new <meta:reference .../> tags with target attribute
-        let re = regex::Regex::new(r#"<meta:reference[^>]*target\s*=\s*["']([^"']+)["'][^>]*/>"#).unwrap();
-        processed = re.replace_all(&processed, |caps: &regex::Captures| {
-            let target = &caps[1];
-            if let Some(val) = self.outputs.get(target) {
-                val.to_string()
-            } else {
-                caps[0].to_string()
-            }
-        }).to_string();
-
-        processed
-    }
-    
-    pub fn apply_block_modifiers_to_variable(&self, block_name: &str, content: &str) -> String {
-        if let Some(block) = self.blocks.get(block_name) {
-            let trimmed = self.apply_trim(block, content);
-            let truncated = self.apply_max_lines(block, &trimmed);
-            truncated
-        } else {
-            content.to_string()
-        }
-    }
-    
 }
