@@ -366,7 +366,7 @@ impl MetaLanguageExecutor {
                                     Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
                                         depth -= 1;
                                     }
-                                    Ok(Event::Empty(ref _)) => {
+                                    Ok(Event::Empty(ref _e)) => {
                                         // Empty tag doesn't affect depth
                                     }
                                     Ok(Event::Eof) => break,
