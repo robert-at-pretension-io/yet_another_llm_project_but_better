@@ -100,6 +100,9 @@ impl MetaLanguageExecutor {
     pub fn process_document(&mut self, content: &str) -> Result<(), ExecutorError> {
         println!("DEBUG: Processing document with executor: {}", self.instance_id);
         
+        // Set environment variable to preserve variable references in original block content
+        std::env::set_var("LLM_PRESERVE_REFS", "1");
+        
         // Debug: Print the current state of outputs before processing
         self.debug_print_outputs("BEFORE PROCESSING");
         
@@ -483,6 +486,18 @@ impl MetaLanguageExecutor {
                      if content.len() > 100 { &content[..100] } else { content });
         }
         
+        // Check if we should preserve variable references in original block content
+        // This is determined by environment variable or context
+        let preserve_refs = std::env::var("LLM_PRESERVE_REFS").unwrap_or_default() == "1" || 
+                           std::env::var("LLM_PRESERVE_REFS").unwrap_or_default().to_lowercase() == "true";
+        
+        if preserve_refs {
+            if debug_enabled {
+                println!("DEBUG: Preserving original variable references in block content");
+            }
+            return content.to_string();
+        }
+        
         let result = self.process_variable_references_internal(content, &mut Vec::new());
         
         if debug_enabled && result != content {
@@ -649,7 +664,7 @@ impl MetaLanguageExecutor {
                     processing_vars.pop();
                     
                     // Apply modifiers to the value
-                    self.apply_modifiers_to_variable(&var_name, &processed_value, &modifiers)
+                    self.apply_enhanced_modifiers(&var_name, &processed_value, &modifiers)
                 } else {
                     // Variable not found, check for fallback
                     if let Some(fallback) = modifiers.get("fallback") {
@@ -694,7 +709,7 @@ impl MetaLanguageExecutor {
                     processing_vars.pop();
                     
                     // Apply modifiers to the value
-                    self.apply_modifiers_to_variable(&var_name, &processed_value, &modifiers)
+                    self.apply_enhanced_modifiers(&var_name, &processed_value, &modifiers)
                 } else {
                     // Variable not found, check for fallback
                     if let Some(fallback) = modifiers.get("fallback") {
@@ -964,17 +979,40 @@ impl MetaLanguageExecutor {
     
     // Apply enhanced modifiers to variable values
     fn apply_enhanced_modifiers(&self, var_name: &str, value: &str, modifiers: &HashMap<String, String>) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: apply_enhanced_modifiers for '{}' with {} modifiers", 
+                     var_name, modifiers.len());
+            for (k, v) in modifiers {
+                println!("DEBUG:   '{}' = '{}'", k, v);
+            }
+        }
+        
+        // If there are no modifiers, return the original value
+        if modifiers.is_empty() {
+            return value.to_string();
+        }
+        
         let mut result = value.to_string();
         
         // Apply modifiers in a specific order
         
         // 1. Format modifier
         if let Some(format) = modifiers.get("format") {
+            if debug_enabled {
+                println!("DEBUG: Applying format modifier: {}", format);
+            }
             result = self.apply_format_modifier(&result, format);
         }
         
         // 2. Highlighting
         if let Some(highlight) = modifiers.get("highlight") {
+            if debug_enabled {
+                println!("DEBUG: Applying highlight modifier: {}", highlight);
+            }
+            
             if highlight == "true" {
                 // Auto-detect language
                 if let Some(block) = self.blocks.get(var_name) {
@@ -995,17 +1033,26 @@ impl MetaLanguageExecutor {
         
         // 3. Limit modifier
         if let Some(limit_str) = modifiers.get("limit") {
+            if debug_enabled {
+                println!("DEBUG: Applying limit modifier: {}", limit_str);
+            }
+            
             if let Ok(limit) = limit_str.parse::<usize>() {
                 // Limit by number of lines
                 let lines: Vec<&str> = result.lines().collect();
                 if lines.len() > limit {
                     result = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
+                    result.push_str("\n...(truncated)");
                 }
             }
         }
         
         // 4. Include modifiers for code and results
         if modifiers.get("include_code").map_or(false, |v| v == "true") {
+            if debug_enabled {
+                println!("DEBUG: Applying include_code modifier");
+            }
+            
             // Include the code content
             if let Some(code_block) = self.blocks.get(var_name) {
                 result = code_block.content.clone();
@@ -1013,6 +1060,10 @@ impl MetaLanguageExecutor {
         }
         
         if modifiers.get("include_results").map_or(false, |v| v == "true") {
+            if debug_enabled {
+                println!("DEBUG: Applying include_results modifier");
+            }
+            
             // Include the results for this code block
             let results_key = format!("{}_results", var_name);
             if let Some(results) = self.outputs.get(&results_key) {
@@ -1026,6 +1077,10 @@ impl MetaLanguageExecutor {
         
         // 5. Include sensitive data conditionally
         if let Some(include_condition) = modifiers.get("include_sensitive") {
+            if debug_enabled {
+                println!("DEBUG: Applying include_sensitive modifier: {}", include_condition);
+            }
+            
             // Check if the condition is true
             let include = if include_condition.starts_with("${") && include_condition.ends_with("}") {
                 // This is a variable reference
@@ -1054,6 +1109,10 @@ impl MetaLanguageExecutor {
         
         // 6. Transform modifiers
         if let Some(transform) = modifiers.get("transform") {
+            if debug_enabled {
+                println!("DEBUG: Applying transform modifier: {}", transform);
+            }
+            
             match transform.as_str() {
                 "uppercase" => {
                     result = result.to_uppercase();
@@ -1081,6 +1140,10 @@ impl MetaLanguageExecutor {
         
         // 7. Preview modifier
         if modifiers.get("preview").map_or(false, |v| v == "true") {
+            if debug_enabled {
+                println!("DEBUG: Applying preview modifier");
+            }
+            
             // Create a preview of the content (first few lines or characters)
             let lines: Vec<&str> = result.lines().collect();
             if lines.len() > 5 {
@@ -1092,7 +1155,14 @@ impl MetaLanguageExecutor {
         
         // Apply standard modifiers from the block
         if let Some(block) = self.blocks.get(var_name) {
+            if debug_enabled {
+                println!("DEBUG: Applying standard block modifiers");
+            }
             result = self.apply_modifiers_to_variable(var_name, &result, &HashMap::new());
+        }
+        
+        if debug_enabled {
+            println!("DEBUG: Final result after applying modifiers (length: {})", result.len());
         }
         
         result
@@ -1100,10 +1170,29 @@ impl MetaLanguageExecutor {
     
     // Apply format modifier to content
     fn apply_format_modifier(&self, content: &str, format: &str) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Applying format '{}' to content (length: {})", format, content.len());
+        }
+        
         match format {
             "markdown" => {
+                // Check if content is already in markdown format
+                if content.contains("#") || content.contains("```") || 
+                   content.contains("**") || content.contains("__") {
+                    if debug_enabled {
+                        println!("DEBUG: Content appears to already be in markdown format");
+                    }
+                    return content.to_string();
+                }
+                
                 // Convert JSON to markdown if possible
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                    if debug_enabled {
+                        println!("DEBUG: Converting JSON to markdown");
+                    }
+                    
                     let mut markdown = String::new();
                     
                     if let Some(obj) = json_value.as_object() {
@@ -1114,7 +1203,7 @@ impl MetaLanguageExecutor {
                             match value {
                                 serde_json::Value::Array(arr) => {
                                     markdown.push_str("\n");
-                                    for (i, item) in arr.iter().enumerate() {
+                                    for item in arr.iter() {
                                         markdown.push_str(&format!("- {}\n", item));
                                     }
                                 },
@@ -1130,24 +1219,97 @@ impl MetaLanguageExecutor {
                         }
                     }
                     
-                    markdown.push_str("\nFormat: markdown");
                     return markdown;
                 }
                 
-                // If not JSON, return as-is with format note
-                format!("{}\n\nFormat: markdown", content)
+                // If not JSON, try to format as markdown based on content structure
+                let lines: Vec<&str> = content.lines().collect();
+                
+                // If it looks like a table (contains tab or multiple spaces)
+                if lines.len() > 1 && lines.iter().all(|line| line.contains('\t') || line.contains("  ")) {
+                    if debug_enabled {
+                        println!("DEBUG: Converting tabular data to markdown table");
+                    }
+                    
+                    let mut markdown = String::new();
+                    let mut is_first_line = true;
+                    
+                    for line in lines {
+                        let columns: Vec<&str> = line.split('\t')
+                            .map(|s| s.trim())
+                            .collect();
+                        
+                        // Add columns as markdown table
+                        markdown.push_str("| ");
+                        markdown.push_str(&columns.join(" | "));
+                        markdown.push_str(" |\n");
+                        
+                        // Add separator after header
+                        if is_first_line {
+                            markdown.push_str("| ");
+                            markdown.push_str(&columns.iter()
+                                .map(|_| "---")
+                                .collect::<Vec<&str>>()
+                                .join(" | "));
+                            markdown.push_str(" |\n");
+                            is_first_line = false;
+                        }
+                    }
+                    
+                    return markdown;
+                }
+                
+                // Simple text to markdown conversion
+                let mut markdown = String::new();
+                
+                // Add a title if the first line looks like a title
+                if !lines.is_empty() {
+                    markdown.push_str(&format!("## {}\n\n", lines[0]));
+                    
+                    // Add the rest as paragraphs
+                    let mut in_paragraph = false;
+                    
+                    for line in &lines[1..] {
+                        if line.trim().is_empty() {
+                            if in_paragraph {
+                                markdown.push_str("\n\n");
+                                in_paragraph = false;
+                            }
+                        } else {
+                            markdown.push_str(line);
+                            markdown.push_str(" ");
+                            in_paragraph = true;
+                        }
+                    }
+                } else {
+                    // Just return the content as-is
+                    markdown = content.to_string();
+                }
+                
+                markdown
             },
             "json" => {
                 // Try to format as JSON if it's not already
                 if !content.trim().starts_with('{') && !content.trim().starts_with('[') {
+                    if debug_enabled {
+                        println!("DEBUG: Content doesn't appear to be JSON, returning as-is");
+                    }
                     return content.to_string();
                 }
                 
                 // Try to pretty-print JSON
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                    if debug_enabled {
+                        println!("DEBUG: Pretty-printing JSON");
+                    }
+                    
                     if let Ok(pretty) = serde_json::to_string_pretty(&json_value) {
                         return pretty;
                     }
+                }
+                
+                if debug_enabled {
+                    println!("DEBUG: Failed to parse as JSON, returning as-is");
                 }
                 
                 content.to_string()
@@ -1156,6 +1318,39 @@ impl MetaLanguageExecutor {
             "code" => format!("```\n{}\n```", content),
             "bold" => format!("**{}**", content),
             "italic" => format!("*{}*", content),
+            "html" => {
+                // Convert to HTML if it's markdown or plain text
+                if content.contains("#") || content.contains("```") || 
+                   content.contains("**") || content.contains("__") {
+                    if debug_enabled {
+                        println!("DEBUG: Converting markdown to HTML");
+                    }
+                    
+                    // Simple markdown to HTML conversion
+                    let mut html = String::new();
+                    
+                    for line in content.lines() {
+                        if line.starts_with("# ") {
+                            html.push_str(&format!("<h1>{}</h1>\n", &line[2..]));
+                        } else if line.starts_with("## ") {
+                            html.push_str(&format!("<h2>{}</h2>\n", &line[3..]));
+                        } else if line.starts_with("### ") {
+                            html.push_str(&format!("<h3>{}</h3>\n", &line[4..]));
+                        } else if line.starts_with("- ") {
+                            html.push_str(&format!("<li>{}</li>\n", &line[2..]));
+                        } else if line.trim().is_empty() {
+                            html.push_str("<br>\n");
+                        } else {
+                            html.push_str(&format!("<p>{}</p>\n", line));
+                        }
+                    }
+                    
+                    return html;
+                }
+                
+                // If it's not markdown, wrap in HTML paragraph tags
+                format!("<p>{}</p>", content.replace("\n", "<br>\n"))
+            },
             _ => content.to_string()
         }
     }
@@ -2836,6 +3031,9 @@ impl MetaLanguageExecutor {
         println!("DEBUG: update_document called");
         println!("DEBUG: Current document length: {}", self.current_document.len());
         println!("DEBUG: Number of outputs: {}", self.outputs.len());
+        
+        // Unset environment variable to allow variable references to be processed
+        std::env::remove_var("LLM_PRESERVE_REFS");
         
         // Debug: Print all outputs
         println!("DEBUG: All outputs:");
