@@ -162,12 +162,22 @@ impl MetaLanguageExecutor {
             .map(|(name, _)| name.clone())
             .collect();
         for name in data_block_names {
+            // Get the block content first
+            let content = if let Some(block) = self.blocks.get(&name) {
+                block.content.clone()
+            } else {
+                continue;
+            };
+            
+            // Process the content
+            let processed = self.process_variable_references(&content)?;
+            
+            // Update the block and outputs
             if let Some(block) = self.blocks.get_mut(&name) {
-                let processed = self.process_variable_references(&block.content)?;
                 block.content = processed.clone();
-                self.outputs.insert(name.clone(), processed);
-                println!("DEBUG: Processed data block '{}' variable references", name);
             }
+            self.outputs.insert(name.clone(), processed);
+            println!("DEBUG: Processed data block '{}' variable references", name);
         }
         
         // Restore previous responses that aren't in the current document
