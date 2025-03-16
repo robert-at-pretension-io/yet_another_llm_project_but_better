@@ -3425,9 +3425,14 @@ impl MetaLanguageExecutor {
                 if let Ok(re_double) = regex::Regex::new(&double_quote_pattern) {
                     let new_doc = re_double.replace_all(&updated_doc, |caps: &regex::Captures| {
                         let code_block = caps.get(1).unwrap().as_str();
-                        let cleaned_code = regex::Regex::new(&format!(r#"(?s)<meta:results\s+[^>]*for\s*=\s*["']{}["'][^>]*>.*?</meta:results>"#, regex::escape(name)))
-                            .unwrap().replace_all(code_block, "").to_string();
-                        format!("{}<meta:results name='{}_results' for='{}'><![CDATA[{}]]></meta:results>", cleaned_code, name, name, output)
+                        let re_results = regex::Regex::new(&format!(r#"(?s)(<meta:results\s+name=["']{}_results["']\s+for=["']{}["'][^>]*><!\[CDATA\[).*?(]]></meta:results>)"#, regex::escape(name), regex::escape(name))).unwrap();
+                        if re_results.is_match(code_block) {
+                            re_results.replace_all(code_block, |caps: &regex::Captures| {
+                                format!("{}{}{}", &caps[1], output, &caps[2])
+                            }).to_string()
+                        } else {
+                            format!("{}<meta:results name='{}_results' for='{}'><![CDATA[{}]]></meta:results>", code_block, name, name, output)
+                        }
                     }).to_string();
                     if new_doc != updated_doc {
                         updated_doc = new_doc;
@@ -3441,9 +3446,14 @@ impl MetaLanguageExecutor {
                     if let Ok(re_single) = regex::Regex::new(&single_quote_pattern) {
                         updated_doc = re_single.replace_all(&updated_doc, |caps: &regex::Captures| {
                             let code_block = caps.get(1).unwrap().as_str();
-                            let cleaned_code = regex::Regex::new(&format!(r#"(?s)<meta:results\s+[^>]*for\s*=\s*["']{}["'][^>]*>.*?</meta:results>"#, regex::escape(name)))
-                                .unwrap().replace_all(code_block, "").to_string();
-                            format!("{}<meta:results name='{}_results' for='{}'><![CDATA[{}]]></meta:results>", cleaned_code, name, name, output)
+                            let re_results = regex::Regex::new(&format!(r#"(?s)(<meta:results\s+name=["']{}_results["']\s+for=["']{}["'][^>]*><!\[CDATA\[).*?(]]></meta:results>)"#, regex::escape(name), regex::escape(name))).unwrap();
+                            if re_results.is_match(code_block) {
+                                re_results.replace_all(code_block, |caps: &regex::Captures| {
+                                    format!("{}{}{}", &caps[1], output, &caps[2])
+                                }).to_string()
+                            } else {
+                                format!("{}<meta:results name='{}_results' for='{}'><![CDATA[{}]]></meta:results>", code_block, name, name, output)
+                            }
                         }).to_string();
                     } else {
                         println!("DEBUG: Regex error for single quote pattern");
