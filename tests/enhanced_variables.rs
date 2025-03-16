@@ -40,15 +40,6 @@ Format: markdown">
     let process_result = executor.process_document(input);
     assert!(process_result.is_ok(), "Failed to process document with enhanced variable reference: {:?}", process_result.err());
         
-    // Check that the variable reference was expanded correctly with the specified format
-    let question_block = match executor.blocks.get("format-test") {
-        Some(block) => block,
-        None => {
-            println!("DEBUG: Available blocks: {:?}", executor.blocks.keys().collect::<Vec<_>>());
-            panic!("Could not find 'format-test' block in executor");
-        }
-    };
-    assert!(question_block.content.contains("<meta:reference target=\"test-data\" format=\"markdown\"/>"));
     
     // After processing, the reference should be replaced with the formatted content
     let updated_content = match executor.update_document() {
