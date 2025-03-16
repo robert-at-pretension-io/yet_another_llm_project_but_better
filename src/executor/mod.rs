@@ -869,8 +869,12 @@ impl MetaLanguageExecutor {
         if last_end < content.len() {
             processed_content.push_str(&content[last_end..]);
         }
-        
-        processed_content
+    
+        if processed_content == content {
+            processed_content
+        } else {
+            self.process_variable_references_internal(&processed_content, processing_vars)
+        }
     }
     
     // Parse a variable reference into name and modifiers
