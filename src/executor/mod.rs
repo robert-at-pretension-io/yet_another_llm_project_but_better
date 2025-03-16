@@ -500,9 +500,15 @@ impl MetaLanguageExecutor {
         }
         let mut processed_content = content.to_string();
         if processed_content.contains("<meta:reference") {
-            let xml_ref_re = regex::Regex::new(r#"(?i)<meta:reference\s+[^>]*target\s*=\s*["']([^"']+)["'][^>]*/?>"#).unwrap();
+            let xml_ref_re = regex::Regex::new(r#"(?is)<meta:reference\s+[^>]*target\s*=\s*["']([^"']+)["'][^>]*>(?:.*?)</meta:reference>|<meta:reference\s+[^>]*target\s*=\s*["']([^"']+)["'][^>]*/?>"#).unwrap();
             processed_content = xml_ref_re.replace_all(&processed_content, |caps: &regex::Captures| {
-                let var_name = caps.get(1).unwrap().as_str();
+                let var_name = if let Some(m) = caps.get(1) {
+                    m.as_str()
+                } else if let Some(m2) = caps.get(2) {
+                    m2.as_str()
+                } else {
+                    "UNKNOWN"
+                };
                 match self.lookup_variable(var_name) {
                     Some(val) => val,
                     None => format!("UNDEFINED:{}", var_name)
