@@ -279,19 +279,28 @@ fn main() -> Result<()> {
     
     // Parse command-line arguments
     let args: Vec<String> = env::args().collect();
-    let config = Config::default();
+    let mut config = Config::default();
+    let mut file_path: Option<String> = None;
     
-    // Process file if provided
     if args.len() > 1 {
-        let file_path = &args[1];
-        println!("Processing file: {}", file_path);
+        for arg in &args[1..] {
+            if arg == "--watch" {
+                config.watch_mode = true;
+            } else {
+                file_path = Some(arg.clone());
+            }
+        }
+    }
+    
+    if let Some(file) = file_path {
+        println!("Processing file: {}", file);
         
-        if let Err(e) = process_file(file_path) {
-            eprintln!("Error processing file {}: {}", file_path, e);
+        if let Err(e) = process_file(&file) {
+            eprintln!("Error processing file {}: {}", file, e);
             process::exit(1);
         }
     } else if config.watch_mode {
-        // Start file watcher if no file specified and watch mode is enabled
+        // Start file watcher if --watch flag is provided
         if let Err(e) = start_file_watcher() {
             eprintln!("Error in file watcher: {}", e);
             process::exit(1);
