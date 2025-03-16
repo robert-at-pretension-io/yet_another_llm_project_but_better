@@ -3407,6 +3407,29 @@ impl MetaLanguageExecutor {
         
         // Debug: Print the current state of outputs after processing
         self.debug_print_outputs("AFTER PROCESSING");
+        if updated_doc.contains("<meta:") {
+            println!("DEBUG: Detected XML document, updating <meta:results> blocks.");
+            for (name, output) in &self.outputs {
+                let regex_pattern = format!(r"(?s)(<meta:code[^>]*name=\"{}\"[^>]*>.*?</meta:code>)", regex::escape(name));
+                match regex::Regex::new(&regex_pattern) {
+                    Ok(re) => {
+                        updated_doc = re.replace_all(&updated_doc, |caps: &regex::Captures| {
+                            let code_block = caps.get(1).unwrap().as_str();
+                            if code_block.contains(&format!("<meta:results for=\"{}\"", name)) {
+                                code_block.to_string()
+                            } else {
+                                format!("{}<meta:results for=\"{}\"><![CDATA[{}]]></meta:results>", code_block, name, output)
+                            }
+                        }).to_string();
+                    },
+                    Err(e) => {
+                        println!("DEBUG: Regex error: {}", e);
+                    }
+                }
+            }
+            println!("DEBUG: Updated XML document with <meta:results> blocks. New length: {}", updated_doc.len());
+            return Ok(updated_doc);
+        }
         
         // Replace response blocks with execution results
         for (name, output) in &self.outputs {
