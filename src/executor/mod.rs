@@ -379,6 +379,10 @@ impl MetaLanguageExecutor {
                 let results_key = format!("{}_results", name);
                 self.outputs.insert(results_key, output.clone());
                 
+                if let Some(b) = self.blocks.get_mut(name) {
+                    b.content = output.clone();
+                }
+                
                 if debug_enabled {
                     println!("DEBUG: Block '{}' executed successfully, output length: {}", 
                              name, output.len());
