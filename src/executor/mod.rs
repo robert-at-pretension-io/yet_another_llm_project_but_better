@@ -282,7 +282,7 @@ impl MetaLanguageExecutor {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
                     // Process meta:reference tag
                     let mut target = None;
-                    
+        
                     // Extract the target attribute
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
@@ -290,20 +290,64 @@ impl MetaLanguageExecutor {
                             target = Some(String::from_utf8_lossy(&attr.value).to_string());
                         }
                     }
-                    
+        
                     if let Some(target_str) = target {
                         println!("DEBUG: Found reference tag with target: {}", target_str);
-                        
+        
                         // Look up the target in outputs
                         if let Some(value) = self.outputs.get(&target_str) {
                             println!("DEBUG: Found target '{}' in outputs, length: {}", target_str, value.len());
                             // Write the value instead of the reference tag
                             writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
+        
+                            // Skip to the closing tag
+                            let mut depth = 1;
+                            while depth > 0 {
+                                match reader.read_event_into(&mut buf) {
+                                    Ok(Event::Start(ref _e)) if _e.name().as_ref() == b"meta:reference" => {
+                                        depth += 1;
+                                    },
+                                    Ok(Event::End(ref _e)) if _e.name().as_ref() == b"meta:reference" => {
+                                        depth -= 1;
+                                    },
+                                    Ok(Event::Empty(ref _e)) if _e.name().as_ref() == b"meta:reference" => {
+                                        // Empty tag doesn't affect depth
+                                    },
+                                    Ok(Event::Eof) => break,
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        return Err(ExecutorError::XmlParsingError(e));
+                                    },
+                                }
+                                buf.clear();
+                            }
                         } else {
                             println!("DEBUG: Target '{}' not found in outputs", target_str);
-                            // Replace with placeholder instead of preserving the original tag
+                            // Target not found, insert a placeholder
                             let placeholder = format!("${{{}}}", target_str);
                             writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
+        
+                            // Skip to the closing tag
+                            let mut depth = 1;
+                            while depth > 0 {
+                                match reader.read_event_into(&mut buf) {
+                                    Ok(Event::Start(ref _e)) if _e.name().as_ref() == b"meta:reference" => {
+                                        depth += 1;
+                                    },
+                                    Ok(Event::End(ref _e)) if _e.name().as_ref() == b"meta:reference" => {
+                                        depth -= 1;
+                                    },
+                                    Ok(Event::Empty(ref _e)) if _e.name().as_ref() == b"meta:reference" => {
+                                        // Empty tag doesn't affect depth
+                                    },
+                                    Ok(Event::Eof) => break,
+                                    Ok(_) => {},
+                                    Err(e) => {
+                                        return Err(ExecutorError::XmlParsingError(e));
+                                    },
+                                }
+                                buf.clear();
+                            }
                         }
                     } else {
                         println!("DEBUG: Reference tag missing target attribute");
@@ -315,7 +359,7 @@ impl MetaLanguageExecutor {
                 Ok(Event::Empty(ref e)) if e.name().as_ref() == b"meta:reference" => {
                     // Process self-closing meta:reference tag
                     let mut target = None;
-                    
+        
                     // Extract the target attribute
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
@@ -323,10 +367,10 @@ impl MetaLanguageExecutor {
                             target = Some(String::from_utf8_lossy(&attr.value).to_string());
                         }
                     }
-                    
+        
                     if let Some(target_str) = target {
                         println!("DEBUG: Found self-closing reference tag with target: {}", target_str);
-                        
+        
                         // Look up the target in outputs
                         if let Some(value) = self.outputs.get(&target_str) {
                             println!("DEBUG: Found target '{}' in outputs, length: {}", target_str, value.len());
@@ -334,7 +378,7 @@ impl MetaLanguageExecutor {
                             writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
                         } else {
                             println!("DEBUG: Target '{}' not found in outputs", target_str);
-                            // Replace with placeholder instead of preserving the original tag
+                            // Target not found, insert a placeholder
                             let placeholder = format!("${{{}}}", target_str);
                             writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
                         }
@@ -355,7 +399,7 @@ impl MetaLanguageExecutor {
                     return Err(ExecutorError::XmlParsingError(e));
                 },
             }
-            
+        
             buf.clear();
         }
         
