@@ -677,7 +677,12 @@ impl MetaLanguageExecutor {
                     processing_vars.pop();
                     
                     // Apply modifiers to the value
-                    self.apply_enhanced_modifiers(&var_name, &processed_value, &modifiers)
+                    let modified_value = self.apply_enhanced_modifiers(&var_name, &processed_value, &modifiers);
+                    if debug_enabled && processed_value != modified_value {
+                        println!("DEBUG: Applied modifiers to value. Original length: {}, Modified length: {}", 
+                                 processed_value.len(), modified_value.len());
+                    }
+                    modified_value
                 } else {
                     // Variable not found, check for fallback
                     if let Some(fallback) = modifiers.get("fallback") {
@@ -1115,8 +1120,15 @@ impl MetaLanguageExecutor {
                 // Limit by number of lines
                 let lines: Vec<&str> = result.lines().collect();
                 if lines.len() > limit {
+                    if debug_enabled {
+                        println!("DEBUG: Limiting from {} lines to {} lines", lines.len(), limit);
+                    }
                     result = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
                     result.push_str("\n...(truncated)");
+                    
+                    if debug_enabled {
+                        println!("DEBUG: After limiting, result has {} lines", result.lines().count());
+                    }
                 }
             }
         }
@@ -2242,8 +2254,15 @@ impl MetaLanguageExecutor {
         
         // 3. Apply limit modifier to truncate content
         if let Some(limit_str) = modifiers.get("limit") {
+            if debug_enabled {
+                println!("DEBUG: Applying limit modifier: {}", limit_str);
+            }
+            
             if let Ok(limit) = limit_str.parse::<usize>() {
                 result = self.apply_limit(&result, limit);
+                if debug_enabled {
+                    println!("DEBUG: After applying limit {}, result length: {}", limit, result.len());
+                }
             }
         }
         
