@@ -560,11 +560,13 @@ impl MetaLanguageExecutor {
             file.flush().map_err(|e| ExecutorError::IoError(e))?;
         }
         
-        // Execute the Python file and capture its output
-        let output = Command::new("python")
+        // Execute the Python file and capture its output using python3
+        println!("DEBUG: Executing Python file using python3 at {:?}", tmp_path);
+        let output = Command::new("python3")
             .arg(&tmp_path)
             .output()
             .map_err(|e| ExecutorError::IoError(e))?;
+        println!("DEBUG: Python execution completed with status: {:?}", output.status);
         
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).to_string())
