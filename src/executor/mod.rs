@@ -497,6 +497,21 @@ impl MetaLanguageExecutor {
             println!("DEBUG: Processing variable references in: '{}'", 
                      if content.len() > 100 { &content[..100] } else { content });
         }
+        let mut processed_content = content.to_string();
+        if processed_content.contains("<meta:reference") {
+            let xml_ref_re = regex::Regex::new(r#"<meta:reference\s+[^>]*target\s*=\s*["']([^"']+)["'][^>]*/?>"#).unwrap();
+            processed_content = xml_ref_re.replace_all(&processed_content, |caps: &regex::Captures| {
+                let var_name = caps.get(1).unwrap().as_str();
+                match self.lookup_variable(var_name) {
+                    Some(val) => val,
+                    None => format!("${{UNDEFINED:{}}}", var_name)
+                }
+            }).to_string();
+            if debug_enabled {
+                println!("DEBUG: Processed XML reference, new content: '{}'", 
+                    if processed_content.len() > 100 { &processed_content[..100] } else { &processed_content });
+            }
+        }
         
         // Check if we should preserve variable references in original block content
         // This is determined by environment variable or context
@@ -514,7 +529,7 @@ impl MetaLanguageExecutor {
                                        content.contains(":highlight"));
         
         // Special handling for limit modifier - we want to process this even if other modifiers are preserved
-        let contains_limit_modifier = content.contains("${") && content.contains(":limit=");
+        let contains_limit_modifier = processed_content.contains("${") && processed_content.contains(":limit=");
         
         if debug_enabled && contains_limit_modifier {
             println!("DEBUG: Content contains limit modifier: {}", content);
@@ -523,8 +538,8 @@ impl MetaLanguageExecutor {
         // Always process limit modifiers, even if other modifiers would normally be preserved
         if contains_limit_modifier {
             // Process only limit modifiers, preserving other modifiers
-            let result = self.process_limit_modifiers_only(content);
-            if result != content {
+            let result = self.process_limit_modifiers_only(&processed_content);
+            if result != processed_content {
                 return result;
             }
         }
@@ -537,10 +552,10 @@ impl MetaLanguageExecutor {
                     println!("DEBUG: Content contains format modifiers that should be preserved");
                 }
             }
-            return content.to_string();
+            return processed_content.to_string();
         }
         
-        let result = self.process_variable_references_internal(content, &mut Vec::new());
+        let result = self.process_variable_references_internal(&processed_content, &mut Vec::new());
         
         if debug_enabled && result != content {
             println!("DEBUG: Variable references resolved. Result: '{}'", 
