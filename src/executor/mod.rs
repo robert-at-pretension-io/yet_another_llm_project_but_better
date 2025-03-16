@@ -780,8 +780,12 @@ impl MetaLanguageExecutor {
                     println!("Processed nested variable reference: '{}' -> '{}'", var_ref, processed_var_ref);
                 }
                 
-                // Extract variable name and modifiers from the processed reference
-                let (var_name, modifiers) = self.parse_variable_reference(&processed_var_ref);
+                // Extract variable name and modifiers from the processed reference after trimming whitespace
+                let trimmed_var = processed_var_ref.trim();
+                let (var_name, modifiers) = self.parse_variable_reference(trimmed_var);
+                if debug_enabled {
+                    println!("DEBUG: Extracted nested variable name: '{}'", var_name);
+                }
                 
                 // Check for circular references
                 if processing_vars.contains(&var_name) {
@@ -834,8 +838,12 @@ impl MetaLanguageExecutor {
                 last_end = whole_match.end();
             } else {
                 // No nested references, process normally
-                // Extract variable name and modifiers
-                let (var_name, modifiers) = self.parse_variable_reference(var_ref);
+                // Extract variable name and modifiers after trimming whitespace
+                let trimmed_var = var_ref.trim();
+                let (var_name, modifiers) = self.parse_variable_reference(trimmed_var);
+                if debug_enabled {
+                    println!("DEBUG: Extracted variable name: '{}'", var_name);
+                }
                 
                 // Check for circular references
                 if processing_vars.contains(&var_name) {
