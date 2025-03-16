@@ -3410,10 +3410,28 @@ impl MetaLanguageExecutor {
         if updated_doc.contains("<meta:") {
             println!("DEBUG: Detected XML document, updating <meta:results> blocks.");
             for (name, output) in &self.outputs {
-                let regex_pattern = format!(r"(?s)(<meta:code[^>]*name\s*=\s*(?:'{}'|\"{}\")[^>]*>.*?</meta:code>)", regex::escape(name), regex::escape(name));
-                match regex::Regex::new(&regex_pattern) {
-                    Ok(re) => {
-                        updated_doc = re.replace_all(&updated_doc, |caps: &regex::Captures| {
+                let double_quote_pattern = format!(r#"(?s)(<meta:code[^>]*name\s*=\s*"{}"[^>]*>.*?</meta:code>)"#, regex::escape(name));
+                let mut found_match = false;
+                if let Ok(re_double) = regex::Regex::new(&double_quote_pattern) {
+                    let new_doc = re_double.replace_all(&updated_doc, |caps: &regex::Captures| {
+                        let code_block = caps.get(1).unwrap().as_str();
+                        if code_block.contains(&format!("<meta:results for=\"{}\"", name)) {
+                            code_block.to_string()
+                        } else {
+                            format!("{}<meta:results for=\"{}\"><![CDATA[{}]]></meta:results>", code_block, name, output)
+                        }
+                    }).to_string();
+                    if new_doc != updated_doc {
+                        updated_doc = new_doc;
+                        found_match = true;
+                    }
+                } else {
+                    println!("DEBUG: Regex error for double quote pattern");
+                }
+                if !found_match {
+                    let single_quote_pattern = format!(r#"(?s)(<meta:code[^>]*name\s*=\s*'{}'[^>]*>.*?</meta:code>)"#, regex::escape(name));
+                    if let Ok(re_single) = regex::Regex::new(&single_quote_pattern) {
+                        updated_doc = re_single.replace_all(&updated_doc, |caps: &regex::Captures| {
                             let code_block = caps.get(1).unwrap().as_str();
                             if code_block.contains(&format!("<meta:results for=\"{}\"", name)) {
                                 code_block.to_string()
@@ -3421,9 +3439,8 @@ impl MetaLanguageExecutor {
                                 format!("{}<meta:results for=\"{}\"><![CDATA[{}]]></meta:results>", code_block, name, output)
                             }
                         }).to_string();
-                    },
-                    Err(e) => {
-                        println!("DEBUG: Regex error: {}", e);
+                    } else {
+                        println!("DEBUG: Regex error for single quote pattern");
                     }
                 }
             }
