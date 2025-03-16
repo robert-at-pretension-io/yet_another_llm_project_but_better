@@ -1346,15 +1346,28 @@ impl MetaLanguageExecutor {
     }
     
     pub fn process_variable_references(&self, content: &str) -> String {
-        // Use extract_variable_references to find variable references in the content.
-        let refs = extract_variable_references(content);
         let mut processed = content.to_string();
+
+        // Process old ${variable} syntax
+        let refs = extract_variable_references(content);
         for var in refs {
-            // Replace ${var} with value from outputs if present.
             if let Some(value) = self.outputs.get(&var) {
                 processed = processed.replace(&format!("${{{}}}", var), value);
             }
         }
+
+        // Process new <meta:reference .../> tags with target attribute
+        let re = regex::Regex::new(r#"<meta:reference[^>]*target\s*=\s*["']([^"']+)["'][^>]*/>"#).unwrap();
+        processed = re.replace_all(&processed, |caps: &regex::Captures| {
+            let target = &caps[1];
+            if let Some(val) = self.outputs.get(target) {
+                val.to_string()
+            } else {
+                // If target not found, leave the tag unchanged
+                caps[0].to_string()
+            }
+        }).to_string();
+
         processed
     }
     
