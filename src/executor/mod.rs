@@ -255,68 +255,54 @@ impl MetaLanguageExecutor {
         let mut result = String::new();
         loop {
             match reader.read_event(&mut buf) {
-                Ok(Event::Start(ref e)) => {
-                    if e.name() == b"meta:reference" {
-                        let mut target_value = None;
-                        for attr in e.attributes() {
-                            if let Ok(attr) = attr {
-                                if attr.key == b"target" {
-                                    target_value = Some(attr.unescaped_value().unwrap_or_default());
-                                    break;
-                                }
+                Ok(Event::Start(ref e)) if e.name() == b"meta:reference" => {
+                    let mut target = None;
+                    for attr in e.attributes() {
+                        if let Ok(attr) = attr {
+                            if attr.key == b"target" {
+                                target = Some(attr.unescape_and_decode_value(&reader).unwrap_or_default());
+                                break;
                             }
                         }
-                        if let Some(val) = target_value {
-                            let var_name = String::from_utf8_lossy(&val).to_string();
-                            let replacement = match self.lookup_variable(&var_name) {
-                                Some(v) => v,
-                                None => format!("UNDEFINED:{}", var_name),
-                            };
-                            result.push_str(&replacement);
-                        }
-                        if !e.is_empty() {
-                            loop {
-                                match reader.read_event(&mut buf) {
-                                    Ok(Event::End(ref e_end)) if e_end.name() == b"meta:reference" => break,
-                                    Ok(_) => {},
-                                    Err(_) => break,
-                                }
-                                buf.clear();
+                    }
+                    if let Some(var_name) = target {
+                        let replacement = self.lookup_variable(&var_name)
+                            .unwrap_or_else(|| format!("UNDEFINED:{}", var_name));
+                        result.push_str(&replacement);
+                    }
+                    if !e.is_empty() {
+                        loop {
+                            match reader.read_event(&mut buf) {
+                                Ok(Event::End(ref e_end)) if e_end.name() == b"meta:reference" => break,
+                                Ok(_) => {},
+                                Err(_) => break,
                             }
+                            buf.clear();
                         }
-                    } else {
-                        result.push_str(&String::from_utf8_lossy(e.to_owned().as_ref()));
                     }
                 },
-                Ok(Event::Empty(ref e)) => {
-                    if e.name() == b"meta:reference" {
-                        let mut target_value = None;
-                        for attr in e.attributes() {
-                            if let Ok(attr) = attr {
-                                if attr.key == b"target" {
-                                    target_value = Some(attr.unescaped_value().unwrap_or_default());
-                                    break;
-                                }
+                Ok(Event::Empty(ref e)) if e.name() == b"meta:reference" => {
+                    let mut target = None;
+                    for attr in e.attributes() {
+                        if let Ok(attr) = attr {
+                            if attr.key == b"target" {
+                                target = Some(attr.unescape_and_decode_value(&reader).unwrap_or_default());
+                                break;
                             }
                         }
-                        if let Some(val) = target_value {
-                            let var_name = String::from_utf8_lossy(&val).to_string();
-                            let replacement = match self.lookup_variable(&var_name) {
-                                Some(v) => v,
-                                None => format!("UNDEFINED:{}", var_name),
-                            };
-                            result.push_str(&replacement);
-                        }
-                    } else {
-                        result.push_str(&String::from_utf8_lossy(e.to_owned().as_ref()));
+                    }
+                    if let Some(var_name) = target {
+                        let replacement = self.lookup_variable(&var_name)
+                            .unwrap_or_else(|| format!("UNDEFINED:{}", var_name));
+                        result.push_str(&replacement);
                     }
                 },
                 Ok(Event::Text(e)) => {
                     result.push_str(&e.unescape_and_decode(&reader).unwrap_or_default());
                 },
                 Ok(Event::Eof) => break,
-                Ok(e) => {
-                    if let Ok(text) = std::str::from_utf8(e.as_ref()) {
+                Ok(evt) => {
+                    if let Ok(text) = std::str::from_utf8(evt.to_owned().into_owned().as_ref()) {
                         result.push_str(text);
                     }
                 },
