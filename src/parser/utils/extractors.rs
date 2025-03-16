@@ -137,4 +137,45 @@ fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
         // Return the raw value as a fallback
         pair_str.to_string()
     }
+    
+// Extract variable references from content (variables in the format <meta:reference target="name" />)
+pub fn extract_variable_references(content: &str) -> Vec<String> {
+    let mut references = Vec::new();
+    
+    // We're looking for XML tags like <meta:reference target="name" />
+    // First check if there are any references to extract
+    if !content.contains("<meta:reference") {
+        return references;
+    }
+    
+    // Use a simple string-based approach to extract references
+    let mut start_pos = 0;
+    while let Some(pos) = content[start_pos..].find("<meta:reference") {
+        // Adjust position to be relative to the original string
+        let tag_start = start_pos + pos;
+        
+        // Find the end of this tag
+        if let Some(end_pos) = content[tag_start..].find("/>") {
+            let tag_end = tag_start + end_pos + 2; // +2 for the "/>" itself
+            let tag = &content[tag_start..tag_end];
+            
+            // Extract the target attribute
+            if let Some(target_start) = tag.find("target=\"") {
+                let value_start = target_start + 8; // 8 is the length of 'target="'
+                if let Some(value_end) = tag[value_start..].find('"') {
+                    let target = &tag[value_start..value_start + value_end];
+                    references.push(target.to_string());
+                }
+            }
+            
+            // Move start position for the next iteration
+            start_pos = tag_end;
+        } else {
+            // No end tag found, break the loop
+            break;
+        }
+    }
+    
+    references
+}
 }
