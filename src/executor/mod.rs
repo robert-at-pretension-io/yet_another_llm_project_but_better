@@ -193,15 +193,16 @@ impl MetaLanguageExecutor {
             if let Some(block) = self.blocks.get(&name) {
                 let content = block.content.clone();
                 let processed_content = self.process_variable_references(&content);
+                let is_executable = self.is_executable_block(block);
                 
                 // Only update if content changed
                 if processed_content != content {
-                    if let Some(block) = self.blocks.get_mut(&name) {
-                        block.content = processed_content.clone();
+                    if let Some(block_mut) = self.blocks.get_mut(&name) {
+                        block_mut.content = processed_content.clone();
                     }
                     
                     // Also update outputs for non-executable blocks
-                    if !self.is_executable_block(block) {
+                    if !is_executable {
                         let modified_content = self.apply_block_modifiers_to_variable(&name, &processed_content);
                         self.outputs.insert(name.clone(), modified_content);
                     }
