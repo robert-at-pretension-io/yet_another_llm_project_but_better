@@ -254,7 +254,7 @@ impl MetaLanguageExecutor {
         let mut buf = Vec::new();
         let mut result = String::new();
         loop {
-            match reader.read_event(&mut buf) {
+            match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) if e.name() == b"meta:reference" => {
                     let mut target = None;
                     for attr in e.attributes() {
@@ -272,8 +272,8 @@ impl MetaLanguageExecutor {
                     }
                     if !e.is_empty() {
                         loop {
-                            match reader.read_event(&mut buf) {
-                                Ok(Event::End(ref e_end)) if e_end.name() == b"meta:reference" => break,
+                            match reader.read_event_into(&mut buf) {
+                                Ok(Event::End(ref e_end)) if std::str::from_utf8(e_end.name().as_ref()).unwrap() == "meta:reference" => break,
                                 Ok(_) => {},
                                 Err(_) => break,
                             }
