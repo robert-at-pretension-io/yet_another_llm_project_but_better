@@ -335,8 +335,10 @@ impl MetaLanguageExecutor {
         } else {
             block.content.clone()
         };
-        
+    
+        // Process variable references and conditional blocks
         let processed_content = self.process_variable_references(&block_content);
+        let processed_content = self.process_conditional_blocks(&processed_content);
         
         // Execute based on block type
         let result = match block.block_type.as_str() {
@@ -614,49 +616,104 @@ impl MetaLanguageExecutor {
                 println!("Found variable reference: ${{{}}}", var_ref);
             }
             
-            // Extract variable name and modifiers
-            let (var_name, modifiers) = self.parse_variable_reference(var_ref);
+            // First, check if the variable reference itself contains nested references
+            // Process any nested variable references in the variable reference itself
+            let processed_var_ref = self.process_variable_references_internal(var_ref, &mut processing_vars.clone());
             
-            // Check for circular references
-            if processing_vars.contains(&var_name) {
-                println!("WARNING: Circular reference detected for variable: {}", var_name);
-                processed_content.push_str(&content[last_end..whole_match.start()]);
-                processed_content.push_str(&format!("${{CIRCULAR_REFERENCE:{}}}", var_name));
-                last_end = whole_match.end();
-                continue;
-            }
-            
-            // Look up the variable value
-            let replacement = if let Some(value) = self.lookup_variable(&var_name) {
-                // Add this variable to the processing stack to detect circular references
-                processing_vars.push(var_name.clone());
-                
-                // Process any nested variable references in the value
-                let processed_value = self.process_variable_references_internal(&value, processing_vars);
-                
-                // Remove this variable from the processing stack
-                processing_vars.pop();
-                
-                // Apply modifiers to the value
-                self.apply_modifiers_to_variable(&var_name, &processed_value, &modifiers)
-            } else {
-                // Variable not found, check for fallback
-                if let Some(fallback) = modifiers.get("fallback") {
-                    fallback.clone()
-                } else if let Some(fallback) = self.fallbacks.get(&var_name) {
-                    fallback.clone()
-                } else {
-                    // No fallback specified
-                    if debug_enabled {
-                        println!("Variable not found and no fallback: {}", var_name);
-                    }
-                    format!("${{UNDEFINED:{}}}", var_name)
+            if processed_var_ref != var_ref {
+                if debug_enabled {
+                    println!("Processed nested variable reference: '{}' -> '{}'", var_ref, processed_var_ref);
                 }
-            };
-            
-            processed_content.push_str(&content[last_end..whole_match.start()]);
-            processed_content.push_str(&replacement);
-            last_end = whole_match.end();
+                
+                // Extract variable name and modifiers from the processed reference
+                let (var_name, modifiers) = self.parse_variable_reference(&processed_var_ref);
+                
+                // Check for circular references
+                if processing_vars.contains(&var_name) {
+                    println!("WARNING: Circular reference detected for variable: {}", var_name);
+                    processed_content.push_str(&content[last_end..whole_match.start()]);
+                    processed_content.push_str(&format!("${{CIRCULAR_REFERENCE:{}}}", var_name));
+                    last_end = whole_match.end();
+                    continue;
+                }
+                
+                // Look up the variable value
+                let replacement = if let Some(value) = self.lookup_variable(&var_name) {
+                    // Add this variable to the processing stack to detect circular references
+                    processing_vars.push(var_name.clone());
+                    
+                    // Process any nested variable references in the value
+                    let processed_value = self.process_variable_references_internal(&value, processing_vars);
+                    
+                    // Remove this variable from the processing stack
+                    processing_vars.pop();
+                    
+                    // Apply modifiers to the value
+                    self.apply_modifiers_to_variable(&var_name, &processed_value, &modifiers)
+                } else {
+                    // Variable not found, check for fallback
+                    if let Some(fallback) = modifiers.get("fallback") {
+                        fallback.clone()
+                    } else if let Some(fallback) = self.fallbacks.get(&var_name) {
+                        fallback.clone()
+                    } else {
+                        // No fallback specified
+                        if debug_enabled {
+                            println!("Variable not found and no fallback: {}", var_name);
+                        }
+                        format!("${{UNDEFINED:{}}}", var_name)
+                    }
+                };
+                
+                processed_content.push_str(&content[last_end..whole_match.start()]);
+                processed_content.push_str(&replacement);
+                last_end = whole_match.end();
+            } else {
+                // No nested references, process normally
+                // Extract variable name and modifiers
+                let (var_name, modifiers) = self.parse_variable_reference(var_ref);
+                
+                // Check for circular references
+                if processing_vars.contains(&var_name) {
+                    println!("WARNING: Circular reference detected for variable: {}", var_name);
+                    processed_content.push_str(&content[last_end..whole_match.start()]);
+                    processed_content.push_str(&format!("${{CIRCULAR_REFERENCE:{}}}", var_name));
+                    last_end = whole_match.end();
+                    continue;
+                }
+                
+                // Look up the variable value
+                let replacement = if let Some(value) = self.lookup_variable(&var_name) {
+                    // Add this variable to the processing stack to detect circular references
+                    processing_vars.push(var_name.clone());
+                    
+                    // Process any nested variable references in the value
+                    let processed_value = self.process_variable_references_internal(&value, processing_vars);
+                    
+                    // Remove this variable from the processing stack
+                    processing_vars.pop();
+                    
+                    // Apply modifiers to the value
+                    self.apply_modifiers_to_variable(&var_name, &processed_value, &modifiers)
+                } else {
+                    // Variable not found, check for fallback
+                    if let Some(fallback) = modifiers.get("fallback") {
+                        fallback.clone()
+                    } else if let Some(fallback) = self.fallbacks.get(&var_name) {
+                        fallback.clone()
+                    } else {
+                        // No fallback specified
+                        if debug_enabled {
+                            println!("Variable not found and no fallback: {}", var_name);
+                        }
+                        format!("${{UNDEFINED:{}}}", var_name)
+                    }
+                };
+                
+                processed_content.push_str(&content[last_end..whole_match.start()]);
+                processed_content.push_str(&replacement);
+                last_end = whole_match.end();
+            }
         }
         
         // Add any remaining content
@@ -805,6 +862,13 @@ impl MetaLanguageExecutor {
     
     // Process conditional blocks like ${if:condition_var}content${endif}
     fn process_conditional_blocks(&self, content: &str) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: process_conditional_blocks called with content length: {}", content.len());
+        }
+        
         let mut result = content.to_string();
         
         // Find all conditional blocks
@@ -817,18 +881,81 @@ impl MetaLanguageExecutor {
             let condition_var = captures.get(1).unwrap().as_str();
             let conditional_content = captures.get(2).unwrap().as_str();
             
+            if debug_enabled {
+                println!("DEBUG: Found conditional block with condition: {}", condition_var);
+            }
+            
+            // Process any variable references in the condition itself
+            let processed_condition = self.process_variable_references(condition_var);
+            
+            if debug_enabled && processed_condition != condition_var {
+                println!("DEBUG: Processed condition: '{}' -> '{}'", condition_var, processed_condition);
+            }
+            
             // Evaluate the condition
-            let condition_met = if let Some(value) = self.lookup_variable(condition_var) {
-                value == "true" || value == "1" || value == "yes" || value == "on"
-            } else {
-                false
-            };
+            let condition_met = self.evaluate_condition(&processed_condition);
+            
+            if debug_enabled {
+                println!("DEBUG: Condition '{}' evaluated to: {}", processed_condition, condition_met);
+            }
+            
+            // Process the conditional content for nested variables
+            let processed_content = self.process_variable_references(conditional_content);
             
             // Replace the conditional block based on the condition
             if condition_met {
-                result = result.replace(full_match, conditional_content);
+                if debug_enabled {
+                    println!("DEBUG: Condition met, including content");
+                }
+                result = result.replace(full_match, &processed_content);
             } else {
+                if debug_enabled {
+                    println!("DEBUG: Condition not met, excluding content");
+                }
                 result = result.replace(full_match, "");
+            }
+        }
+        
+        // Also handle else blocks: ${if:condition}content${else}alternative${endif}
+        let if_else_pattern = r"\$\{if:([^}]+)\}(.*?)\$\{else\}(.*?)\$\{endif\}";
+        let re_else = regex::Regex::new(if_else_pattern).unwrap();
+        
+        // Process each if-else block
+        while let Some(captures) = re_else.captures(&result) {
+            let full_match = captures.get(0).unwrap().as_str();
+            let condition_var = captures.get(1).unwrap().as_str();
+            let if_content = captures.get(2).unwrap().as_str();
+            let else_content = captures.get(3).unwrap().as_str();
+            
+            if debug_enabled {
+                println!("DEBUG: Found if-else block with condition: {}", condition_var);
+            }
+            
+            // Process any variable references in the condition itself
+            let processed_condition = self.process_variable_references(condition_var);
+            
+            // Evaluate the condition
+            let condition_met = self.evaluate_condition(&processed_condition);
+            
+            if debug_enabled {
+                println!("DEBUG: If-else condition '{}' evaluated to: {}", processed_condition, condition_met);
+            }
+            
+            // Process both content blocks for nested variables
+            let processed_if_content = self.process_variable_references(if_content);
+            let processed_else_content = self.process_variable_references(else_content);
+            
+            // Replace the conditional block based on the condition
+            if condition_met {
+                if debug_enabled {
+                    println!("DEBUG: If-else condition met, including 'if' content");
+                }
+                result = result.replace(full_match, &processed_if_content);
+            } else {
+                if debug_enabled {
+                    println!("DEBUG: If-else condition not met, including 'else' content");
+                }
+                result = result.replace(full_match, &processed_else_content);
             }
         }
         
@@ -2515,10 +2642,52 @@ impl MetaLanguageExecutor {
             }
         }
         
+        // Handle not equals comparison
+        if condition.contains("!=") {
+            let parts: Vec<&str> = condition.split("!=").collect();
+            if parts.len() == 2 {
+                let left = parts[0].trim();
+                let right = parts[1].trim();
+                
+                // Resolve variables in both sides
+                let left_value = if left.starts_with("${") && left.ends_with("}") {
+                    let var_name = &left[2..left.len()-1];
+                    self.lookup_variable(var_name).unwrap_or_default()
+                } else {
+                    left.to_string()
+                };
+                
+                let right_value = if right.starts_with("${") && right.ends_with("}") {
+                    let var_name = &right[2..right.len()-1];
+                    self.lookup_variable(var_name).unwrap_or_default()
+                } else {
+                    right.to_string()
+                };
+                
+                if debug_enabled {
+                    println!("DEBUG: Comparing '{}' != '{}'", left_value, right_value);
+                }
+                
+                return left_value != right_value;
+            }
+        }
+        
         // Handle variable existence check
         if condition.starts_with("exists:") {
             let var_name = &condition[7..];
             return self.lookup_variable(var_name).is_some();
+        }
+        
+        // Handle empty check
+        if condition.starts_with("empty:") {
+            let var_name = &condition[6..];
+            return self.lookup_variable(var_name).map_or(true, |v| v.trim().is_empty());
+        }
+        
+        // Handle not-empty check
+        if condition.starts_with("not-empty:") {
+            let var_name = &condition[10..];
+            return self.lookup_variable(var_name).map_or(false, |v| !v.trim().is_empty());
         }
         
         // Default: treat as variable name and check if it's truthy
