@@ -2578,7 +2578,8 @@ impl MetaLanguageExecutor {
                     
                     for (pattern, replacement) in &patterns {
                         if let Ok(re) = regex::Regex::new(pattern) {
-                            result = re.replace_all(&result, replacement).to_string();
+                            let replacement_str = replacement.to_string();
+                            result = re.replace_all(&result, |_: &regex::Captures| replacement_str.clone()).to_string();
                         }
                     }
                 }
