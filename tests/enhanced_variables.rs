@@ -195,9 +195,11 @@ id,name,value
     
     // Check that the content is limited to the specified number of lines
     let updated_content = executor.update_document().unwrap();
+    println!("DEBUG TEST: Updated content: {}", updated_content);
     assert!(updated_content.contains("item1"), "Should include first items");
     assert!(updated_content.contains("item5"), "Should include item5");
     assert!(!updated_content.contains("item6"), "Should not include item6 or beyond");
+    assert!(updated_content.contains("...(truncated)"), "Should include truncation indicator");
 }
 
 #[test]

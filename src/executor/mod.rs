@@ -648,7 +648,6 @@ impl MetaLanguageExecutor {
         // Regular expression to find variable references with limit modifier
         let re = regex::Regex::new(r"\$\{([^}]+):limit=(\d+)\}").unwrap();
         
-        let mut result = content.to_string();
         let mut last_end = 0;
         let mut processed_content = String::new();
         
@@ -3388,14 +3387,13 @@ impl MetaLanguageExecutor {
         let contains_limit_modifier = self.current_document.contains("${") && 
                                      self.current_document.contains(":limit=");
         
+        let mut updated_doc = self.current_document.clone();
+        
         if contains_limit_modifier {
             println!("DEBUG: Document contains limit modifiers, ensuring they are processed");
-            // We'll process the document to handle limit modifiers specifically
-            let processed_document = self.process_variable_references(&self.current_document);
-            println!("DEBUG: Processed document for limit modifiers, new length: {}", processed_document.len());
-            
-            // Update the current document with the processed version
-            updated_doc = processed_document;
+            // Process the document to handle limit modifiers specifically
+            updated_doc = self.process_variable_references(&self.current_document);
+            println!("DEBUG: Processed document for limit modifiers, new length: {}", updated_doc.len());
         }
         
         // Debug: Print all outputs
@@ -3407,8 +3405,6 @@ impl MetaLanguageExecutor {
         
         // Debug: Print the current state of outputs after processing
         self.debug_print_outputs("AFTER PROCESSING");
-        
-        let mut updated_doc = self.current_document.clone();
         
         // Replace response blocks with execution results
         for (name, output) in &self.outputs {
