@@ -25,7 +25,7 @@ fn test_enhanced_variable_reference_basic() {
 - Skills: Programming, Data Analysis, Machine Learning
 
 Format: markdown">
-    Here is the data in markdown format: ${test-data:format=markdown}
+    Here is the data in markdown format: <reference target="test-data" format="markdown"/>
     </meta:question>
 </meta:document>"#;
 
@@ -48,7 +48,7 @@ Format: markdown">
             panic!("Could not find 'format-test' block in executor");
         }
     };
-    assert!(question_block.content.contains("${test-data:format=markdown}"));
+    assert!(question_block.content.contains("<reference target=\"test-data\" format=\"markdown\"/>"));
     
     // After processing, the reference should be replaced with the formatted content
     let updated_content = match executor.update_document() {
@@ -84,7 +84,7 @@ fn test_enhanced_variable_reference_include_modifiers() {
 
     <meta:question name="analysis-question" model="gpt-4" test_mode="true" test_response="The analysis approach is straightforward and effective. Using pandas for descriptive statistics is a common practice. The results show good summary statistics that help understand the central tendency and spread of the data.">
     Here is the analysis code and results:
-    ${analysis-code:include_code=true,include_results=true}
+    <reference target="analysis-code" include_code="true" include_results="true"/>
     
     What do you think of this analysis approach?
     </meta:question>
@@ -131,11 +131,11 @@ fn test_enhanced_variable_reference_multiple_modifiers() {
     </meta:results>
 
     <meta:question name="combined-analysis" model="gpt-4" test_mode="true" test_response="The sales data shows a decreasing growth rate trend. While sales are consistently increasing, the percentage growth is declining from 50% to 33.33% to 25% to 20%. This suggests a maturing market with diminishing returns on growth efforts.">
-    Input data: ${input-data:format=json,preview=true}
+    Input data: <reference target="input-data" format="json" preview="true"/>
     
-    Processing code: ${process-code:include_code=true,format=code}
+    Processing code: <reference target="process-code" include_code="true" format="code"/>
     
-    Results: ${process-results:format=plain}
+    Results: <reference target="process-results" format="plain"/>
     
     Analyze the growth trend in these sales figures.
     </meta:question>
@@ -172,11 +172,11 @@ fn test_enhanced_variable_reference_error_handling() {
     </meta:data>
 
     <meta:question name="error-handling-question" model="gpt-4" test_mode="true" test_response="From the available data, I can see that we have a valid JSON object with a name 'Test Data' and a value of 42. The other data points are not available - one because the data source doesn't exist, and another because an invalid format was requested. This demonstrates good error handling with appropriate fallback messages.">
-    Valid data: ${valid-data}
+    Valid data: <reference target="valid-data"/>
     
-    Missing data: ${missing-data:fallback="Data not available"}
+    Missing data: <reference target="missing-data" fallback="Data not available"/>
     
-    Invalid format: ${valid-data:format=invalid_format,fallback="Invalid format requested"}
+    Invalid format: <reference target="valid-data" format="invalid_format" fallback="Invalid format requested"/>
     
     Please analyze the available data.
     </meta:question>
