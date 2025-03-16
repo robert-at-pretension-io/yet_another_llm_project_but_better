@@ -15,6 +15,7 @@ use std::io::Cursor;
 
 use crate::parser::{Block, parse_document, extract_variable_references};
 use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
+use quick_xml::events::attributes::AttrError;
 
 
 // Define error type
@@ -34,6 +35,9 @@ pub enum ExecutorError {
     
     #[error("IO error: {0}")]
     IoError(#[from] io::Error),
+    
+    #[error("XML attribute error: {0}")]
+    XmlAttributeError(#[from] AttrError),
     
     #[error("LLM API error: {0}")]
     LlmApiError(String),
