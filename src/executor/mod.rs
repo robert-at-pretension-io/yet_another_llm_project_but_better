@@ -2443,10 +2443,10 @@ impl MetaLanguageExecutor {
                     
                     // For non-JSON content, try to redact common patterns
                     let patterns = [
-                        (r"password\s*[:=]\s*['\"].*?['\"]", "password: \"[REDACTED]\""),
-                        (r"api[_-]?key\s*[:=]\s*['\"].*?['\"]", "api_key: \"[REDACTED]\""),
-                        (r"secret\s*[:=]\s*['\"].*?['\"]", "secret: \"[REDACTED]\""),
-                        (r"token\s*[:=]\s*['\"].*?['\"]", "token: \"[REDACTED]\""),
+                        ("password\\s*[:=]\\s*['\\\"].*?['\\\"]", "password: \"[REDACTED]\""),
+                        ("api[_-]?key\\s*[:=]\\s*['\\\"].*?['\\\"]", "api_key: \"[REDACTED]\""),
+                        ("secret\\s*[:=]\\s*['\\\"].*?['\\\"]", "secret: \"[REDACTED]\""),
+                        ("token\\s*[:=]\\s*['\\\"].*?['\\\"]", "token: \"[REDACTED]\""),
                     ];
                     
                     for (pattern, replacement) in &patterns {
