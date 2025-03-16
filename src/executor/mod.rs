@@ -745,7 +745,7 @@ impl MetaLanguageExecutor {
                 if debug_enabled {
                     println!("Special handling: treating ${{{}}} as a request for results of block '{}'", var_ref, base);
                 }
-                if let Some(value) = self.outputs.get(&format!("{}_results", base)) {
+                if let Some(value) = self.outputs.get(var_ref) {
                     processed_content.push_str(&content[last_end..whole_match.start()]);
                     processed_content.push_str(value);
                     last_end = whole_match.end();
