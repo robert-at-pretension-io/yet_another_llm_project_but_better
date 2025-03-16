@@ -575,81 +575,113 @@ impl MetaLanguageExecutor {
                             }
                         }
 
-                    if let Some(target_str) = target {
-                        // Look up the target in outputs
-                        if let Some(value) = self.outputs.get(&target_str) {
-                            if debug_enabled {
-                                println!("DEBUG: Found target '{}' in outputs with value: {}", 
-                                    target_str, 
-                                    if value.len() > 100 { 
-                                        format!("{}... (truncated, total length: {})", &value[..100], value.len()) 
-                                    } else { 
-                                        value.clone() 
-                                    }
-                                );
-                            }
-                        
-                            // Apply any modifiers from the source block to the value
-                            let modified_value = self.apply_block_modifiers_to_variable(&target_str, value);
-                        
-                            // Write the value instead of the reference tag
-                            writer.write_event(Event::Text(BytesText::from_escaped(&modified_value)))?;
-                            
-                            // Skip to the closing tag
-                            let mut depth = 1;
-                            while depth > 0 {
-                                match reader.read_event_into(&mut buf) {
-                                    Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                        depth += 1;
-                                    }
-                                    Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                        depth -= 1;
-                                    }
-                                    Ok(Event::Empty(ref _e)) => {
-                                        // Empty tag doesn't affect depth
-                                    }
-                                    Ok(Event::Eof) => break,
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        return Err(ExecutorError::XmlParsingError(e));
-                                    }
-                                }
-                                buf.clear();
-                            }
-                        } else {
-                            if debug_enabled {
-                                println!("DEBUG: Target '{}' not found in outputs, using placeholder", target_str);
-                                println!("DEBUG: Current outputs available:");
-                                for (k, v) in &self.outputs {
-                                    println!("DEBUG:   '{}' => '{}'", k, 
-                                        if v.len() > 30 { 
-                                            format!("{}... (total length: {})", &v[..30], v.len()) 
+                        if let Some(target_str) = target {
+                            // Look up the target in outputs
+                            if let Some(value) = self.outputs.get(&target_str) {
+                                if debug_enabled {
+                                    println!("DEBUG: Found target '{}' in outputs with value: {}", 
+                                        target_str, 
+                                        if value.len() > 100 { 
+                                            format!("{}... (truncated, total length: {})", &value[..100], value.len()) 
                                         } else { 
-                                            v.clone() 
+                                            value.clone() 
                                         }
                                     );
                                 }
+                            
+                                // Apply any modifiers from the source block to the value
+                                let modified_value = self.apply_block_modifiers_to_variable(&target_str, value);
+                            
+                                // Write the value instead of the reference tag
+                                writer.write_event(Event::Text(BytesText::from_escaped(&modified_value)))?;
+                                
+                                // Skip to the closing tag
+                                let mut depth = 1;
+                                while depth > 0 {
+                                    match reader.read_event_into(&mut buf) {
+                                        Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                                            depth += 1;
+                                        }
+                                        Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                                            depth -= 1;
+                                        }
+                                        Ok(Event::Empty(ref _e)) => {
+                                            // Empty tag doesn't affect depth
+                                        }
+                                        Ok(Event::Eof) => break,
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            return Err(ExecutorError::XmlParsingError(e));
+                                        }
+                                    }
+                                    buf.clear();
+                                }
+                            } else {
+                                if debug_enabled {
+                                    println!("DEBUG: Target '{}' not found in outputs, using placeholder", target_str);
+                                    println!("DEBUG: Current outputs available:");
+                                    for (k, v) in &self.outputs {
+                                        println!("DEBUG:   '{}' => '{}'", k, 
+                                            if v.len() > 30 { 
+                                                format!("{}... (total length: {})", &v[..30], v.len()) 
+                                            } else { 
+                                                v.clone() 
+                                            }
+                                        );
+                                    }
+                                }
+                                
+                                // Target not found, insert a placeholder
+                                let placeholder = format!("${{{}}}", target_str);
+                                writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
+                                
+                                // Skip to the closing tag
+                                let mut depth = 1;
+                                while depth > 0 {
+                                    match reader.read_event_into(&mut buf) {
+                                        Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                                            depth += 1;
+                                        }
+                                        Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                                            depth -= 1;
+                                        }
+                                        Ok(Event::Empty(ref _e)) => {
+                                            // Empty tag doesn't affect depth
+                                        }
+                                        Ok(Event::Eof) => break,
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            return Err(ExecutorError::XmlParsingError(e));
+                                        }
+                                    }
+                                    buf.clear();
+                                }
                             }
+                        } else {
+                            // No target attribute, preserve the original tag
+                            writer.write_event(Event::Start(e.to_owned()))?;
                             
-                            // Target not found, insert a placeholder
-                            let placeholder = format!("${{{}}}", target_str);
-                            writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
-                            
-                            // Skip to the closing tag
+                            // Process content between start and end tags
+                            let mut inner_content = String::new();
                             let mut depth = 1;
+                            
                             while depth > 0 {
                                 match reader.read_event_into(&mut buf) {
+                                    Ok(Event::Text(ref text)) => {
+                                        inner_content.push_str(&text.unescape()?);
+                                    }
                                     Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
                                         depth += 1;
                                     }
                                     Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
                                         depth -= 1;
-                                    }
-                                    Ok(Event::Empty(ref _e)) => {
-                                        // Empty tag doesn't affect depth
+                                        if depth == 0 {
+                                            // Write closing tag when we reach the matching end tag
+                                            writer.write_event(Event::End(BytesEnd::new("meta:reference")))?;
+                                        }
                                     }
                                     Ok(Event::Eof) => break,
-                                    Ok(_) => {}
+                                    Ok(event) => writer.write_event(event.clone())?,
                                     Err(e) => {
                                         return Err(ExecutorError::XmlParsingError(e));
                                     }
@@ -658,36 +690,7 @@ impl MetaLanguageExecutor {
                             }
                         }
                     } else {
-                        // No target attribute, preserve the original tag
                         writer.write_event(Event::Start(e.to_owned()))?;
-                        
-                        // Process content between start and end tags
-                        let mut inner_content = String::new();
-                        let mut depth = 1;
-                        
-                        while depth > 0 {
-                            match reader.read_event_into(&mut buf) {
-                                Ok(Event::Text(ref text)) => {
-                                    inner_content.push_str(&text.unescape()?);
-                                }
-                                Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                    depth += 1;
-                                }
-                                Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                    depth -= 1;
-                                    if depth == 0 {
-                                        // Write closing tag when we reach the matching end tag
-                                        writer.write_event(Event::End(BytesEnd::new("meta:reference")))?;
-                                    }
-                                }
-                                Ok(Event::Eof) => break,
-                                Ok(event) => writer.write_event(event.clone())?,
-                                Err(e) => {
-                                    return Err(ExecutorError::XmlParsingError(e));
-                                }
-                            }
-                            buf.clear();
-                        }
                     }
                 }
                 Ok(Event::Empty(ref e)) => {
@@ -719,47 +722,50 @@ impl MetaLanguageExecutor {
                                 }
                             }
                         }
-                    
-                    if let Some(target_str) = target {
-                        // Look up the target in outputs
-                        if let Some(value) = self.outputs.get(&target_str) {
-                            if debug_enabled {
-                                println!("DEBUG: Found target '{}' in outputs with value: {}", 
-                                    target_str, 
-                                    if value.len() > 100 { 
-                                        format!("{}... (truncated, total length: {})", &value[..100], value.len()) 
-                                    } else { 
-                                        value.clone() 
-                                    }
-                                );
-                            }
                         
-                            // Apply any modifiers from the source block to the value
-                            let modified_value = self.apply_block_modifiers_to_variable(&target_str, value);
-                        
-                            // Write the value instead of the reference tag
-                            writer.write_event(Event::Text(BytesText::from_escaped(&modified_value)))?;
-                        } else {
-                            if debug_enabled {
-                                println!("DEBUG: Target '{}' not found in outputs, using placeholder", target_str);
-                                println!("DEBUG: Current outputs available:");
-                                for (k, v) in &self.outputs {
-                                    println!("DEBUG:   '{}' => '{}'", k, 
-                                        if v.len() > 30 { 
-                                            format!("{}... (total length: {})", &v[..30], v.len()) 
+                        if let Some(target_str) = target {
+                            // Look up the target in outputs
+                            if let Some(value) = self.outputs.get(&target_str) {
+                                if debug_enabled {
+                                    println!("DEBUG: Found target '{}' in outputs with value: {}", 
+                                        target_str, 
+                                        if value.len() > 100 { 
+                                            format!("{}... (truncated, total length: {})", &value[..100], value.len()) 
                                         } else { 
-                                            v.clone() 
+                                            value.clone() 
                                         }
                                     );
                                 }
-                            }
                             
-                            // Target not found, insert a placeholder
-                            let placeholder = format!("${{{}}}", target_str);
-                            writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
+                                // Apply any modifiers from the source block to the value
+                                let modified_value = self.apply_block_modifiers_to_variable(&target_str, value);
+                            
+                                // Write the value instead of the reference tag
+                                writer.write_event(Event::Text(BytesText::from_escaped(&modified_value)))?;
+                            } else {
+                                if debug_enabled {
+                                    println!("DEBUG: Target '{}' not found in outputs, using placeholder", target_str);
+                                    println!("DEBUG: Current outputs available:");
+                                    for (k, v) in &self.outputs {
+                                        println!("DEBUG:   '{}' => '{}'", k, 
+                                            if v.len() > 30 { 
+                                                format!("{}... (total length: {})", &v[..30], v.len()) 
+                                            } else { 
+                                                v.clone() 
+                                            }
+                                        );
+                                    }
+                                }
+                                
+                                // Target not found, insert a placeholder
+                                let placeholder = format!("${{{}}}", target_str);
+                                writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
+                            }
+                        } else {
+                            // No target attribute, preserve the original tag
+                            writer.write_event(Event::Empty(e.to_owned()))?;
                         }
                     } else {
-                        // No target attribute, preserve the original tag
                         writer.write_event(Event::Empty(e.to_owned()))?;
                     }
                 }
