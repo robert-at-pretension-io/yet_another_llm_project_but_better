@@ -141,10 +141,27 @@ fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
     
 // Extract variable references from content (variables in the format <meta:reference target="name" /> or __META_REFERENCE__name)
 pub fn extract_variable_references(content: &str) -> Vec<String> {
+    // Check if debugging is enabled
+    let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+    
     let mut references = Vec::new();
+    
+    if debug_enabled {
+        println!("DEBUG: Extracting variable references from content:");
+        println!("DEBUG: ===== CONTENT START =====");
+        println!("{}", if content.len() > 500 { 
+            format!("{}... (truncated, total length: {})", &content[..500], content.len()) 
+        } else { 
+            content 
+        });
+        println!("DEBUG: ===== CONTENT END =====");
+    }
     
     // Look for both XML references and our special markers
     if !content.contains("<meta:reference") && !content.contains("__META_REFERENCE__") {
+        if debug_enabled {
+            println!("DEBUG: No references found in content, returning empty list");
+        }
         return references;
     }
     
@@ -152,8 +169,15 @@ pub fn extract_variable_references(content: &str) -> Vec<String> {
     let re_marker = regex::Regex::new(r"__META_REFERENCE__([a-zA-Z0-9_-]+)").unwrap();
     for cap in re_marker.captures_iter(content) {
         let var_name = &cap[1];
+        let start_pos = cap.get(0).unwrap().start();
+        let end_pos = cap.get(0).unwrap().end();
+        
         references.push(var_name.to_string());
-        println!("DEBUG: Found reference marker for variable: {}", var_name);
+        
+        if debug_enabled {
+            println!("DEBUG: Found marker reference at positions {}-{} for variable: {}", 
+                     start_pos, end_pos, var_name);
+        }
     }
     
     // Also handle any XML references that might still be present
@@ -167,21 +191,41 @@ pub fn extract_variable_references(content: &str) -> Vec<String> {
             let tag_end = tag_start + end_pos + 2; // +2 for the "/>" itself
             let tag = &content[tag_start..tag_end];
             
+            if debug_enabled {
+                println!("DEBUG: Found XML reference at positions {}-{}: {}", 
+                         tag_start, tag_end, tag);
+            }
+            
             // Extract the target attribute
             if let Some(target_start) = tag.find("target=\"") {
                 let value_start = target_start + 8; // 8 is the length of 'target="'
                 if let Some(value_end) = tag[value_start..].find('"') {
                     let target = &tag[value_start..value_start + value_end];
                     references.push(target.to_string());
+                    
+                    if debug_enabled {
+                        println!("DEBUG: Extracted target: {} from XML reference", target);
+                    }
+                } else if debug_enabled {
+                    println!("DEBUG: Failed to find closing quote for target attribute");
                 }
+            } else if debug_enabled {
+                println!("DEBUG: No target attribute found in XML reference: {}", tag);
             }
             
             // Move start position for the next iteration
             start_pos = tag_end;
         } else {
             // No end tag found, break the loop
+            if debug_enabled {
+                println!("DEBUG: No closing tag found for XML reference starting at position {}", tag_start);
+            }
             break;
         }
+    }
+    
+    if debug_enabled {
+        println!("DEBUG: Found a total of {} references: {:?}", references.len(), references);
     }
     
     references
