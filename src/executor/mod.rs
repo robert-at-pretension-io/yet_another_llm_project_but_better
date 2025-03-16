@@ -245,6 +245,91 @@ impl MetaLanguageExecutor {
         Ok(())
     }
     
+    /// Helper function to process <meta:reference> tags using XML parsing
+    fn process_xml_references(&self, content: &str) -> String {
+        use quick_xml::Reader;
+        use quick_xml::events::Event;
+        let mut reader = Reader::from_str(content);
+        reader.trim_text(true);
+        let mut buf = Vec::new();
+        let mut result = String::new();
+        loop {
+            match reader.read_event(&mut buf) {
+                Ok(Event::Start(ref e)) => {
+                    if e.name() == b"meta:reference" {
+                        let mut target_value = None;
+                        for attr in e.attributes() {
+                            if let Ok(attr) = attr {
+                                if attr.key == b"target" {
+                                    target_value = Some(attr.unescaped_value().unwrap_or_default());
+                                    break;
+                                }
+                            }
+                        }
+                        if let Some(val) = target_value {
+                            let var_name = String::from_utf8_lossy(&val).to_string();
+                            let replacement = match self.lookup_variable(&var_name) {
+                                Some(v) => v,
+                                None => format!("UNDEFINED:{}", var_name),
+                            };
+                            result.push_str(&replacement);
+                        }
+                        if !e.is_empty() {
+                            loop {
+                                match reader.read_event(&mut buf) {
+                                    Ok(Event::End(ref e_end)) if e_end.name() == b"meta:reference" => break,
+                                    Ok(_) => {},
+                                    Err(_) => break,
+                                }
+                                buf.clear();
+                            }
+                        }
+                    } else {
+                        result.push_str(&String::from_utf8_lossy(e.to_owned().as_ref()));
+                    }
+                },
+                Ok(Event::Empty(ref e)) => {
+                    if e.name() == b"meta:reference" {
+                        let mut target_value = None;
+                        for attr in e.attributes() {
+                            if let Ok(attr) = attr {
+                                if attr.key == b"target" {
+                                    target_value = Some(attr.unescaped_value().unwrap_or_default());
+                                    break;
+                                }
+                            }
+                        }
+                        if let Some(val) = target_value {
+                            let var_name = String::from_utf8_lossy(&val).to_string();
+                            let replacement = match self.lookup_variable(&var_name) {
+                                Some(v) => v,
+                                None => format!("UNDEFINED:{}", var_name),
+                            };
+                            result.push_str(&replacement);
+                        }
+                    } else {
+                        result.push_str(&String::from_utf8_lossy(e.to_owned().as_ref()));
+                    }
+                },
+                Ok(Event::Text(e)) => {
+                    result.push_str(&e.unescape_and_decode(&reader).unwrap_or_default());
+                },
+                Ok(Event::Eof) => break,
+                Ok(e) => {
+                    if let Ok(text) = std::str::from_utf8(e.as_ref()) {
+                        result.push_str(text);
+                    }
+                },
+                Err(e) => {
+                    println!("Error parsing XML: {:?}", e);
+                    break;
+                }
+            }
+            buf.clear();
+        }
+        result
+    }
+    
     // Check if a block is executable
     pub fn is_executable_block(&self, block: &Block) -> bool {
         matches!(block.block_type.as_str(), 
@@ -500,22 +585,9 @@ impl MetaLanguageExecutor {
         }
         let mut processed_content = content.to_string();
         if processed_content.contains("<meta:reference") {
-            let xml_ref_re = regex::Regex::new(r#"(?is)<meta:reference\s+[^>]*target\s*=\s*["']([^"']+)["'][^>]*>(?:.*?)</meta:reference>|<meta:reference\s+[^>]*target\s*=\s*["']([^"']+)["'][^>]*/?>"#).unwrap();
-            processed_content = xml_ref_re.replace_all(&processed_content, |caps: &regex::Captures| {
-                let var_name = if let Some(m) = caps.get(1) {
-                    m.as_str()
-                } else if let Some(m2) = caps.get(2) {
-                    m2.as_str()
-                } else {
-                    "UNKNOWN"
-                };
-                match self.lookup_variable(var_name) {
-                    Some(val) => val,
-                    None => format!("UNDEFINED:{}", var_name)
-                }
-            }).to_string();
+            processed_content = self.process_xml_references(&processed_content);
             if debug_enabled {
-                println!("DEBUG: Processed XML reference, new content: '{}'", 
+                println!("DEBUG: Processed XML reference using XML parser, new content: '{}'", 
                     if processed_content.len() > 100 { &processed_content[..100] } else { &processed_content });
             }
         }
