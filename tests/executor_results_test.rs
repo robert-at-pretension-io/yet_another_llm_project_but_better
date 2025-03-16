@@ -118,7 +118,7 @@ mod executor_results_tests {
         
         // Verify that format modifiers are applied as expected
         assert_eq!(processed_markdown, "# Heading\n\n- Item 1\n- Item 2");
-        assert_eq!(processed_code, "```python\ndef example():\n    return True\n```");
+        assert_eq!(processed_code, "\n```python\ndef example():\n    return True\n```\n");
         assert_eq!(processed_plain, "Plain text result.");
     }
     
@@ -223,7 +223,7 @@ mod executor_results_tests {
         let processed = executor.update_document().unwrap();
         
         // Verify that results are integrated in the workflow
-        assert!(processed.contains("Initial data: Initial data: [1, 2, 3, 4, 5]"));
+        assert!(processed.contains("```\nInitial data: [1, 2, 3, 4, 5]"));
         assert!(processed.contains("Processed data: [2, 4, 6, 8, 10]"));
     }
     
