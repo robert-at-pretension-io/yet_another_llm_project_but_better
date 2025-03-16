@@ -752,7 +752,7 @@ impl MetaLanguageExecutor {
                     continue;
                 } else {
                     processed_content.push_str(&content[last_end..whole_match.start()]);
-                    processed_content.push_str(&format!("${{UNDEFINED:{}_results}}", base));
+                    processed_content.push_str(&format!("${{UNDEFINED:{}}}", var_ref));
                     last_end = whole_match.end();
                     continue;
                 }
