@@ -856,4 +856,75 @@ impl MetaLanguageExecutor {
             },
         }
     }
+    
+    fn debug_print_outputs(&self, label: &str) {
+        println!("DEBUG: {}:", label);
+        for (key, value) in &self.outputs {
+            // Only print the first 30 chars of each value to avoid huge output
+            let preview = if value.len() > 30 {
+                format!("{}...", &value[..30])
+            } else {
+                value.clone()
+            };
+            println!("DEBUG:   '{}' => '{}' (length: {})", key, preview, value.len());
+        }
+    }
+    
+    fn apply_block_modifiers_to_variable(&self, name: &str, content: &str) -> String {
+        // Lookup the block to get its modifiers
+        if let Some(block) = self.blocks.get(name) {
+            let mut modified_content = content.to_string();
+            
+            // Apply modifiers that affect variable content
+            for (key, value) in &block.modifiers {
+                match key.as_str() {
+                    "trim" if value == "true" => {
+                        modified_content = modified_content.trim().to_string();
+                    },
+                    "uppercase" if value == "true" => {
+                        modified_content = modified_content.to_uppercase();
+                    },
+                    "lowercase" if value == "true" => {
+                        modified_content = modified_content.to_lowercase();
+                    },
+                    "prefix" => {
+                        modified_content = format!("{}{}", value, modified_content);
+                    },
+                    "suffix" => {
+                        modified_content = format!("{}{}", modified_content, value);
+                    },
+                    // Add other modifiers as needed
+                    _ => {}
+                }
+            }
+            
+            modified_content
+        } else {
+            // If block not found, return content as is
+            content.to_string()
+        }
+    }
+    
+    fn generate_error_response_block(&self, original_block: &Block, error_message: &str) -> Block {
+        let mut error_block = Block::new("error-response", None, error_message);
+        
+        // Copy the name if available
+        if let Some(name) = &original_block.name {
+            error_block.name = Some(format!("{}_error_response", name));
+        }
+        
+        // Copy relevant modifiers from the original block
+        for (key, value) in &original_block.modifiers {
+            if matches!(key.as_str(), "format" | "display" | "max_lines" | "trim") {
+                error_block.add_modifier(key, value);
+            }
+        }
+        
+        // Add reference back to the original block
+        if let Some(name) = &original_block.name {
+            error_block.add_modifier("for", name);
+        }
+        
+        error_block
+    }
 }
