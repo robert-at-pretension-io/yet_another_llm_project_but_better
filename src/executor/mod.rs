@@ -199,7 +199,7 @@ impl MetaLanguageExecutor {
             if let Some(block) = self.blocks.get(&name) {
                 if self.is_data_block(block) {
                     // Apply any modifiers to the data block content before storing
-                    let modified_content = self.apply_modifiers_to_variable(&name, &processed_content);
+                    let modified_content = self.apply_block_modifiers_to_variable(&name, &processed_content);
                     self.outputs.insert(name.clone(), modified_content);
                 }
             }
@@ -669,6 +669,13 @@ impl MetaLanguageExecutor {
     
     // Parse a variable reference into name and modifiers
     fn parse_variable_reference(&self, var_ref: &str) -> (String, HashMap<String, String>) {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Parsing variable reference: '{}'", var_ref);
+        }
+        
         let mut modifiers = HashMap::new();
         
         // Check if the variable reference contains modifiers
@@ -680,22 +687,52 @@ impl MetaLanguageExecutor {
             if parts.len() > 1 {
                 let modifier_str = parts[1];
                 
+                if debug_enabled {
+                    println!("DEBUG: Found modifiers: '{}'", modifier_str);
+                }
+                
                 // Simple fallback value without key
-                if !modifier_str.contains('=') {
+                if !modifier_str.contains('=') && !modifier_str.contains(',') {
                     modifiers.insert("fallback".to_string(), modifier_str.to_string());
+                    
+                    if debug_enabled {
+                        println!("DEBUG: Simple fallback value: '{}'", modifier_str);
+                    }
+                    
                     return (var_name, modifiers);
                 }
                 
                 // Parse key-value modifiers
-                for modifier in modifier_str.split(',') {
-                    if let Some(eq_pos) = modifier.find('=') {
-                        let key = modifier[..eq_pos].trim().to_string();
-                        let value = modifier[eq_pos+1..].trim().to_string();
-                        modifiers.insert(key, value);
-                    } else {
-                        // Handle boolean flags without values
-                        modifiers.insert(modifier.trim().to_string(), "true".to_string());
+                let mut current_pos = 0;
+                let mut in_parentheses = false;
+                let mut start_pos = 0;
+                
+                for (i, c) in modifier_str.char_indices() {
+                    match c {
+                        '(' => in_parentheses = true,
+                        ')' => in_parentheses = false,
+                        ',' if !in_parentheses => {
+                            // Found a comma outside parentheses, process this modifier
+                            let single_modifier = &modifier_str[start_pos..i];
+                            self.parse_single_modifier(single_modifier, &mut modifiers);
+                            start_pos = i + 1;
+                        },
+                        _ => {}
                     }
+                    current_pos = i + 1;
+                }
+                
+                // Process the last modifier
+                if start_pos < current_pos {
+                    let single_modifier = &modifier_str[start_pos..current_pos];
+                    self.parse_single_modifier(single_modifier, &mut modifiers);
+                }
+            }
+            
+            if debug_enabled {
+                println!("DEBUG: Parsed {} modifiers for variable '{}'", modifiers.len(), var_name);
+                for (k, v) in &modifiers {
+                    println!("DEBUG:   '{}' = '{}'", k, v);
                 }
             }
             
@@ -704,6 +741,36 @@ impl MetaLanguageExecutor {
         
         // No modifiers
         (var_ref.to_string(), modifiers)
+    }
+    
+    /// Parse a single modifier in the format key=value
+    fn parse_single_modifier(&self, modifier: &str, modifiers: &mut HashMap<String, String>) {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Parsing single modifier: '{}'", modifier);
+        }
+        
+        if let Some(pos) = modifier.find('=') {
+            let key = modifier[..pos].trim().to_string();
+            let value = modifier[pos+1..].trim().to_string();
+            
+            if debug_enabled {
+                println!("DEBUG:   Key-value pair: '{}' = '{}'", key, value);
+            }
+            
+            modifiers.insert(key, value);
+        } else {
+            // Handle boolean flags without values
+            let key = modifier.trim().to_string();
+            
+            if debug_enabled {
+                println!("DEBUG:   Boolean flag: '{}'", key);
+            }
+            
+            modifiers.insert(key, "true".to_string());
+        }
     }
     
     // Process conditional blocks like ${if:condition_var}content${endif}
@@ -1604,8 +1671,8 @@ impl MetaLanguageExecutor {
         content.to_string()
     }
     
-    // Apply modifiers to a variable value before substitution
-    pub fn apply_modifiers_to_variable(&self, var_name: &str, value: &str) -> String {
+    // Apply modifiers to a variable value before substitution (legacy version)
+    pub fn apply_block_modifiers_to_variable(&self, var_name: &str, value: &str) -> String {
         // Check if we have a block with this name to get modifiers from
         if let Some(block) = self.blocks.get(var_name) {
             let mut processed = value.to_string();
@@ -1621,6 +1688,277 @@ impl MetaLanguageExecutor {
         
         // If no block found or no modifiers applied, return the original value
         value.to_string()
+    }
+    
+    /// Apply modifiers to a variable value
+    pub fn apply_modifiers_to_variable(&self, var_name: &str, value: &str, modifiers: &HashMap<String, String>) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
+                           std::env::var("LLM_DEBUG_VARS").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Applying modifiers to variable '{}' with {} modifiers", 
+                     var_name, modifiers.len());
+        }
+        
+        // Start with the original value
+        let mut result = value.to_string();
+        
+        // Apply modifiers in a specific order for predictable results
+        
+        // 1. Apply transformations first (uppercase, lowercase, substring)
+        if let Some(transform) = modifiers.get("transform") {
+            result = self.apply_transformation(&result, transform);
+        }
+        
+        // 2. Apply limit modifier to truncate content
+        if let Some(limit_str) = modifiers.get("limit") {
+            if let Ok(limit) = limit_str.parse::<usize>() {
+                result = self.apply_limit(&result, limit);
+            }
+        }
+        
+        // 3. Apply format modifier (markdown, json, code, plain)
+        if let Some(format) = modifiers.get("format") {
+            result = self.apply_format(var_name, &result, format);
+        }
+        
+        // 4. Apply highlighting for code blocks
+        if modifiers.get("highlight").map_or(false, |v| v == "true") {
+            result = self.apply_highlighting(var_name, &result);
+        }
+        
+        // 5. Apply include modifiers (include_code, include_results)
+        result = self.apply_include_modifiers(var_name, &result, modifiers);
+        
+        // 6. Apply conditional modifiers (include_sensitive)
+        result = self.apply_conditional_modifiers(var_name, &result, modifiers);
+        
+        // Apply any block-level modifiers if they exist and weren't explicitly overridden
+        if let Some(block) = self.blocks.get(var_name) {
+            // Only apply block modifiers for attributes not already specified
+            for (key, value) in &block.modifiers {
+                if !modifiers.contains_key(key.as_str()) {
+                    match key.as_str() {
+                        "trim" => {
+                            result = self.apply_trim(block, &result);
+                        },
+                        "max_lines" => {
+                            result = self.apply_max_lines(block, &result);
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        }
+        
+        if debug_enabled {
+            println!("DEBUG: After applying modifiers, result length: {}", result.len());
+        }
+        
+        result
+    }
+    
+    /// Apply format modifier (markdown, json, code, plain)
+    fn apply_format(&self, var_name: &str, content: &str, format_type: &str) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Applying format '{}' to variable '{}'", format_type, var_name);
+        }
+        
+        match format_type {
+            "markdown" => {
+                // Convert to markdown format
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                    let mut markdown = String::new();
+                    
+                    if let Some(obj) = json_value.as_object() {
+                        markdown.push_str("## Data\n\n");
+                        for (key, value) in obj {
+                            markdown.push_str(&format!("**{}**: ", key));
+                            
+                            match value {
+                                serde_json::Value::Array(arr) => {
+                                    markdown.push_str("\n");
+                                    for item in arr {
+                                        markdown.push_str(&format!("- {}\n", item));
+                                    }
+                                },
+                                _ => {
+                                    markdown.push_str(&format!("{}\n", value));
+                                }
+                            }
+                        }
+                    } else if let Some(arr) = json_value.as_array() {
+                        markdown.push_str("## Items\n\n");
+                        for item in arr {
+                            markdown.push_str(&format!("- {}\n", item));
+                        }
+                    }
+                    
+                    return markdown;
+                }
+                
+                // If not JSON, return as-is
+                content.to_string()
+            },
+            "json" => {
+                // Try to pretty-print JSON if it's valid
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                    if let Ok(pretty) = serde_json::to_string_pretty(&json_value) {
+                        return pretty;
+                    }
+                }
+                
+                // If not valid JSON, return as-is
+                content.to_string()
+            },
+            "code" => {
+                // Format as code block
+                format!("```\n{}\n```", content)
+            },
+            "plain" => {
+                // Return as plain text
+                content.to_string()
+            },
+            _ => content.to_string()
+        }
+    }
+    
+    /// Apply limit modifier to truncate content
+    fn apply_limit(&self, content: &str, limit: usize) -> String {
+        let lines: Vec<&str> = content.lines().collect();
+        if lines.len() <= limit {
+            return content.to_string();
+        }
+        
+        // Take only the first 'limit' lines
+        let limited = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
+        format!("{}\n...(truncated, showing {} of {} lines)", limited, limit, lines.len())
+    }
+    
+    /// Apply transformation modifiers (uppercase, lowercase, substring)
+    fn apply_transformation(&self, content: &str, transform: &str) -> String {
+        match transform {
+            "uppercase" => content.to_uppercase(),
+            "lowercase" => content.to_lowercase(),
+            transform if transform.starts_with("substring(") && transform.ends_with(")") => {
+                // Parse substring parameters
+                let params = transform.trim_start_matches("substring(").trim_end_matches(")");
+                let parts: Vec<&str> = params.split(',').collect();
+                
+                if parts.len() == 2 {
+                    if let (Ok(start), Ok(end)) = (parts[0].trim().parse::<usize>(), parts[1].trim().parse::<usize>()) {
+                        if start < content.len() {
+                            let end = std::cmp::min(end, content.len());
+                            return content[start..end].to_string();
+                        }
+                    }
+                }
+                
+                // If parsing failed or parameters are invalid, return original content
+                content.to_string()
+            },
+            _ => content.to_string()
+        }
+    }
+    
+    /// Apply highlighting modifier for code blocks
+    fn apply_highlighting(&self, var_name: &str, content: &str) -> String {
+        if let Some(block) = self.blocks.get(var_name) {
+            if block.block_type.starts_with("code:") {
+                let language = block.block_type.split(':').nth(1).unwrap_or("text");
+                return format!("```{}\n{}\n```", language, content);
+            }
+        }
+        
+        // If not a code block or language not specified, use plain code block
+        format!("```\n{}\n```", content)
+    }
+    
+    /// Apply include modifiers (include_code, include_results)
+    fn apply_include_modifiers(&self, var_name: &str, content: &str, modifiers: &HashMap<String, String>) -> String {
+        let mut result = content.to_string();
+        
+        // Handle include_code modifier
+        if let Some(include_code) = modifiers.get("include_code") {
+            if include_code == "true" {
+                result = format!("Code:\n```\n{}\n```\n\n{}", content, result);
+            }
+        }
+        
+        // Handle include_results modifier
+        if let Some(include_results) = modifiers.get("include_results") {
+            if include_results == "true" {
+                // Look for results in different formats
+                let results_key = format!("{}_results", var_name);
+                let dot_results_key = format!("{}.results", var_name);
+                
+                if let Some(results) = self.outputs.get(&results_key).or_else(|| self.outputs.get(&dot_results_key)) {
+                    result = format!("{}\n\nResults:\n{}", result, results);
+                }
+            }
+        }
+        
+        result
+    }
+    
+    /// Apply conditional modifiers (include_sensitive)
+    fn apply_conditional_modifiers(&self, var_name: &str, content: &str, modifiers: &HashMap<String, String>) -> String {
+        let mut result = content.to_string();
+        
+        // Handle include_sensitive modifier
+        if let Some(condition_var) = modifiers.get("include_sensitive") {
+            // Check if the condition variable is "true"
+            if condition_var == "true" {
+                // Include everything
+                return result;
+            } else if condition_var == "false" {
+                // Remove sensitive information
+                if let Ok(mut json_value) = serde_json::from_str::<serde_json::Value>(&result) {
+                    if let Some(obj) = json_value.as_object_mut() {
+                        // Remove known sensitive fields
+                        obj.remove("password");
+                        obj.remove("secret");
+                        obj.remove("token");
+                        obj.remove("api_key");
+                        obj.remove("private_key");
+                        obj.remove("sensitive");
+                    }
+                    
+                    if let Ok(filtered) = serde_json::to_string_pretty(&json_value) {
+                        result = filtered;
+                    }
+                }
+            } else {
+                // It's a variable reference, look it up
+                if let Some(condition_value) = self.lookup_variable(condition_var) {
+                    if condition_value == "true" || condition_value == "1" || condition_value == "yes" {
+                        // Include everything
+                        return result;
+                    } else {
+                        // Remove sensitive information
+                        if let Ok(mut json_value) = serde_json::from_str::<serde_json::Value>(&result) {
+                            if let Some(obj) = json_value.as_object_mut() {
+                                // Remove known sensitive fields
+                                obj.remove("password");
+                                obj.remove("secret");
+                                obj.remove("token");
+                                obj.remove("api_key");
+                                obj.remove("private_key");
+                                obj.remove("sensitive");
+                            }
+                            
+                            if let Ok(filtered) = serde_json::to_string_pretty(&json_value) {
+                                result = filtered;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        result
     }
     
     // Process results content with all applicable modifiers
