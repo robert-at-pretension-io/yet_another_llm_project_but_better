@@ -12,6 +12,8 @@ use thiserror::Error;
 use crate::parser::{Block, parse_document, extract_variable_references};
 use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
 
+mod enhanced_variables;
+
 // Define error type
 #[derive(Error, Debug)]
 pub enum ExecutorError {
@@ -498,7 +500,77 @@ impl MetaLanguageExecutor {
             println!("lookup_variable called with: '{}'", var_name);
         }
         
-        // First try direct lookup
+        // Check if we're looking for a property using dot notation (e.g., user-data.name)
+        if var_name.contains('.') {
+            let parts: Vec<&str> = var_name.splitn(2, '.').collect();
+            let base_var = parts[0];
+            let property_path = parts[1];
+            
+            if debug_enabled {
+                println!("Looking up property: base='{}', property='{}'", base_var, property_path);
+            }
+            
+            // Get the base variable
+            if let Some(base_value) = self.outputs.get(base_var) {
+                // Try to parse as JSON
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(base_value) {
+                    // Navigate the JSON path
+                    let mut current = &json_value;
+                    for key in property_path.split('.') {
+                        if let Some(next) = current.get(key) {
+                            current = next;
+                        } else {
+                            if debug_enabled {
+                                println!("JSON property not found: {}", key);
+                            }
+                            return None;
+                        }
+                    }
+                    
+                    // Convert the found value to string
+                    match current {
+                        serde_json::Value::String(s) => return Some(s.clone()),
+                        serde_json::Value::Number(n) => return Some(n.to_string()),
+                        serde_json::Value::Bool(b) => return Some(b.to_string()),
+                        serde_json::Value::Null => return Some("null".to_string()),
+                        _ => return Some(current.to_string()),
+                    }
+                } else if debug_enabled {
+                    println!("Base variable is not valid JSON: {}", base_var);
+                }
+            }
+            
+            // If not found as JSON property, try common suffixes
+            let block_name = parts[0];
+            let suffix = parts[1];
+            
+            // Handle common suffixes
+            if suffix == "results" {
+                let results_key = format!("{}_results", block_name);
+                
+                if debug_enabled {
+                    println!("  Looking up results_key: '{}'", results_key);
+                }
+                
+                if let Some(value) = self.outputs.get(&results_key) {
+                    return Some(value.clone());
+                }
+            } else if suffix == "error" {
+                let error_key = format!("{}_error", block_name);
+                
+                if debug_enabled {
+                    println!("  Looking up error_key: '{}'", error_key);
+                }
+                
+                if let Some(value) = self.outputs.get(&error_key) {
+                    return Some(value.clone());
+                }
+            }
+            
+            return None;
+        }
+        
+        // Direct lookup for simple variable names
         if let Some(value) = self.outputs.get(var_name) {
             if debug_enabled {
                 println!("  Direct lookup succeeded for '{}'", var_name);
@@ -506,77 +578,14 @@ impl MetaLanguageExecutor {
             return Some(value.clone());
         }
         
-        // If the name contains dots, it might be a reference to a result
-        // Format could be: block_name.results
-        if var_name.contains('.') {
-            let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
-                               std::env::var("LLM_DEBUG_VARS").is_ok();
-            
-            if debug_enabled {
-                println!("  Variable contains dots: '{}'", var_name);
-                let parts: Vec<&str> = var_name.split('.').collect();
-                println!("  Split into parts: {:?}", parts);
-            }
-            
-            let parts: Vec<&str> = var_name.split('.').collect();
-            
-            if parts.len() == 2 {
-                let block_name = parts[0];
-                let suffix = parts[1];
-                
-                let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
-                                   std::env::var("LLM_DEBUG_VARS").is_ok();
-                
-                if debug_enabled {
-                    println!("  Checking block_name: '{}', suffix: '{}'", block_name, suffix);
-                }
-                
-                // Handle common suffixes
-                if suffix == "results" {
-                    let results_key = format!("{}_results", block_name);
-                    
-                    let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
-                                       std::env::var("LLM_DEBUG_VARS").is_ok();
-                    
-                    if debug_enabled {
-                        println!("  Looking up results_key: '{}'", results_key);
-                    }
-                    
-                    if let Some(value) = self.outputs.get(&results_key) {
-                        if debug_enabled {
-                            println!("  Found value for '{}': '{}'", results_key, 
-                                     if value.len() > 50 { &value[..50] } else { value });
-                        }
-                        return Some(value.clone());
-                    }
-                } else if suffix == "error" {
-                    let error_key = format!("{}_error", block_name);
-                    
-                    let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
-                                       std::env::var("LLM_DEBUG_VARS").is_ok();
-                    
-                    if debug_enabled {
-                        println!("  Looking up error_key: '{}'", error_key);
-                    }
-                    
-                    if let Some(value) = self.outputs.get(&error_key) {
-                        if debug_enabled {
-                            println!("  Found value for '{}': '{}'", error_key, 
-                                     if value.len() > 50 { &value[..50] } else { value });
-                        }
-                        return Some(value.clone());
-                    }
-                }
-            }
+        // If not found in outputs, check if there's a block with this name
+        if let Some(block) = self.blocks.get(var_name) {
+            // For blocks, return their content
+            return Some(block.content.clone());
         }
         
-        let debug_enabled = std::env::var("LLM_DEBUG").is_ok() || 
-                           std::env::var("LLM_DEBUG_VARS").is_ok();
-        
-        if debug_enabled {
-            println!("  No value found for '{}'", var_name);
-        }
-        None
+        // Check fallbacks
+        self.fallbacks.get(var_name).cloned()
     }
     
     // Internal implementation that tracks processing variables to detect circular references
@@ -590,116 +599,72 @@ impl MetaLanguageExecutor {
             println!("Current processing_vars: {:?}", processing_vars);
         }
         
+        // Regular expression to find variable references like ${variable_name}
+        let re = regex::Regex::new(r"\$\{([^}]+)\}").unwrap();
+        
         let mut result = content.to_string();
+        let mut last_end = 0;
+        let mut processed_content = String::new();
         
-        // Process conditional blocks first (if:condition_var)
-        result = self.process_conditional_blocks(&result);
-        
-        // Find all variable references
-        let references = extract_variable_references(&result);
-        
-        // Replace each reference with its value
-        for var_name in references {
+        for cap in re.captures_iter(content) {
+            let whole_match = cap.get(0).unwrap();
+            let var_ref = cap.get(1).unwrap().as_str();
+            
+            if debug_enabled {
+                println!("Found variable reference: ${{{}}}", var_ref);
+            }
+            
+            // Extract variable name and modifiers
+            let (var_name, modifiers) = self.parse_variable_reference(var_ref);
+            
             // Check for circular references
             if processing_vars.contains(&var_name) {
-                println!("Warning: Circular reference detected for variable: {}", var_name);
+                println!("WARNING: Circular reference detected for variable: {}", var_name);
+                processed_content.push_str(&content[last_end..whole_match.start()]);
+                processed_content.push_str(&format!("${{CIRCULAR_REFERENCE:{}}}", var_name));
+                last_end = whole_match.end();
                 continue;
             }
             
-            // The original variable reference to be replaced if a value is found
-            let var_ref = format!("${{{}}}", var_name);
-            
-            // Parse variable name and modifiers
-            let (actual_var_name, modifiers) = self.parse_variable_reference(&var_name);
-            
-            // Debug output for troubleshooting
-            if debug_enabled {
-                println!("Looking for variable: {}", actual_var_name);
-                println!("With modifiers: {:?}", modifiers);
-            }
-            
-            // Debug: Print all available outputs for troubleshooting
-            if debug_enabled {
-                println!("Available outputs:");
-                for (k, v) in &self.outputs {
-                    println!("  '{}' => '{}'", k, v);
-                }
-            }
-            
-            // Handle nested variable references in modifiers
-            let mut processed_modifiers = HashMap::new();
-            for (key, value) in &modifiers {
-                if value.contains("${") {
-                    // Process nested references in modifier values
-                    let processed_value = self.process_variable_references_internal(value, processing_vars);
-                    processed_modifiers.insert(key.clone(), processed_value);
-                } else {
-                    processed_modifiers.insert(key.clone(), value.clone());
-                }
-            }
-            
-            // Try to get the value using our lookup function
-            if let Some(value) = self.lookup_variable(&actual_var_name) {
-                if debug_enabled {
-                    println!("Found value for {}: {}", actual_var_name, value);
-                }
+            // Look up the variable value
+            let replacement = if let Some(value) = self.lookup_variable(&var_name) {
+                // Add this variable to the processing stack to detect circular references
+                processing_vars.push(var_name.clone());
+                
+                // Process any nested variable references in the value
+                let processed_value = self.process_variable_references_internal(&value, processing_vars);
+                
+                // Remove this variable from the processing stack
+                processing_vars.pop();
                 
                 // Apply modifiers to the value
-                let modified_value = self.apply_enhanced_modifiers(&actual_var_name, &value, &processed_modifiers);
-                
-                // Check if the value itself contains variable references
-                if modified_value.contains("${") {
-                    // Add this variable to the processing list to detect circular references
-                    processing_vars.push(actual_var_name.clone());
-                    
-                    // Recursively process nested references
-                    let processed_value = self.process_variable_references_internal(&modified_value, processing_vars);
-                    result = result.replace(&var_ref, &processed_value);
-                    
-                    // Remove from processing list
-                    processing_vars.retain(|v| v != &actual_var_name);
-                } else {
-                    // Simple replacement
-                    result = result.replace(&var_ref, &modified_value);
-                }
-            } else if let Some(fallback_name) = self.fallbacks.get(&actual_var_name) {
-                // Try registered fallback if available
-                if let Some(fallback_output) = self.outputs.get(fallback_name) {
-                    let value = fallback_output.clone();
-                    
-                    // Process nested references in fallback value
-                    if value.contains("${") {
-                        processing_vars.push(actual_var_name.clone());
-                        let processed_value = self.process_variable_references_internal(&value, processing_vars);
-                        result = result.replace(&var_ref, &processed_value);
-                        processing_vars.retain(|v| v != &actual_var_name);
-                    } else {
-                        result = result.replace(&var_ref, &value);
-                    }
-                } else if let Some(fallback_value) = processed_modifiers.get("fallback") {
-                    // Use inline fallback if provided
-                    result = result.replace(&var_ref, fallback_value);
-                }
-                // If no fallback value is available, leave the reference as is
-            } else if let Some(fallback_value) = processed_modifiers.get("fallback") {
-                // Use inline fallback if provided
-                result = result.replace(&var_ref, fallback_value);
+                self.apply_modifiers_to_variable(&var_name, &processed_value, &modifiers)
             } else {
-                // Check if the block has a fallback modifier
-                if let Some(block) = self.blocks.get(&actual_var_name) {
-                    if let Some(fallback_value) = block.get_modifier("fallback") {
-                        result = result.replace(&var_ref, fallback_value);
-                        continue;
+                // Variable not found, check for fallback
+                if let Some(fallback) = modifiers.get("fallback") {
+                    fallback.clone()
+                } else if let Some(fallback) = self.fallbacks.get(&var_name) {
+                    fallback.clone()
+                } else {
+                    // No fallback specified
+                    if debug_enabled {
+                        println!("Variable not found and no fallback: {}", var_name);
                     }
+                    format!("${{UNDEFINED:{}}}", var_name)
                 }
-                // If no value or fallback found, leave the reference as is (do nothing)
-                if debug_enabled {
-                    println!("No value found for variable: {}", actual_var_name);
-                }
-            }
+            };
+            
+            processed_content.push_str(&content[last_end..whole_match.start()]);
+            processed_content.push_str(&replacement);
+            last_end = whole_match.end();
         }
         
-        result
+        // Add any remaining content
+        if last_end < content.len() {
+            processed_content.push_str(&content[last_end..]);
+        }
+        
+        processed_content
     }
     
     // Parse a variable reference into name and modifiers
