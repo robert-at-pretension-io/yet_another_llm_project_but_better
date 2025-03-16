@@ -539,6 +539,10 @@ impl MetaLanguageExecutor {
         reader.trim_text(false);
         reader.check_end_names(false); // Don't validate end tag names
         reader.expand_empty_elements(true); // Convert empty elements to start-end pairs
+        
+        // Configure namespace handling for better reference detection
+        reader.config_mut().ignore_comments = true;
+        reader.config_mut().normalize_tag_names = false; // Keep original tag names with namespaces
 
         let mut writer = Writer::new(Cursor::new(Vec::new()));
         let mut buf = Vec::new();
@@ -554,7 +558,7 @@ impl MetaLanguageExecutor {
                     }
                     
                     // Check for meta:reference tag with proper namespace handling
-                    if name_str == "meta:reference" || name_str.ends_with(":reference") {
+                    if name_str == "meta:reference" || name_str.ends_with(":reference") || name_str.contains("reference") {
                         if debug_enabled {
                             println!("DEBUG: Found meta:reference start tag");
                         }
@@ -599,11 +603,17 @@ impl MetaLanguageExecutor {
                                 let mut depth = 1;
                                 while depth > 0 {
                                     match reader.read_event_into(&mut buf) {
-                                        Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                            depth += 1;
+                                        Ok(Event::Start(ref e)) => {
+                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                            if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
+                                                depth += 1;
+                                            }
                                         }
-                                        Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                            depth -= 1;
+                                        Ok(Event::End(ref e)) => {
+                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                            if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
+                                                depth -= 1;
+                                            }
                                         }
                                         Ok(Event::Empty(ref _e)) => {
                                             // Empty tag doesn't affect depth
@@ -702,7 +712,7 @@ impl MetaLanguageExecutor {
                     }
                     
                     // Check for meta:reference tag with proper namespace handling
-                    if name_str == "meta:reference" || name_str.ends_with(":reference") {
+                    if name_str == "meta:reference" || name_str.ends_with(":reference") || name_str.contains("reference") {
                         if debug_enabled {
                             println!("DEBUG: Found meta:reference empty tag");
                         }
@@ -778,7 +788,7 @@ impl MetaLanguageExecutor {
                     }
                     
                     // Check for meta:reference tag with proper namespace handling
-                    if name_str == "meta:reference" || name_str.ends_with(":reference") {
+                    if name_str == "meta:reference" || name_str.ends_with(":reference") || name_str.contains("reference") {
                         if debug_enabled {
                             println!("DEBUG: Found meta:reference end tag");
                         }
@@ -830,9 +840,20 @@ impl MetaLanguageExecutor {
         }
     
         // If there are still nested references, process them recursively
-        if result_str.contains("<meta:reference") {
+        // Check for any form of reference tag that might still exist
+        if result_str.contains("<meta:reference") || result_str.contains(":reference") || result_str.contains("${") {
             if debug_enabled {
                 println!("DEBUG: Detected nested references, processing recursively");
+                // Log what kind of references we found
+                if result_str.contains("<meta:reference") {
+                    println!("DEBUG: Found standard <meta:reference> tags");
+                }
+                if result_str.contains(":reference") && !result_str.contains("<meta:reference") {
+                    println!("DEBUG: Found namespaced reference tags");
+                }
+                if result_str.contains("${") {
+                    println!("DEBUG: Found template-style references: ${}");
+                }
             }
             return self.process_variable_references(&result_str);
         }
