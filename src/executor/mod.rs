@@ -3410,7 +3410,7 @@ impl MetaLanguageExecutor {
         if updated_doc.contains("<meta:") {
             println!("DEBUG: Detected XML document, updating <meta:results> blocks.");
             for (name, output) in &self.outputs {
-                let regex_pattern = format!(r"(?s)(<meta:code[^>]*name\s*=\s*(?P<quote>['"]){0}(?P={{quote}})[^>]*>.*?</meta:code>)", regex::escape(name));
+                let regex_pattern = format!(r"(?s)(<meta:code[^>]*name\s*=\s*(?P<quote>['\"]){}(?P=quote)[^>]*>.*?</meta:code>)", regex::escape(name));
                 match regex::Regex::new(&regex_pattern) {
                     Ok(re) => {
                         updated_doc = re.replace_all(&updated_doc, |caps: &regex::Captures| {
