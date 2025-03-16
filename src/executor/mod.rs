@@ -183,12 +183,17 @@ impl MetaLanguageExecutor {
         println!("DEBUG: Restored {} previous responses", restored_count);
         
         // Process variable references in all registered blocks
-        for (name, block) in self.blocks.iter_mut() {
-            let processed_content = self.process_variable_references(&block.content);
-            block.content = processed_content.clone();
-            // Apply any modifiers to the variable content before storing
-            let modified_content = self.apply_block_modifiers_to_variable(name, &processed_content);
-            self.outputs.insert(name.clone(), modified_content);
+        let collected: Vec<(String, String)> = self.blocks.iter()
+            .map(|(name, block)| {
+                let processed_content = self.process_variable_references(&block.content);
+                (name.clone(), processed_content)
+            }).collect();
+        for (name, processed_content) in collected {
+            if let Some(block) = self.blocks.get_mut(&name) {
+                block.content = processed_content.clone();
+            }
+            let modified_content = self.apply_block_modifiers_to_variable(&name, &processed_content);
+            self.outputs.insert(name, modified_content);
         }
         
         // Register fallbacks for executable blocks that don't have them
