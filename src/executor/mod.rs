@@ -481,6 +481,28 @@ impl MetaLanguageExecutor {
         Duration::from_secs(600)
     }
     
+    pub fn determine_format_from_content(&self, content: &str) -> &'static str {
+        // Trim whitespace
+        let trimmed = content.trim();
+        
+        // Check if it looks like JSON (object or array)
+        if (trimmed.starts_with('{') && trimmed.ends_with('}')) || 
+           (trimmed.starts_with('[') && trimmed.ends_with(']')) {
+            // Try to parse as JSON to validate
+            if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
+                return "json";
+            }
+        }
+        
+        // Check for other formats (could be expanded)
+        if trimmed.starts_with('<') && trimmed.ends_with('>') {
+            return "xml";
+        }
+        
+        // Default to plain text
+        "text"
+    }
+    
     pub fn execute_shell(&self, command: &str) -> Result<String, ExecutorError> {
         let output = if cfg!(target_os = "windows") {
             Command::new("cmd")
