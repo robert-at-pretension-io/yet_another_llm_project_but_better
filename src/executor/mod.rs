@@ -550,11 +550,15 @@ impl MetaLanguageExecutor {
         let processed_code = self.process_variable_references(code);
         
         // Create a temporary Python file
-        let tmpfile = tempfile::NamedTempFile::new().map_err(|e| ExecutorError::IoError(e))?;
+        let mut tmpfile = tempfile::NamedTempFile::new().map_err(|e| ExecutorError::IoError(e))?;
         let tmp_path = tmpfile.path().to_owned();
         
-        // Write the processed code to the temporary file
-        std::fs::write(&tmp_path, processed_code).map_err(|e| ExecutorError::IoError(e))?;
+        // Write the processed code to the temporary file using the file handle
+        {
+            let file = tmpfile.as_file_mut();
+            file.write_all(processed_code.as_bytes()).map_err(|e| ExecutorError::IoError(e))?;
+            file.flush().map_err(|e| ExecutorError::IoError(e))?;
+        }
         
         // Execute the Python file and capture its output
         let output = Command::new("python")
