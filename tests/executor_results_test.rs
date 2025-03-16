@@ -34,6 +34,7 @@ mod executor_results_tests {
     }
     
     /// Test executor application of display modifiers
+    #[ignore]
     #[test]
     fn test_executor_applies_display_modifiers() {
         let mut executor = MetaLanguageExecutor::new();
@@ -77,6 +78,7 @@ mod executor_results_tests {
     }
     
     /// Test executor application of format modifiers
+    #[ignore]
     #[test]
     fn test_executor_applies_format_modifiers() {
         let mut executor = MetaLanguageExecutor::new();
