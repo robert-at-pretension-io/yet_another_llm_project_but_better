@@ -178,4 +178,3 @@ pub fn extract_variable_references(content: &str) -> Vec<String> {
     
     references
 }
-}
