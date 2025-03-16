@@ -540,6 +540,32 @@ impl MetaLanguageExecutor {
         }
     }
     
+    pub fn execute_python(&self, block: &Block, code: &str) -> Result<String, ExecutorError> {
+        // Process <meta:reference> tags in the Python code
+        let processed_code = self.process_variable_references(code);
+        
+        // Create a temporary Python file
+        let tmpfile = tempfile::NamedTempFile::new().map_err(|e| ExecutorError::IoError(e))?;
+        let tmp_path = tmpfile.path().to_owned();
+        
+        // Write the processed code to the temporary file
+        std::fs::write(&tmp_path, processed_code).map_err(|e| ExecutorError::IoError(e))?;
+        
+        // Execute the Python file and capture its output
+        let output = Command::new("python")
+            .arg(&tmp_path)
+            .output()
+            .map_err(|e| ExecutorError::IoError(e))?;
+        
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            Err(ExecutorError::ExecutionFailed(
+                String::from_utf8_lossy(&output.stderr).to_string()
+            ))
+        }
+    }
+    
     // Execute a question block by sending it to an LLM API
     pub fn execute_question(&mut self, block: &Block, question: &str) -> Result<String, ExecutorError> {
         println!("DEBUG: Executing question block: {}", question);
