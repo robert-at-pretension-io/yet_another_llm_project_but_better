@@ -22,7 +22,7 @@ Hello, world!
 </meta:data>
 
 <meta:data name="reference-test">
-Value: ${test-var}
+Value: <meta:reference target="test-var" />
 </meta:data>
 </meta:document>"#;
         
@@ -46,11 +46,11 @@ Alice
 </meta:data>
 
 <meta:data name="greeting">
-Hello, ${name}!
+Hello, <meta:reference target="name" />!
 </meta:data>
 
 <meta:data name="message">
-${greeting} How are you today?
+<meta:reference target="greeting" /> How are you today?
 </meta:data>
 </meta:document>"#;
         
@@ -79,7 +79,7 @@ Fallback content for process-numbers
 
 <meta:code language="python" name="process-numbers" fallback="process-numbers-fallback">
 import json
-numbers = json.loads('''${numbers}''')
+numbers = json.loads('''<meta:reference target="numbers" />''')
 result = sum(numbers)
 print(f"Sum: {result}")
 </meta:code>
@@ -112,11 +112,11 @@ And should be trimmed in some contexts.
 </meta:data>
 
 <meta:data name="trimmed-reference" trim="true">
-${long-text}
+<meta:reference target="long-text" />
 </meta:data>
 
 <meta:data name="max-lines-reference" max_lines="1">
-${long-text}
+<meta:reference target="long-text" />
 </meta:data>
 </meta:document>"#;
         
@@ -159,8 +159,8 @@ Fallback content for create-file
 </meta:data>
 
 <meta:shell name="create-file" fallback="create-file-fallback">
-echo "${content}" > ${filename}
-cat ${filename}
+echo "<meta:reference target="content" />" > <meta:reference target="filename" />
+cat <meta:reference target="filename" />
 </meta:shell>
 </meta:document>"#;
         
@@ -194,11 +194,11 @@ I exist
 </meta:data>
 
 <meta:data name="with-existing-fallback" fallback="default-value">
-${existing-var}
+<meta:reference target="existing-var" />
 </meta:data>
 
 <meta:data name="with-missing-fallback" fallback="default-value">
-${non-existent-var}
+<meta:reference target="non-existent-var" />
 </meta:data>
 </meta:document>"#;
         
@@ -221,11 +221,11 @@ ${non-existent-var}
         // Process a document with circular references
         let content = r#"<meta:document xmlns:meta="https://example.com/meta-language">
 <meta:data name="var1">
-${var2}
+<meta:reference target="var2" />
 </meta:data>
 
 <meta:data name="var2">
-${var1}
+<meta:reference target="var1" />
 </meta:data>
 </meta:document>"#;
         
@@ -273,7 +273,7 @@ book
 </meta:data>
 
 <meta:data name="template">
-${user} has ${count} ${item}s.
+<meta:reference target="user" /> has <meta:reference target="count" /> <meta:reference target="item" />s.
 </meta:data>
 
 <meta:data name="format-message-fallback">
@@ -281,7 +281,7 @@ Fallback content for format-message
 </meta:data>
 
 <meta:code language="python" name="format-message" fallback="format-message-fallback">
-message = """${template}"""
+message = """<meta:reference target="template" />"""
 print(f"Formatted message: {message}")
 </meta:code>
 </meta:document>"#;
@@ -323,7 +323,7 @@ Fallback content for process-json
 
 <meta:code language="python" name="process-json" fallback="process-json-fallback">
 import json
-data = json.loads('''${user-data}''')
+data = json.loads('''<meta:reference target="user-data" />''')
 print(f"User: {data['name']}, Age: {data['age']}")
 print(f"Theme: {data['preferences']['theme']}")
 </meta:code>
@@ -356,9 +356,9 @@ reusable content
 </meta:data>
 
 <meta:data name="multiple-uses">
-First use: ${repeated-var}
-Second use: ${repeated-var}
-Third use: ${repeated-var}
+First use: <meta:reference target="repeated-var" />
+Second use: <meta:reference target="repeated-var" />
+Third use: <meta:reference target="repeated-var" />
 </meta:data>
 </meta:document>"#;
         
