@@ -449,29 +449,41 @@ impl MetaLanguageExecutor {
         }
         
         // Process variable references in content
-        // We need to get the latest content from the blocks map, as it might have been updated
-        let block_content = if let Some(updated_block) = self.blocks.get(name) {
+        let mut block_content = if let Some(updated_block) = self.blocks.get(name) {
             updated_block.content.clone()
         } else {
             block.content.clone()
         };
-    
-        // Process variable references with XML parser
-        let processed_content = self.process_variable_references(&block_content)?;
+        
+        // Process variable references with XML parser - potentially multiple passes
+        // If we have refs like A -> B -> C, we need multiple passes to resolve them all
+        for _ in 0..3 { // Limit to 3 recursive passes to avoid infinite loops
+            let processed_content = self.process_variable_references(&block_content)?;
+            if processed_content == block_content {
+                // No more replacements to make, exit early
+                break;
+            }
+            block_content = processed_content;
+        }
+        
+        // Always update the block with the processed content
+        if let Some(updated_block) = self.blocks.get_mut(name) {
+            updated_block.content = block_content.clone();
+        }
         
         // Execute based on block type
         let result = match block.block_type.as_str() {
-            "shell" => self.execute_shell(&processed_content),
-            "api" => self.execute_api(&processed_content),
-            "question" => self.execute_question(&block, &processed_content),
-            "code:python" => self.execute_python(&block, &processed_content),
+            "shell" => self.execute_shell(&block_content),
+            "api" => self.execute_api(&block_content),
+            "question" => self.execute_question(&block, &block_content),
+            "code:python" => self.execute_python(&block, &block_content),
             code if code.starts_with("code:") => {
                 println!("DEBUG: Unsupported code block type '{}'. Returning processed content.", code);
-                Ok(processed_content)
+                Ok(block_content)
             }
             _ => {
                 // Default to returning the processed content
-                Ok(processed_content)
+                Ok(block_content)
             }
         };
         
