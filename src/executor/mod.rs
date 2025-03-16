@@ -276,9 +276,9 @@ impl MetaLanguageExecutor {
                             writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
                         } else {
                             println!("DEBUG: Target '{}' not found in outputs", target_str);
-                            // Target not found, preserve the original tag
-                            writer.write_event(Event::Start(e.to_owned()))?;
-                            writer.write_event(Event::End(BytesEnd::new("meta:reference")))?;
+                            // Replace with placeholder instead of preserving the original tag
+                            let placeholder = format!("${{{}}}", target_str);
+                            writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
                         }
                     } else {
                         println!("DEBUG: Reference tag missing target attribute");
@@ -309,8 +309,9 @@ impl MetaLanguageExecutor {
                             writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
                         } else {
                             println!("DEBUG: Target '{}' not found in outputs", target_str);
-                            // Target not found, preserve the original tag
-                            writer.write_event(Event::Empty(e.to_owned()))?;
+                            // Replace with placeholder instead of preserving the original tag
+                            let placeholder = format!("${{{}}}", target_str);
+                            writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
                         }
                     } else {
                         println!("DEBUG: Self-closing reference tag missing target attribute");
