@@ -15,13 +15,13 @@ fn test_enhanced_variable_reference_basic() {
     }
     </meta:data>
 
-    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response="# John Doe\n\n- Age: 30\n- Skills: Programming, Data Analysis, Machine Learning\n\nFormat: markdown">
+    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response="# John Doe\\n\\n- Age: 30\\n- Skills: Programming, Data Analysis, Machine Learning\\n\\nFormat: markdown">
     Here is the data in markdown format: ${test-data:format=markdown}
     </meta:question>
 </meta:document>"#;
 
     let result = parse_document(input);
-    assert!(result.is_ok(), format!("Failed to parse document with enhanced variable reference: {:?}", result.err()));
+    assert!(result.is_ok(), "Failed to parse document with enhanced variable reference: {:?}", result.err());
     
     let blocks = result.unwrap();
     assert_eq!(blocks.len(), 2);
@@ -29,7 +29,7 @@ fn test_enhanced_variable_reference_basic() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with enhanced variable reference: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with enhanced variable reference: {:?}", process_result.err());
     
     // Check that the variable reference was expanded correctly with the specified format
     let question_block = match executor.blocks.get("format-test") {
@@ -90,7 +90,7 @@ fn test_enhanced_variable_reference_include_modifiers() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with include modifiers: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with include modifiers: {:?}", process_result.err());
     
     // Check that the variable reference includes both code and results
     let updated_content = executor.update_document().unwrap();
@@ -141,7 +141,7 @@ fn test_enhanced_variable_reference_multiple_modifiers() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with multiple variable references: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with multiple variable references: {:?}", process_result.err());
     
     // Check that different modifiers are applied correctly
     let updated_content = executor.update_document().unwrap();
@@ -186,7 +186,7 @@ id,name,value
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with limit modifier: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with limit modifier: {:?}", process_result.err());
     
     // Check that the content is limited to the specified number of lines
     let updated_content = executor.update_document().unwrap();
@@ -230,7 +230,7 @@ fn test_enhanced_variable_reference_conditional_inclusion() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with conditional inclusion: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with conditional inclusion: {:?}", process_result.err());
     
     // Check that sensitive information is included based on the condition
     let updated_content = executor.update_document().unwrap();
@@ -280,7 +280,7 @@ fn test_enhanced_variable_reference_transformation() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with transformation modifiers: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with transformation modifiers: {:?}", process_result.err());
     
     // Check that transformations are applied correctly
     let updated_content = executor.update_document().unwrap();
@@ -315,7 +315,7 @@ fn test_enhanced_variable_reference_highlighting() {
     ORDER BY order_count DESC;
     </meta:code>
 
-    <meta:question name="highlight-question" model="gpt-4" test_mode="true" test_response="The Python code implements a recursive factorial function that calculates 5! (5 factorial) which equals 120. It demonstrates recursion with a base case (n <= 1) and a recursive case.\n\nThe SQL query retrieves users and counts their orders, filtering to only show users with more than 5 orders. It demonstrates joins, aggregation with GROUP BY, filtering aggregated results with HAVING, and sorting with ORDER BY.">
+    <meta:question name="highlight-question" model="gpt-4" test_mode="true" test_response="The Python code implements a recursive factorial function that calculates 5! (5 factorial) which equals 120. It demonstrates recursion with a base case (n <= 1) and a recursive case.\\n\\nThe SQL query retrieves users and counts their orders, filtering to only show users with more than 5 orders. It demonstrates joins, aggregation with GROUP BY, filtering aggregated results with HAVING, and sorting with ORDER BY.">
     Python code with syntax highlighting:
     ${example-python:highlight=true}
     
@@ -335,7 +335,7 @@ fn test_enhanced_variable_reference_highlighting() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with highlighting modifiers: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with highlighting modifiers: {:?}", process_result.err());
     
     // Check that syntax highlighting markers are added
     let updated_content = executor.update_document().unwrap();
@@ -387,7 +387,7 @@ fn test_enhanced_variable_reference_nesting() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with nested variable references: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with nested variable references: {:?}", process_result.err());
     
     // Check that nested references are resolved correctly
     let updated_content = executor.update_document().unwrap();
@@ -428,7 +428,7 @@ fn test_enhanced_variable_reference_error_handling() {
     // Create executor and process document
     let mut executor = MetaLanguageExecutor::new();
     let process_result = executor.process_document(input);
-    assert!(process_result.is_ok(), format!("Failed to process document with error handling: {:?}", process_result.err()));
+    assert!(process_result.is_ok(), "Failed to process document with error handling: {:?}", process_result.err());
     
     // Check that errors are handled gracefully with fallbacks
     let updated_content = executor.update_document().unwrap();
