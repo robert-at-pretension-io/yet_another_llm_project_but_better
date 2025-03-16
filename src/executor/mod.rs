@@ -633,22 +633,49 @@ impl MetaLanguageExecutor {
             return None;
         }
         
-        // Direct lookup for simple variable names
+        // Compute alternative variable name by replacing '-' with '_' 
+        let alt_name = var_name.replace("-", "_");
+
+        // Direct lookup for simple variable names using original name
         if let Some(value) = self.outputs.get(var_name) {
             if debug_enabled {
                 println!("  Direct lookup succeeded for '{}'", var_name);
             }
             return Some(value.clone());
         }
-        
+        // Try alternative lookup using alt_name if different
+        if alt_name != var_name {
+            if let Some(value) = self.outputs.get(&alt_name) {
+                if debug_enabled {
+                    println!("  Alternative lookup succeeded for '{}' as '{}'", var_name, alt_name);
+                }
+                return Some(value.clone());
+            }
+        }
+
         // If not found in outputs, check if there's a block with this name
         if let Some(block) = self.blocks.get(var_name) {
-            // For blocks, return their content
             return Some(block.content.clone());
         }
-        
-        // Check fallbacks
-        self.fallbacks.get(var_name).cloned()
+        // Try alternative lookup for blocks
+        if alt_name != var_name {
+            if let Some(block) = self.blocks.get(&alt_name) {
+                return Some(block.content.clone());
+            }
+        }
+
+        // Check fallbacks using original name
+        if let Some(value) = self.fallbacks.get(var_name) {
+            return Some(value.clone());
+        }
+        // Try alternative lookup in fallbacks
+        if alt_name != var_name {
+            if let Some(value) = self.fallbacks.get(&alt_name) {
+                return Some(value.clone());
+            }
+        }
+
+        None
     }
     
     // Process only limit modifiers, preserving other modifiers
