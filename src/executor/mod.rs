@@ -186,11 +186,9 @@ impl MetaLanguageExecutor {
         for (name, block) in self.blocks.iter_mut() {
             let processed_content = self.process_variable_references(&block.content);
             block.content = processed_content.clone();
-            if !self.is_executable_block(block) {
-                // Apply any modifiers to the variable content before storing
-                let modified_content = self.apply_block_modifiers_to_variable(name, &processed_content);
-                self.outputs.insert(name.clone(), modified_content);
-            }
+            // Apply any modifiers to the variable content before storing
+            let modified_content = self.apply_block_modifiers_to_variable(name, &processed_content);
+            self.outputs.insert(name.clone(), modified_content);
         }
         
         // Register fallbacks for executable blocks that don't have them
