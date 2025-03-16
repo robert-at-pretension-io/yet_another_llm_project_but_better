@@ -815,6 +815,9 @@ impl MetaLanguageExecutor {
                 
                 processed_content.push_str(&content[last_end..whole_match.start()]);
                 processed_content.push_str(&replacement);
+                if debug_enabled {
+                    println!("DEBUG: Replaced '{}' with '{}'", &content[whole_match.start()..whole_match.end()], replacement);
+                }
                 last_end = whole_match.end();
             } else {
                 // No nested references, process normally
@@ -861,6 +864,9 @@ impl MetaLanguageExecutor {
                 
                 processed_content.push_str(&content[last_end..whole_match.start()]);
                 processed_content.push_str(&replacement);
+                if debug_enabled {
+                    println!("DEBUG: Replaced '{}' with '{}'", &content[whole_match.start()..whole_match.end()], replacement);
+                }
                 last_end = whole_match.end();
             }
         }
