@@ -157,8 +157,12 @@ impl MetaLanguageExecutor {
         }
         
         // Process data blocks first to update variable references
-        for (name, block) in self.blocks.iter_mut() {
-            if self.is_data_block(block) {
+        let data_block_names: Vec<String> = self.blocks.iter()
+            .filter(|(_, block)| self.is_data_block(block))
+            .map(|(name, _)| name.clone())
+            .collect();
+        for name in data_block_names {
+            if let Some(block) = self.blocks.get_mut(&name) {
                 let processed = self.process_variable_references(&block.content)?;
                 block.content = processed.clone();
                 self.outputs.insert(name.clone(), processed);
