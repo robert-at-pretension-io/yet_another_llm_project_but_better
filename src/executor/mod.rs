@@ -306,14 +306,18 @@ impl MetaLanguageExecutor {
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
+                    println!("DEBUG: Entering meta:reference Start tag processing");
                     // Process meta:reference tag
                     let mut target = None;
 
+                    println!("DEBUG: Extracting attributes for meta:reference tag");
                     // Extract the target attribute
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
+                        println!("DEBUG: Found attribute with key: {:?}, value: {:?}", attr.key.as_ref(), String::from_utf8_lossy(&attr.value));
                         if attr.key.as_ref() == b"target" {
                             target = Some(String::from_utf8_lossy(&attr.value).to_string());
+                            println!("DEBUG: Extracted target attribute: {}", target.as_ref().unwrap());
                         }
                     }
 
@@ -330,9 +334,10 @@ impl MetaLanguageExecutor {
                             // Write the value instead of the reference tag
                             writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
 
-                            // Skip to the closing tag
+                            // Skip to the closing tag with detailed debug logging
                             let mut depth = 1;
                             while depth > 0 {
+                                println!("DEBUG: In skip loop for meta:reference, current depth: {}", depth);
                                 match reader.read_event_into(&mut buf) {
                                     Ok(Event::Start(ref _e))
                                         if _e.name().as_ref() == b"meta:reference" =>
@@ -364,9 +369,10 @@ impl MetaLanguageExecutor {
                             writer
                                 .write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
 
-                            // Skip to the closing tag
+                            // Skip to the closing tag with detailed debug logging
                             let mut depth = 1;
                             while depth > 0 {
+                                println!("DEBUG: In skip loop for meta:reference (else branch), current depth: {}", depth);
                                 match reader.read_event_into(&mut buf) {
                                     Ok(Event::Start(ref _e))
                                         if _e.name().as_ref() == b"meta:reference" =>
