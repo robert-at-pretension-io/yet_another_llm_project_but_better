@@ -15,7 +15,7 @@ fn test_enhanced_variable_reference_basic() {
     }
     </meta:data>
 
-    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response="# John Doe
+    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response=" John Doe
 
 - Age: 30
 - Skills: Programming, Data Analysis, Machine Learning
