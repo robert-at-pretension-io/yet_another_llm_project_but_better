@@ -505,7 +505,7 @@ impl MetaLanguageExecutor {
                 let var_name = caps.get(1).unwrap().as_str();
                 match self.lookup_variable(var_name) {
                     Some(val) => val,
-                    None => format!("${{UNDEFINED:{}}}", var_name)
+                    None => format!("UNDEFINED:{}", var_name)
                 }
             }).to_string();
             if debug_enabled {
@@ -514,56 +514,7 @@ impl MetaLanguageExecutor {
             }
         }
         
-        // Check if we should preserve variable references in original block content
-        // This is determined by environment variable or context
-        let preserve_refs = std::env::var("LLM_PRESERVE_REFS").unwrap_or_default() == "1" || 
-                           std::env::var("LLM_PRESERVE_REFS").unwrap_or_default().to_lowercase() == "true";
-        
-        // Check if we should process references in executor
-        let process_refs_in_executor = std::env::var("LLM_PROCESS_REFS_IN_EXECUTOR").unwrap_or_default() == "1" || 
-                                      std::env::var("LLM_PROCESS_REFS_IN_EXECUTOR").unwrap_or_default().to_lowercase() == "true";
-        
-        // Also check if the content contains a format modifier, which should be preserved
-        let contains_format_modifier = content.contains("${") && 
-                                      (content.contains(":format=") || 
-                                       content.contains(":transform=") || 
-                                       content.contains(":highlight"));
-        
-        // Special handling for limit modifier - we want to process this even if other modifiers are preserved
-        let contains_limit_modifier = processed_content.contains("${") && processed_content.contains(":limit=");
-        
-        if debug_enabled && contains_limit_modifier {
-            println!("DEBUG: Content contains limit modifier: {}", content);
-        }
-        
-        // Always process limit modifiers, even if other modifiers would normally be preserved
-        if contains_limit_modifier {
-            // Process only limit modifiers, preserving other modifiers
-            let result = self.process_limit_modifiers_only(&processed_content);
-            if result != processed_content {
-                return result;
-            }
-        }
-        
-        if (preserve_refs && !process_refs_in_executor) || 
-           (contains_format_modifier && !contains_limit_modifier) {
-            if debug_enabled {
-                println!("DEBUG: Preserving original variable references in block content");
-                if contains_format_modifier {
-                    println!("DEBUG: Content contains format modifiers that should be preserved");
-                }
-            }
-            return processed_content.to_string();
-        }
-        
-        let result = self.process_variable_references_internal(&processed_content, &mut Vec::new());
-        
-        if debug_enabled && result != content {
-            println!("DEBUG: Variable references resolved. Result: '{}'", 
-                     if result.len() > 100 { &result[..100] } else { &result });
-        }
-        
-        result
+        processed_content
     }
     
     // Helper function to look up a variable value, handling dotted names
