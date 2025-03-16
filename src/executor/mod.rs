@@ -2128,100 +2128,446 @@ impl MetaLanguageExecutor {
     
     /// Apply highlighting modifier for code blocks
     fn apply_highlighting(&self, var_name: &str, content: &str) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Applying highlighting to variable '{}'", var_name);
+        }
+        
+        // First check if this is a reference to a code block
         if let Some(block) = self.blocks.get(var_name) {
             if block.block_type.starts_with("code:") {
+                // Extract language from block type (e.g., "code:python" -> "python")
                 let language = block.block_type.split(':').nth(1).unwrap_or("text");
+                if debug_enabled {
+                    println!("DEBUG: Detected language '{}' from block type", language);
+                }
                 return format!("```{}\n{}\n```", language, content);
+            } else if block.block_type == "shell" {
+                // Shell blocks get bash highlighting
+                if debug_enabled {
+                    println!("DEBUG: Detected shell block, using bash highlighting");
+                }
+                return format!("```bash\n{}\n```", content);
             }
         }
         
-        // If not a code block or language not specified, use plain code block
+        // If not a recognized code block, try to auto-detect language
+        let trimmed = content.trim();
+        
+        // Auto-detect Python
+        if trimmed.contains("def ") || trimmed.contains("import ") || 
+           trimmed.contains("class ") || trimmed.starts_with("#!/usr/bin/env python") {
+            if debug_enabled {
+                println!("DEBUG: Auto-detected Python code");
+            }
+            return format!("```python\n{}\n```", content);
+        }
+        
+        // Auto-detect JavaScript
+        if trimmed.contains("function ") || trimmed.contains("const ") || 
+           trimmed.contains("let ") || trimmed.contains("var ") || 
+           trimmed.contains("=> {") {
+            if debug_enabled {
+                println!("DEBUG: Auto-detected JavaScript code");
+            }
+            return format!("```javascript\n{}\n```", content);
+        }
+        
+        // Auto-detect Rust
+        if trimmed.contains("fn ") || trimmed.contains("impl ") || 
+           trimmed.contains("struct ") || trimmed.contains("enum ") || 
+           trimmed.contains("use std::") {
+            if debug_enabled {
+                println!("DEBUG: Auto-detected Rust code");
+            }
+            return format!("```rust\n{}\n```", content);
+        }
+        
+        // Auto-detect JSON
+        if (trimmed.starts_with('{') && trimmed.ends_with('}')) || 
+           (trimmed.starts_with('[') && trimmed.ends_with(']')) {
+            if debug_enabled {
+                println!("DEBUG: Auto-detected JSON data");
+            }
+            return format!("```json\n{}\n```", content);
+        }
+        
+        // Auto-detect shell commands
+        if trimmed.contains("#!/bin/bash") || trimmed.contains("#!/bin/sh") || 
+           trimmed.starts_with("$ ") || trimmed.contains(" | grep") || 
+           trimmed.contains("sudo ") {
+            if debug_enabled {
+                println!("DEBUG: Auto-detected shell commands");
+            }
+            return format!("```bash\n{}\n```", content);
+        }
+        
+        // If language detection failed, use plain code block
+        if debug_enabled {
+            println!("DEBUG: No language detected, using plain code block");
+        }
         format!("```\n{}\n```", content)
     }
     
     /// Apply include modifiers (include_code, include_results)
     fn apply_include_modifiers(&self, var_name: &str, content: &str, modifiers: &HashMap<String, String>) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Applying include modifiers to variable '{}'", var_name);
+        }
+        
         let mut result = content.to_string();
+        let mut sections = Vec::new();
         
         // Handle include_code modifier
-        if let Some(include_code) = modifiers.get("include_code") {
-            if include_code == "true" {
-                result = format!("Code:\n```\n{}\n```\n\n{}", content, result);
+        if modifiers.get("include_code").map_or(false, |v| v == "true") {
+            if debug_enabled {
+                println!("DEBUG: Including original code");
+            }
+            
+            // Get the original code content
+            if let Some(block) = self.blocks.get(var_name) {
+                let code_content = block.content.clone();
+                
+                // Determine language for syntax highlighting
+                let language = if block.block_type.starts_with("code:") {
+                    block.block_type.split(':').nth(1).unwrap_or("text")
+                } else if block.block_type == "shell" {
+                    "bash"
+                } else {
+                    "text"
+                };
+                
+                // Format the code with proper syntax highlighting
+                let formatted_code = format!("```{}\n{}\n```", language, code_content);
+                sections.push(("Code", formatted_code));
             }
         }
         
         // Handle include_results modifier
-        if let Some(include_results) = modifiers.get("include_results") {
-            if include_results == "true" {
-                // Look for results in different formats
-                let results_key = format!("{}_results", var_name);
-                let dot_results_key = format!("{}.results", var_name);
+        if modifiers.get("include_results").map_or(false, |v| v == "true") {
+            if debug_enabled {
+                println!("DEBUG: Including execution results");
+            }
+            
+            // Look for results in different formats
+            let results_key = format!("{}_results", var_name);
+            let dot_results_key = format!("{}.results", var_name);
+            
+            if let Some(results) = self.outputs.get(&results_key).or_else(|| self.outputs.get(&dot_results_key)) {
+                // Check if we should format the results
+                let formatted_results = if modifiers.get("format_results").map_or(false, |v| v == "true") {
+                    // Try to determine the format of the results
+                    if results.trim().starts_with('{') || results.trim().starts_with('[') {
+                        // Looks like JSON
+                        format!("```json\n{}\n```", results)
+                    } else if results.contains("def ") || results.contains("class ") {
+                        // Looks like Python
+                        format!("```python\n{}\n```", results)
+                    } else {
+                        // Default formatting
+                        format!("```\n{}\n```", results)
+                    }
+                } else {
+                    // No formatting requested
+                    results.clone()
+                };
                 
-                if let Some(results) = self.outputs.get(&results_key).or_else(|| self.outputs.get(&dot_results_key)) {
-                    result = format!("{}\n\nResults:\n{}", result, results);
-                }
+                sections.push(("Results", formatted_results));
+            } else if debug_enabled {
+                println!("DEBUG: No results found for '{}'", var_name);
             }
         }
         
+        // Handle include_error modifier
+        if modifiers.get("include_error").map_or(false, |v| v == "true") {
+            if debug_enabled {
+                println!("DEBUG: Including error information if available");
+            }
+            
+            // Look for error in outputs
+            let error_key = format!("{}_error", var_name);
+            
+            if let Some(error) = self.outputs.get(&error_key) {
+                // Format the error message
+                let formatted_error = format!("```\n{}\n```", error);
+                sections.push(("Error", formatted_error));
+            }
+        }
+        
+        // If we have sections to add and the original content isn't empty
+        if !sections.is_empty() {
+            // Start with the original content if it's not empty
+            let mut combined = if !content.trim().is_empty() {
+                // Check if we should put the original content first or last
+                if modifiers.get("content_first").map_or(true, |v| v == "true") {
+                    // Original content first (default)
+                    result
+                } else {
+                    // Original content will be added last
+                    String::new()
+                }
+            } else {
+                // Empty original content
+                String::new()
+            };
+            
+            // Add each section
+            for (title, section_content) in sections {
+                if !combined.is_empty() {
+                    combined.push_str("\n\n");
+                }
+                combined.push_str(&format!("### {}\n\n{}", title, section_content));
+            }
+            
+            // Add original content at the end if requested
+            if !content.trim().is_empty() && modifiers.get("content_first").map_or(false, |v| v == "false") {
+                combined.push_str("\n\n### Output\n\n");
+                combined.push_str(&content);
+            }
+            
+            return combined;
+        }
+        
+        // If no sections were added, return the original content
         result
     }
     
-    /// Apply conditional modifiers (include_sensitive)
+    /// Apply conditional modifiers (include_sensitive, if, unless)
     fn apply_conditional_modifiers(&self, var_name: &str, content: &str, modifiers: &HashMap<String, String>) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Applying conditional modifiers to variable '{}'", var_name);
+        }
+        
         let mut result = content.to_string();
+        
+        // Handle 'if' modifier - only include content if condition is true
+        if let Some(condition_var) = modifiers.get("if") {
+            if debug_enabled {
+                println!("DEBUG: Found 'if' condition: {}", condition_var);
+            }
+            
+            let condition_met = self.evaluate_condition(condition_var);
+            
+            if debug_enabled {
+                println!("DEBUG: Condition '{}' evaluated to: {}", condition_var, condition_met);
+            }
+            
+            if !condition_met {
+                // Condition not met, return empty string
+                if debug_enabled {
+                    println!("DEBUG: Condition not met, returning empty string");
+                }
+                return String::new();
+            }
+        }
+        
+        // Handle 'unless' modifier - only include content if condition is false
+        if let Some(condition_var) = modifiers.get("unless") {
+            if debug_enabled {
+                println!("DEBUG: Found 'unless' condition: {}", condition_var);
+            }
+            
+            let condition_met = self.evaluate_condition(condition_var);
+            
+            if debug_enabled {
+                println!("DEBUG: Condition '{}' evaluated to: {}", condition_var, condition_met);
+            }
+            
+            if condition_met {
+                // Condition met, return empty string (since this is 'unless')
+                if debug_enabled {
+                    println!("DEBUG: 'Unless' condition met, returning empty string");
+                }
+                return String::new();
+            }
+        }
         
         // Handle include_sensitive modifier
         if let Some(condition_var) = modifiers.get("include_sensitive") {
-            // Check if the condition variable is "true"
-            if condition_var == "true" {
-                // Include everything
-                return result;
-            } else if condition_var == "false" {
-                // Remove sensitive information
+            if debug_enabled {
+                println!("DEBUG: Found include_sensitive condition: {}", condition_var);
+            }
+            
+            let include_sensitive = self.evaluate_condition(condition_var);
+            
+            if debug_enabled {
+                println!("DEBUG: include_sensitive evaluated to: {}", include_sensitive);
+            }
+            
+            if !include_sensitive {
+                // Don't include sensitive information
+                if debug_enabled {
+                    println!("DEBUG: Removing sensitive information from content");
+                }
+                
+                // Check if content is JSON
                 if let Ok(mut json_value) = serde_json::from_str::<serde_json::Value>(&result) {
                     if let Some(obj) = json_value.as_object_mut() {
-                        // Remove known sensitive fields
-                        obj.remove("password");
-                        obj.remove("secret");
-                        obj.remove("token");
-                        obj.remove("api_key");
-                        obj.remove("private_key");
-                        obj.remove("sensitive");
+                        // Define sensitive field patterns
+                        let sensitive_fields = [
+                            "password", "passwd", "secret", "token", "api_key", "apikey", 
+                            "private_key", "privatekey", "sensitive", "credential", 
+                            "auth", "authentication", "key", "cert", "certificate"
+                        ];
+                        
+                        // Remove all fields that match sensitive patterns
+                        let keys_to_remove: Vec<String> = obj.keys()
+                            .filter(|k| {
+                                let k_lower = k.to_lowercase();
+                                sensitive_fields.iter().any(|&pattern| k_lower.contains(pattern))
+                            })
+                            .cloned()
+                            .collect();
+                        
+                        for key in keys_to_remove {
+                            if debug_enabled {
+                                println!("DEBUG: Removing sensitive field: {}", key);
+                            }
+                            obj.remove(&key);
+                        }
+                        
+                        // Also recursively check nested objects
+                        self.redact_sensitive_fields(obj);
+                        
+                        if let Ok(filtered) = serde_json::to_string_pretty(&json_value) {
+                            result = filtered;
+                        }
                     }
+                } else if debug_enabled {
+                    println!("DEBUG: Content is not JSON, applying text-based redaction");
                     
-                    if let Ok(filtered) = serde_json::to_string_pretty(&json_value) {
-                        result = filtered;
-                    }
-                }
-            } else {
-                // It's a variable reference, look it up
-                if let Some(condition_value) = self.lookup_variable(condition_var) {
-                    if condition_value == "true" || condition_value == "1" || condition_value == "yes" {
-                        // Include everything
-                        return result;
-                    } else {
-                        // Remove sensitive information
-                        if let Ok(mut json_value) = serde_json::from_str::<serde_json::Value>(&result) {
-                            if let Some(obj) = json_value.as_object_mut() {
-                                // Remove known sensitive fields
-                                obj.remove("password");
-                                obj.remove("secret");
-                                obj.remove("token");
-                                obj.remove("api_key");
-                                obj.remove("private_key");
-                                obj.remove("sensitive");
-                            }
-                            
-                            if let Ok(filtered) = serde_json::to_string_pretty(&json_value) {
-                                result = filtered;
-                            }
+                    // For non-JSON content, try to redact common patterns
+                    let patterns = [
+                        (r"password\s*[:=]\s*['\"](.*?)['\"]", "password: \"[REDACTED]\""),
+                        (r"api[_-]?key\s*[:=]\s*['\"](.*?)['\"]", "api_key: \"[REDACTED]\""),
+                        (r"secret\s*[:=]\s*['\"](.*?)['\"]", "secret: \"[REDACTED]\""),
+                        (r"token\s*[:=]\s*['\"](.*?)['\"]", "token: \"[REDACTED]\""),
+                    ];
+                    
+                    for (pattern, replacement) in &patterns {
+                        if let Ok(re) = regex::Regex::new(pattern) {
+                            result = re.replace_all(&result, replacement).to_string();
                         }
                     }
                 }
             }
         }
         
+        // Handle conditional sections with ${if:condition}...${endif} syntax
+        result = self.process_conditional_blocks(&result);
+        
         result
+    }
+    
+    /// Helper method to evaluate a condition string
+    fn evaluate_condition(&self, condition: &str) -> bool {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Evaluating condition: {}", condition);
+        }
+        
+        // Handle direct boolean values
+        if condition == "true" || condition == "1" || condition == "yes" || condition == "on" {
+            return true;
+        }
+        if condition == "false" || condition == "0" || condition == "no" || condition == "off" {
+            return false;
+        }
+        
+        // Handle negation with ! prefix
+        if condition.starts_with('!') {
+            return !self.evaluate_condition(&condition[1..]);
+        }
+        
+        // Handle comparison operations
+        if condition.contains("==") {
+            let parts: Vec<&str> = condition.split("==").collect();
+            if parts.len() == 2 {
+                let left = parts[0].trim();
+                let right = parts[1].trim();
+                
+                // Resolve variables in both sides
+                let left_value = if left.starts_with("${") && left.ends_with("}") {
+                    let var_name = &left[2..left.len()-1];
+                    self.lookup_variable(var_name).unwrap_or_default()
+                } else {
+                    left.to_string()
+                };
+                
+                let right_value = if right.starts_with("${") && right.ends_with("}") {
+                    let var_name = &right[2..right.len()-1];
+                    self.lookup_variable(var_name).unwrap_or_default()
+                } else {
+                    right.to_string()
+                };
+                
+                if debug_enabled {
+                    println!("DEBUG: Comparing '{}' == '{}'", left_value, right_value);
+                }
+                
+                return left_value == right_value;
+            }
+        }
+        
+        // Handle variable existence check
+        if condition.starts_with("exists:") {
+            let var_name = &condition[7..];
+            return self.lookup_variable(var_name).is_some();
+        }
+        
+        // Default: treat as variable name and check if it's truthy
+        if let Some(value) = self.lookup_variable(condition) {
+            let value_lower = value.to_lowercase();
+            return value_lower == "true" || value_lower == "1" || 
+                   value_lower == "yes" || value_lower == "on" || 
+                   !value.is_empty();
+        }
+        
+        // If all else fails, return false
+        false
+    }
+    
+    /// Recursively redact sensitive fields in nested JSON objects
+    fn redact_sensitive_fields(&self, obj: &mut serde_json::Map<String, serde_json::Value>) {
+        let sensitive_fields = [
+            "password", "passwd", "secret", "token", "api_key", "apikey", 
+            "private_key", "privatekey", "sensitive", "credential", 
+            "auth", "authentication", "key", "cert", "certificate"
+        ];
+        
+        // Process all object values
+        for (_, value) in obj.iter_mut() {
+            if let serde_json::Value::Object(nested_obj) = value {
+                // Check and redact fields in this nested object
+                let keys_to_redact: Vec<String> = nested_obj.keys()
+                    .filter(|k| {
+                        let k_lower = k.to_lowercase();
+                        sensitive_fields.iter().any(|&pattern| k_lower.contains(pattern))
+                    })
+                    .cloned()
+                    .collect();
+                
+                for key in keys_to_redact {
+                    nested_obj.insert(key, serde_json::Value::String("[REDACTED]".to_string()));
+                }
+                
+                // Recursively process deeper nested objects
+                self.redact_sensitive_fields(nested_obj);
+            } else if let serde_json::Value::Array(arr) = value {
+                // Process arrays of objects
+                for item in arr.iter_mut() {
+                    if let serde_json::Value::Object(nested_obj) = item {
+                        self.redact_sensitive_fields(nested_obj);
+                    }
+                }
+            }
+        }
     }
     
     // Process results content with all applicable modifiers
