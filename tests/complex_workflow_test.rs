@@ -277,7 +277,7 @@ Based on the security analysis, what are the key vulnerabilities that need addre
 <meta:code:python name="process-data" depends="simple-data">
 <![CDATA[
 import json
-data = ${simple-data}
+data = <meta:reference target="simple-data" />
 result = sum(data)
 print(result)
 ]]>
