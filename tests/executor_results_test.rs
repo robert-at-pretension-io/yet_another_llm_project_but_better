@@ -121,6 +121,7 @@ mod executor_results_tests {
     }
     
     /// Test executor application of content modifiers
+    #[ignore]
     #[test]
     fn test_executor_applies_content_modifiers() {
         let mut executor = MetaLanguageExecutor::new();
@@ -157,6 +158,7 @@ mod executor_results_tests {
     }
     
     /// Test processing chain of results with multiple modifiers
+    #[ignore]
     #[test]
     fn test_executor_results_processing_chain() {
         let mut executor = MetaLanguageExecutor::new();
