@@ -260,7 +260,7 @@ impl MetaLanguageExecutor {
                     for attr in e.attributes() {
                         if let Ok(attr) = attr {
                             if attr.key == b"target" {
-                                target = Some(attr.unescape_and_decode_value(&reader).unwrap_or_default());
+                                target = Some(attr.unescape_value().unwrap());
                                 break;
                             }
                         }
@@ -286,7 +286,7 @@ impl MetaLanguageExecutor {
                     for attr in e.attributes() {
                         if let Ok(attr) = attr {
                             if attr.key == b"target" {
-                                target = Some(attr.unescape_and_decode_value(&reader).unwrap_or_default());
+                                target = Some(attr.unescape_value().unwrap());
                                 break;
                             }
                         }
