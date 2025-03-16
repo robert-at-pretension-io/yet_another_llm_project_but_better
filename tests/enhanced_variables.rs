@@ -48,7 +48,7 @@ Format: markdown">
             panic!("Could not find 'format-test' block in executor");
         }
     };
-    assert!(question_block.content.contains("<reference target=\"test-data\" format=\"markdown\"/>"));
+    assert!(question_block.content.contains("<meta:reference target=\"test-data\" format=\"markdown\"/>"));
     
     // After processing, the reference should be replaced with the formatted content
     let updated_content = match executor.update_document() {
