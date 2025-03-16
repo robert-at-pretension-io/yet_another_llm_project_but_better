@@ -219,15 +219,15 @@ impl MetaLanguageExecutor {
                 // Process the content
                 let processed = self.process_variable_references(&content)?;
 
-                // Only update if something changed
+                // Always update the block and outputs with processed content
+                if let Some(block) = self.blocks.get_mut(name) {
+                    block.content = processed.clone();
+                }
+                self.outputs.insert(name.clone(), processed.clone());
+
+                // Check if any changes occurred to determine further passes
                 if processed != content {
                     any_replaced = true;
-
-                    // Update the block and outputs
-                    if let Some(block) = self.blocks.get_mut(name) {
-                        block.content = processed.clone();
-                    }
-                    self.outputs.insert(name.clone(), processed);
                     println!(
                         "DEBUG: Processed block '{}' variable references (pass {})",
                         name,
