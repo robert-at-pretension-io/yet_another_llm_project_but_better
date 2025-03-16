@@ -182,18 +182,31 @@ impl MetaLanguageExecutor {
         }
         println!("DEBUG: Restored {} previous responses", restored_count);
         
-        // Process variable references in all registered blocks
-        let collected: Vec<(String, String)> = self.blocks.iter()
-            .map(|(name, block)| {
-                let processed_content = self.process_variable_references(&block.content);
-                (name.clone(), processed_content)
-            }).collect();
-        for (name, processed_content) in collected {
-            if let Some(block) = self.blocks.get_mut(&name) {
-                block.content = processed_content.clone();
+        // Process variable references in all registered blocks using a two-phase approach
+        let mut ops = Vec::new();
+        for (name, _) in self.blocks.iter() {
+            ops.push(name.clone());
+        }
+        
+        // Now process each block's content and update both the block and outputs
+        for name in ops {
+            if let Some(block) = self.blocks.get(&name) {
+                let content = block.content.clone();
+                let processed_content = self.process_variable_references(&content);
+                
+                // Only update if content changed
+                if processed_content != content {
+                    if let Some(block) = self.blocks.get_mut(&name) {
+                        block.content = processed_content.clone();
+                    }
+                    
+                    // Also update outputs for non-executable blocks
+                    if !self.is_executable_block(block) {
+                        let modified_content = self.apply_block_modifiers_to_variable(&name, &processed_content);
+                        self.outputs.insert(name.clone(), modified_content);
+                    }
+                }
             }
-            let modified_content = self.apply_block_modifiers_to_variable(&name, &processed_content);
-            self.outputs.insert(name, modified_content);
         }
         
         // Register fallbacks for executable blocks that don't have them
