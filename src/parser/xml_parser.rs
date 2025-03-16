@@ -13,8 +13,13 @@ use crate::parser::is_valid_block_type;
 fn process_reference_tags(text: &str) -> String {
     println!("DEBUG: Processing reference tags in: {}", text);
     
-    // Use regex to find and process all reference tags
-    let re = Regex::new(r"<meta:reference\s+target=[\"']([^\"']+)[\"']\s*/>").unwrap();
+    // Use regex to find and process all reference tags - more flexible pattern to handle various formats
+    let re = Regex::new(r"<meta:reference\s+[^>]*target=[\"']([^\"']+)[\"'][^>]*/?>");
+    if let Err(e) = re {
+        println!("ERROR: Invalid regex pattern: {}", e);
+        return text.to_string();
+    }
+    let re = re.unwrap();
     
     let result = re.replace_all(text, |caps: &regex::Captures| {
         let target = &caps[1];
