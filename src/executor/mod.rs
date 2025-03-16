@@ -765,7 +765,8 @@ impl MetaLanguageExecutor {
                         if debug_enabled {
                             println!("Variable not found and no fallback: {}", var_name);
                         }
-                        format!("${{UNDEFINED:{}}}", var_name)
+                        // Keep the original variable reference intact
+                        format!("${{{}}}", var_name)
                     }
                 };
                 
@@ -810,7 +811,8 @@ impl MetaLanguageExecutor {
                         if debug_enabled {
                             println!("Variable not found and no fallback: {}", var_name);
                         }
-                        format!("${{UNDEFINED:{}}}", var_name)
+                        // Keep the original variable reference intact
+                        format!("${{{}}}", var_name)
                     }
                 };
                 
