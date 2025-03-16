@@ -203,10 +203,10 @@ impl MetaLanguageExecutor {
                 block.content = processed_content.clone();
             }
             
-            // Update the output in the outputs map if it's a data block
+            // Update the output in the outputs map if it's a non-executable block
             if let Some(block) = self.blocks.get(&name) {
-                if self.is_data_block(block) {
-                    // Apply any modifiers to the data block content before storing
+                if !self.is_executable_block(block) {
+                    // Apply any modifiers to the variable content before storing
                     let modified_content = self.apply_block_modifiers_to_variable(&name, &processed_content);
                     self.outputs.insert(name.clone(), modified_content);
                 }
