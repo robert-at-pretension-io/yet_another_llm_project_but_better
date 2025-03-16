@@ -350,6 +350,7 @@ impl MetaLanguageExecutor {
         
         // Execute based on block type
         let result = match block.block_type.as_str() {
+            "reference" => self.execute_reference_block(name),
             "code:python" => self.execute_python(&processed_content),
             "code:javascript" => self.execute_javascript(&processed_content),
             "code:rust" => self.execute_rust(&processed_content),
@@ -1895,6 +1896,26 @@ impl MetaLanguageExecutor {
         }
     }
     
+    /// Execute a reference block
+    pub fn execute_reference_block(&mut self, name: &str) -> Result<String, ExecutorError> {
+        let block = self.blocks.get(name).ok_or_else(|| {
+            ExecutorError::BlockNotFound(name.to_string())
+        })?;
+        
+        println!("DEBUG: Executing reference block: {}", name);
+        
+        // Create a reference resolver
+        let resolver = ReferenceResolver::new(&self.blocks, &self.outputs);
+        
+        // Resolve the reference
+        let content = resolver.resolve_reference_block(block)
+            .map_err(|e| ExecutorError::ReferenceResolutionFailed(e))?;
+        
+        // Store the result in outputs
+        self.outputs.insert(name.to_string(), content.clone());
+        
+        Ok(content)
+    }
     
     // Execute a question block by sending it to an LLM API
     pub fn execute_question(&mut self, block: &Block, question: &str) -> Result<String, ExecutorError> {
