@@ -136,7 +136,7 @@ fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
         }
         
         // Return the raw value as a fallback
-        pair_str.to_string()
+        return pair_str.to_string();
     }
     
 // Extract variable references from content (variables in the format <meta:reference target="name" />)
