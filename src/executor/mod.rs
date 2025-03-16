@@ -400,23 +400,24 @@ impl MetaLanguageExecutor {
                     }
                 }
                 Ok(Event::Empty(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                    // Process self-closing meta:reference tag
+                    println!("DEBUG: Processing self-closing meta:reference tag");
                     let mut target = None;
-
-                    // Extract the target attribute
+    
+                    // Extract the target attribute and log each attribute
                     for attr_result in e.attributes() {
                         let attr = attr_result?;
+                        println!("DEBUG: Found attribute: key='{:?}', value='{}'", attr.key.as_ref(), String::from_utf8_lossy(&attr.value));
                         if attr.key.as_ref() == b"target" {
                             target = Some(String::from_utf8_lossy(&attr.value).to_string());
                         }
                     }
-
+    
                     if let Some(target_str) = target {
                         println!(
                             "DEBUG: Found self-closing reference tag with target: {}",
                             target_str
                         );
-
+    
                         // Look up the target in outputs
                         if let Some(value) = self.outputs.get(&target_str) {
                             println!(
