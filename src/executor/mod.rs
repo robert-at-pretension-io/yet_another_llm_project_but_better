@@ -735,6 +735,23 @@ impl MetaLanguageExecutor {
             if debug_enabled {
                 println!("Found variable reference: ${{{}}}", var_ref);
             }
+            if var_ref.ends_with(".results") {
+                let base = &var_ref[..var_ref.len() - ".results".len()];
+                if debug_enabled {
+                    println!("Special handling: treating ${{{}}} as a request for results of block '{}'", var_ref, base);
+                }
+                if let Some(value) = self.outputs.get(&format!("{}_results", base)) {
+                    processed_content.push_str(&content[last_end..whole_match.start()]);
+                    processed_content.push_str(value);
+                    last_end = whole_match.end();
+                    continue;
+                } else {
+                    processed_content.push_str(&content[last_end..whole_match.start()]);
+                    processed_content.push_str(&format!("${{UNDEFINED:{}_results}}", base));
+                    last_end = whole_match.end();
+                    continue;
+                }
+            }
             
             // First, check if the variable reference itself contains nested references
             // Process any nested variable references in the variable reference itself
