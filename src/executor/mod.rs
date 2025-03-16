@@ -626,6 +626,18 @@ impl MetaLanguageExecutor {
                 }
             }
             
+            // Handle nested variable references in modifiers
+            let mut processed_modifiers = HashMap::new();
+            for (key, value) in &modifiers {
+                if value.contains("${") {
+                    // Process nested references in modifier values
+                    let processed_value = self.process_variable_references_internal(value, processing_vars);
+                    processed_modifiers.insert(key.clone(), processed_value);
+                } else {
+                    processed_modifiers.insert(key.clone(), value.clone());
+                }
+            }
+            
             // Try to get the value using our lookup function
             if let Some(value) = self.lookup_variable(&actual_var_name) {
                 if debug_enabled {
@@ -633,7 +645,7 @@ impl MetaLanguageExecutor {
                 }
                 
                 // Apply modifiers to the value
-                let modified_value = self.apply_enhanced_modifiers(&actual_var_name, &value, &modifiers);
+                let modified_value = self.apply_enhanced_modifiers(&actual_var_name, &value, &processed_modifiers);
                 
                 // Check if the value itself contains variable references
                 if modified_value.contains("${") {
@@ -664,12 +676,12 @@ impl MetaLanguageExecutor {
                     } else {
                         result = result.replace(&var_ref, &value);
                     }
-                } else if let Some(fallback_value) = modifiers.get("fallback") {
+                } else if let Some(fallback_value) = processed_modifiers.get("fallback") {
                     // Use inline fallback if provided
                     result = result.replace(&var_ref, fallback_value);
                 }
                 // If no fallback value is available, leave the reference as is
-            } else if let Some(fallback_value) = modifiers.get("fallback") {
+            } else if let Some(fallback_value) = processed_modifiers.get("fallback") {
                 // Use inline fallback if provided
                 result = result.replace(&var_ref, fallback_value);
             } else {
@@ -795,14 +807,35 @@ impl MetaLanguageExecutor {
         // 3. Limit modifier
         if let Some(limit_str) = modifiers.get("limit") {
             if let Ok(limit) = limit_str.parse::<usize>() {
-                if result.len() > limit {
-                    let ellipsis = modifiers.get("ellipsis").unwrap_or(&"...".to_string()).clone();
-                    result = format!("{}{}", &result[..limit], ellipsis);
+                // Limit by number of lines
+                let lines: Vec<&str> = result.lines().collect();
+                if lines.len() > limit {
+                    result = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
                 }
             }
         }
         
-        // 4. Include modifiers for conditional inclusion
+        // 4. Include modifiers for code and results
+        if modifiers.get("include_code").map_or(false, |v| v == "true") {
+            // Include the code content
+            if let Some(code_block) = self.blocks.get(var_name) {
+                result = code_block.content.clone();
+            }
+        }
+        
+        if modifiers.get("include_results").map_or(false, |v| v == "true") {
+            // Include the results for this code block
+            let results_key = format!("{}_results", var_name);
+            if let Some(results) = self.outputs.get(&results_key) {
+                if !result.is_empty() {
+                    result = format!("{}\n\nResults:\n{}", result, results);
+                } else {
+                    result = results.clone();
+                }
+            }
+        }
+        
+        // 5. Include sensitive data conditionally
         if let Some(include_condition) = modifiers.get("include_sensitive") {
             // Check if the condition is true
             let include = if include_condition.starts_with("${") && include_condition.ends_with("}") {
@@ -827,6 +860,44 @@ impl MetaLanguageExecutor {
                         result = filtered;
                     }
                 }
+            }
+        }
+        
+        // 6. Transform modifiers
+        if let Some(transform) = modifiers.get("transform") {
+            match transform.as_str() {
+                "uppercase" => {
+                    result = result.to_uppercase();
+                },
+                "lowercase" => {
+                    result = result.to_lowercase();
+                },
+                transform_str if transform_str.starts_with("substring(") && transform_str.ends_with(")") => {
+                    // Extract parameters from substring(start,end)
+                    let params_str = transform_str.trim_start_matches("substring(").trim_end_matches(")");
+                    let params: Vec<&str> = params_str.split(',').collect();
+                    
+                    if params.len() == 2 {
+                        if let (Ok(start), Ok(end)) = (params[0].trim().parse::<usize>(), params[1].trim().parse::<usize>()) {
+                            if start < result.len() {
+                                let end = std::cmp::min(end, result.len());
+                                result = result[start..end].to_string();
+                            }
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+        
+        // 7. Preview modifier
+        if modifiers.get("preview").map_or(false, |v| v == "true") {
+            // Create a preview of the content (first few lines or characters)
+            let lines: Vec<&str> = result.lines().collect();
+            if lines.len() > 5 {
+                result = lines.iter().take(5).cloned().collect::<Vec<&str>>().join("\n") + "\n...";
+            } else if result.len() > 200 {
+                result = result[..200].to_string() + "...";
             }
         }
         
@@ -877,9 +948,25 @@ impl MetaLanguageExecutor {
                 // If not JSON, return as-is with format note
                 format!("{}\n\nFormat: markdown", content)
             },
+            "json" => {
+                // Try to format as JSON if it's not already
+                if !content.trim().starts_with('{') && !content.trim().starts_with('[') {
+                    return content.to_string();
+                }
+                
+                // Try to pretty-print JSON
+                if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(content) {
+                    if let Ok(pretty) = serde_json::to_string_pretty(&json_value) {
+                        return pretty;
+                    }
+                }
+                
+                content.to_string()
+            },
+            "plain" => content.to_string(),
+            "code" => format!("```\n{}\n```", content),
             "bold" => format!("**{}**", content),
             "italic" => format!("*{}*", content),
-            "code" => format!("`{}`", content),
             _ => content.to_string()
         }
     }
