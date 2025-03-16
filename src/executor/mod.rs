@@ -3332,6 +3332,7 @@ impl MetaLanguageExecutor {
             
             // Update the current document with the processed version
             let mut updated_doc = processed_document;
+        }
         
         // Debug: Print all outputs
         println!("DEBUG: All outputs:");
