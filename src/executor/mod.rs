@@ -825,6 +825,27 @@ impl MetaLanguageExecutor {
                         self.parse_single_modifier(single_modifier, &mut modifiers);
                     }
                 }
+                
+                // Handle special shorthand modifiers
+                if modifiers.contains_key("highlight") && modifiers.get("highlight").unwrap() == "true" {
+                    // If highlight is true without a language, try to detect from block type
+                    if let Some(block) = self.blocks.get(&var_name) {
+                        if block.block_type.starts_with("code:") {
+                            let lang = block.block_type.split(':').nth(1).unwrap_or("text");
+                            modifiers.insert("highlight".to_string(), lang.to_string());
+                        }
+                    }
+                }
+                
+                // Handle format=markdown shorthand
+                if modifiers.contains_key("markdown") && modifiers.get("markdown").unwrap() == "true" {
+                    modifiers.insert("format".to_string(), "markdown".to_string());
+                }
+                
+                // Handle format=json shorthand
+                if modifiers.contains_key("json") && modifiers.get("json").unwrap() == "true" {
+                    modifiers.insert("format".to_string(), "json".to_string());
+                }
             }
             
             if debug_enabled {
@@ -1006,9 +1027,97 @@ impl MetaLanguageExecutor {
         
         let mut result = value.to_string();
         
-        // Apply modifiers in a specific order
+        // Apply modifiers in a specific order for predictable results
         
-        // 1. Format modifier
+        // 1. Apply transformations first (uppercase, lowercase, substring, etc.)
+        if let Some(transform) = modifiers.get("transform") {
+            if debug_enabled {
+                println!("DEBUG: Applying transform modifier: {}", transform);
+            }
+            
+            match transform.as_str() {
+                "uppercase" => {
+                    result = result.to_uppercase();
+                },
+                "lowercase" => {
+                    result = result.to_lowercase();
+                },
+                "capitalize" => {
+                    let mut new_result = String::new();
+                    let mut capitalize_next = true;
+                    
+                    for c in result.chars() {
+                        if c.is_alphabetic() {
+                            if capitalize_next {
+                                new_result.extend(c.to_uppercase());
+                                capitalize_next = false;
+                            } else {
+                                new_result.push(c);
+                            }
+                        } else {
+                            new_result.push(c);
+                            if c.is_whitespace() || c == '.' || c == '!' || c == '?' {
+                                capitalize_next = true;
+                            }
+                        }
+                    }
+                    result = new_result;
+                },
+                transform_str if transform_str.starts_with("substring(") && transform_str.ends_with(")") => {
+                    // Extract parameters from substring(start,end)
+                    let params_str = transform_str.trim_start_matches("substring(").trim_end_matches(")");
+                    let params: Vec<&str> = params_str.split(',').collect();
+                    
+                    if params.len() == 2 {
+                        if let (Ok(start), Ok(end)) = (params[0].trim().parse::<usize>(), params[1].trim().parse::<usize>()) {
+                            if start < result.len() {
+                                let end = std::cmp::min(end, result.len());
+                                result = result[start..end].to_string();
+                            }
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+        
+        // 2. Apply regex replacements if specified
+        if let Some(regex_pattern) = modifiers.get("regex") {
+            if let Some(replacement) = modifiers.get("replacement") {
+                if debug_enabled {
+                    println!("DEBUG: Applying regex replacement: {} -> {}", regex_pattern, replacement);
+                }
+                
+                match regex::Regex::new(regex_pattern) {
+                    Ok(re) => {
+                        result = re.replace_all(&result, replacement).to_string();
+                    },
+                    Err(e) => {
+                        if debug_enabled {
+                            println!("DEBUG: Invalid regex pattern: {} - {}", regex_pattern, e);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 3. Limit modifier
+        if let Some(limit_str) = modifiers.get("limit") {
+            if debug_enabled {
+                println!("DEBUG: Applying limit modifier: {}", limit_str);
+            }
+            
+            if let Ok(limit) = limit_str.parse::<usize>() {
+                // Limit by number of lines
+                let lines: Vec<&str> = result.lines().collect();
+                if lines.len() > limit {
+                    result = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
+                    result.push_str("\n...(truncated)");
+                }
+            }
+        }
+        
+        // 4. Format modifier (markdown, json, code, plain)
         if let Some(format) = modifiers.get("format") {
             if debug_enabled {
                 println!("DEBUG: Applying format modifier: {}", format);
@@ -1016,7 +1125,7 @@ impl MetaLanguageExecutor {
             result = self.apply_format_modifier(&result, format);
         }
         
-        // 2. Highlighting
+        // 5. Highlighting for code blocks
         if let Some(highlight) = modifiers.get("highlight") {
             if debug_enabled {
                 println!("DEBUG: Applying highlight modifier: {}", highlight);
@@ -1040,23 +1149,7 @@ impl MetaLanguageExecutor {
             }
         }
         
-        // 3. Limit modifier
-        if let Some(limit_str) = modifiers.get("limit") {
-            if debug_enabled {
-                println!("DEBUG: Applying limit modifier: {}", limit_str);
-            }
-            
-            if let Ok(limit) = limit_str.parse::<usize>() {
-                // Limit by number of lines
-                let lines: Vec<&str> = result.lines().collect();
-                if lines.len() > limit {
-                    result = lines.iter().take(limit).cloned().collect::<Vec<&str>>().join("\n");
-                    result.push_str("\n...(truncated)");
-                }
-            }
-        }
-        
-        // 4. Include modifiers for code and results
+        // 6. Include modifiers for code and results
         if modifiers.get("include_code").map_or(false, |v| v == "true") {
             if debug_enabled {
                 println!("DEBUG: Applying include_code modifier");
@@ -1064,7 +1157,25 @@ impl MetaLanguageExecutor {
             
             // Include the code content
             if let Some(code_block) = self.blocks.get(var_name) {
-                result = code_block.content.clone();
+                // Determine language for syntax highlighting
+                let language = if code_block.block_type.starts_with("code:") {
+                    code_block.block_type.split(':').nth(1).unwrap_or("text")
+                } else if code_block.block_type == "shell" {
+                    "bash"
+                } else {
+                    "text"
+                };
+                
+                // Format the code with proper syntax highlighting
+                let code_content = code_block.content.clone();
+                let formatted_code = format!("### Code\n\n```{}\n{}\n```", language, code_content);
+                
+                // If we already have content, prepend the code
+                if !result.is_empty() {
+                    result = format!("{}\n\n{}", formatted_code, result);
+                } else {
+                    result = formatted_code;
+                }
             }
         }
         
@@ -1075,16 +1186,22 @@ impl MetaLanguageExecutor {
             
             // Include the results for this code block
             let results_key = format!("{}_results", var_name);
-            if let Some(results) = self.outputs.get(&results_key) {
+            let dot_results_key = format!("{}.results", var_name);
+            
+            if let Some(results) = self.outputs.get(&results_key).or_else(|| self.outputs.get(&dot_results_key)) {
+                // Format the results
+                let formatted_results = format!("### Results\n\n```\n{}\n```", results);
+                
+                // If we already have content, append the results
                 if !result.is_empty() {
-                    result = format!("{}\n\nResults:\n{}", result, results);
+                    result = format!("{}\n\n{}", result, formatted_results);
                 } else {
-                    result = results.clone();
+                    result = formatted_results;
                 }
             }
         }
         
-        // 5. Include sensitive data conditionally
+        // 7. Include sensitive data conditionally
         if let Some(include_condition) = modifiers.get("include_sensitive") {
             if debug_enabled {
                 println!("DEBUG: Applying include_sensitive modifier: {}", include_condition);
@@ -1107,47 +1224,47 @@ impl MetaLanguageExecutor {
                 // Remove sensitive information
                 if let Ok(mut json_value) = serde_json::from_str::<serde_json::Value>(&result) {
                     if let Some(obj) = json_value.as_object_mut() {
-                        obj.remove("sensitive_info");
-                    }
-                    if let Ok(filtered) = serde_json::to_string_pretty(&json_value) {
-                        result = filtered;
+                        // Define sensitive field patterns
+                        let sensitive_fields = [
+                            "password", "passwd", "secret", "token", "api_key", "apikey", 
+                            "private_key", "privatekey", "sensitive", "credential", 
+                            "auth", "authentication", "key", "cert", "certificate"
+                        ];
+                        
+                        // Remove all fields that match sensitive patterns
+                        let keys_to_remove: Vec<String> = obj.keys()
+                            .filter(|k| {
+                                let k_lower = k.to_lowercase();
+                                sensitive_fields.iter().any(|&pattern| k_lower.contains(pattern))
+                            })
+                            .cloned()
+                            .collect();
+                        
+                        for key in keys_to_remove {
+                            obj.remove(&key);
+                        }
+                        
+                        // Also recursively check nested objects
+                        self.redact_sensitive_fields(obj);
+                        
+                        if let Ok(filtered) = serde_json::to_string_pretty(&json_value) {
+                            result = filtered;
+                        }
                     }
                 }
             }
         }
         
-        // 6. Transform modifiers
-        if let Some(transform) = modifiers.get("transform") {
+        // 8. JSON path extraction if specified
+        if let Some(json_path) = modifiers.get("json_path") {
             if debug_enabled {
-                println!("DEBUG: Applying transform modifier: {}", transform);
+                println!("DEBUG: Applying JSON path extraction: {}", json_path);
             }
             
-            match transform.as_str() {
-                "uppercase" => {
-                    result = result.to_uppercase();
-                },
-                "lowercase" => {
-                    result = result.to_lowercase();
-                },
-                transform_str if transform_str.starts_with("substring(") && transform_str.ends_with(")") => {
-                    // Extract parameters from substring(start,end)
-                    let params_str = transform_str.trim_start_matches("substring(").trim_end_matches(")");
-                    let params: Vec<&str> = params_str.split(',').collect();
-                    
-                    if params.len() == 2 {
-                        if let (Ok(start), Ok(end)) = (params[0].trim().parse::<usize>(), params[1].trim().parse::<usize>()) {
-                            if start < result.len() {
-                                let end = std::cmp::min(end, result.len());
-                                result = result[start..end].to_string();
-                            }
-                        }
-                    }
-                },
-                _ => {}
-            }
+            result = self.extract_json_path(&result, json_path);
         }
         
-        // 7. Preview modifier
+        // 9. Preview modifier
         if modifiers.get("preview").map_or(false, |v| v == "true") {
             if debug_enabled {
                 println!("DEBUG: Applying preview modifier");
@@ -1159,6 +1276,34 @@ impl MetaLanguageExecutor {
                 result = lines.iter().take(5).cloned().collect::<Vec<&str>>().join("\n") + "\n...";
             } else if result.len() > 200 {
                 result = result[..200].to_string() + "...";
+            }
+        }
+        
+        // 10. Apply trim operations
+        if let Some(trim_type) = modifiers.get("trim") {
+            if debug_enabled {
+                println!("DEBUG: Applying trim modifier: {}", trim_type);
+            }
+            
+            match trim_type.as_str() {
+                "true" | "yes" | "1" | "both" => result = result.trim().to_string(),
+                "start" | "left" => result = result.trim_start().to_string(),
+                "end" | "right" => result = result.trim_end().to_string(),
+                "lines" => {
+                    // Trim each line individually
+                    result = result.lines()
+                        .map(|line| line.trim())
+                        .collect::<Vec<&str>>()
+                        .join("\n");
+                },
+                "empty_lines" => {
+                    // Remove empty lines
+                    result = result.lines()
+                        .filter(|line| !line.trim().is_empty())
+                        .collect::<Vec<&str>>()
+                        .join("\n");
+                },
+                _ => {}
             }
         }
         
@@ -1324,7 +1469,17 @@ impl MetaLanguageExecutor {
                 content.to_string()
             },
             "plain" => content.to_string(),
-            "code" => format!("```\n{}\n```", content),
+            "code" | "codeblock" => {
+                // Check if content is already in a code block
+                if content.trim().starts_with("```") && content.trim().ends_with("```") {
+                    return content.to_string();
+                }
+                format!("```\n{}\n```", content)
+            },
+            "python" => format!("```python\n{}\n```", content),
+            "javascript" | "js" => format!("```javascript\n{}\n```", content),
+            "rust" => format!("```rust\n{}\n```", content),
+            "bash" | "shell" => format!("```bash\n{}\n```", content),
             "bold" => format!("**{}**", content),
             "italic" => format!("*{}*", content),
             "html" => {
@@ -2374,6 +2529,12 @@ impl MetaLanguageExecutor {
     
     /// Extract data using JSON path
     fn extract_json_path(&self, content: &str, json_path: &str) -> String {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        if debug_enabled {
+            println!("DEBUG: Extracting JSON path '{}' from content", json_path);
+        }
+        
         // Try to parse the content as JSON
         match serde_json::from_str::<serde_json::Value>(content) {
             Ok(json_value) => {
@@ -2382,17 +2543,28 @@ impl MetaLanguageExecutor {
                 let mut current = &json_value;
                 
                 for part in path_parts {
+                    if debug_enabled {
+                        println!("DEBUG: Processing path part: '{}'", part);
+                    }
+                    
                     // Handle array indexing
                     if part.ends_with(']') && part.contains('[') {
                         let bracket_pos = part.find('[').unwrap();
                         let object_key = &part[..bracket_pos];
                         let index_str = &part[bracket_pos+1..part.len()-1];
                         
+                        if debug_enabled {
+                            println!("DEBUG: Array indexing - key: '{}', index: '{}'", object_key, index_str);
+                        }
+                        
                         // Navigate to the object first
                         if !object_key.is_empty() {
                             if let Some(obj) = current.get(object_key) {
                                 current = obj;
                             } else {
+                                if debug_enabled {
+                                    println!("DEBUG: Key '{}' not found", object_key);
+                                }
                                 return format!("JSON path error: key '{}' not found", object_key);
                             }
                         }
@@ -2403,12 +2575,21 @@ impl MetaLanguageExecutor {
                                 if index < array.len() {
                                     current = &array[index];
                                 } else {
+                                    if debug_enabled {
+                                        println!("DEBUG: Index {} out of bounds", index);
+                                    }
                                     return format!("JSON path error: index {} out of bounds", index);
                                 }
                             } else {
+                                if debug_enabled {
+                                    println!("DEBUG: Not an array");
+                                }
                                 return "JSON path error: not an array".to_string();
                             }
                         } else {
+                            if debug_enabled {
+                                println!("DEBUG: Invalid array index: '{}'", index_str);
+                            }
                             return format!("JSON path error: invalid array index '{}'", index_str);
                         }
                     } else {
@@ -2416,22 +2597,33 @@ impl MetaLanguageExecutor {
                         if let Some(obj) = current.get(part) {
                             current = obj;
                         } else {
+                            if debug_enabled {
+                                println!("DEBUG: Key '{}' not found", part);
+                            }
                             return format!("JSON path error: key '{}' not found", part);
                         }
                     }
                 }
                 
                 // Convert the final value to string
-                match current {
+                let result = match current {
                     serde_json::Value::String(s) => s.clone(),
                     serde_json::Value::Number(n) => n.to_string(),
                     serde_json::Value::Bool(b) => b.to_string(),
                     serde_json::Value::Null => "null".to_string(),
                     _ => serde_json::to_string_pretty(current).unwrap_or_else(|_| current.to_string()),
+                };
+                
+                if debug_enabled {
+                    println!("DEBUG: Extracted value: '{}'", result);
                 }
+                
+                result
             },
-            Err(_) => {
-                // Not valid JSON
+            Err(e) => {
+                if debug_enabled {
+                    println!("DEBUG: Failed to parse JSON: {}", e);
+                }
                 format!("JSON path error: content is not valid JSON")
             }
         }
@@ -3041,7 +3233,8 @@ impl MetaLanguageExecutor {
         println!("DEBUG: Current document length: {}", self.current_document.len());
         println!("DEBUG: Number of outputs: {}", self.outputs.len());
         
-        // Unset environment variable to allow variable references to be processed
+        // Set environment variables to control variable reference processing
+        std::env::set_var("LLM_PROCESS_REFS_IN_EXECUTOR", "1");
         std::env::remove_var("LLM_PRESERVE_REFS");
         
         // Debug: Print all outputs
@@ -3329,3 +3522,40 @@ impl Default for MetaLanguageExecutor {
 
 #[cfg(test)]
 mod tests;
+    /// Recursively redact sensitive fields in nested JSON objects
+    fn redact_sensitive_fields(&self, obj: &mut serde_json::Map<String, serde_json::Value>) {
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        let sensitive_fields = [
+            "password", "passwd", "secret", "token", "api_key", "apikey", 
+            "private_key", "privatekey", "sensitive", "credential", 
+            "auth", "authentication", "key", "cert", "certificate"
+        ];
+        
+        // Process all object values
+        for (key, value) in obj.iter_mut() {
+            if debug_enabled {
+                println!("DEBUG: Checking field '{}' for sensitivity", key);
+            }
+            
+            // Check if this key is sensitive
+            let key_lower = key.to_lowercase();
+            let is_sensitive = sensitive_fields.iter().any(|&pattern| key_lower.contains(pattern));
+            
+            if is_sensitive {
+                if debug_enabled {
+                    println!("DEBUG: Redacting sensitive field: {}", key);
+                }
+                *value = serde_json::Value::String("[REDACTED]".to_string());
+            } else if let serde_json::Value::Object(nested_obj) = value {
+                // Recursively process deeper nested objects
+                self.redact_sensitive_fields(nested_obj);
+            } else if let serde_json::Value::Array(arr) = value {
+                // Process arrays of objects
+                for item in arr.iter_mut() {
+                    if let serde_json::Value::Object(nested_obj) = item {
+                        self.redact_sensitive_fields(nested_obj);
+                    }
+                }
+            }
+        }
+    }
