@@ -37,6 +37,9 @@ pub enum ExecutorError {
     
     #[error("Missing API key: {0}")]
     MissingApiKey(String),
+    
+    #[error("Failed to resolve reference: {0}")]
+    ReferenceResolutionFailed(String),
 }
 
 // Executor for processing blocks
