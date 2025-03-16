@@ -21,7 +21,7 @@ fn test_enhanced_variable_reference_basic() {
 </meta:document>"#;
 
     let result = parse_document(input);
-    assert!(result.is_ok(), "Failed to parse document with enhanced variable reference");
+    assert!(result.is_ok(), format!("Failed to parse document with enhanced variable reference: {:?}", result.err()));
     
     let blocks = result.unwrap();
     assert_eq!(blocks.len(), 2);
