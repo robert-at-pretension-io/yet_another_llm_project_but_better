@@ -10,7 +10,7 @@ pub struct MetaLanguageParser;
 // Import sub-modules
 mod blocks;
 mod block_parser;
-mod utils;
+pub mod utils;
 mod block_parsers;
 mod modifiers;
 pub mod document_processor;

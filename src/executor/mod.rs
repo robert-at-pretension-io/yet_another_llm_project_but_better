@@ -13,8 +13,7 @@ use quick_xml::reader::Reader;
 use quick_xml::writer::Writer;
 use std::io::Cursor;
 
-use crate::parser::{Block, parse_document};
-use crate::parser::utils::extractors::extract_variable_references;
+use crate::parser::{Block, parse_document, utils::extractors::extract_variable_references};
 use crate::llm_client::{LlmClient, LlmRequestConfig, LlmProvider};
 use quick_xml::events::attributes::AttrError;
 
