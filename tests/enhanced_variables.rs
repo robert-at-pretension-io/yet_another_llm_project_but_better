@@ -15,7 +15,7 @@ fn test_enhanced_variable_reference_basic() {
     }
     </meta:data>
 
-    <meta:question name="format-test" model="gpt-4">
+    <meta:question name="format-test" model="gpt-4" test_mode="true" test_response="# John Doe\n\n- Age: 30\n- Skills: Programming, Data Analysis, Machine Learning\n\nFormat: markdown">
     Here is the data in markdown format: ${test-data:format=markdown}
     </meta:question>
 </meta:document>"#;
@@ -61,7 +61,7 @@ fn test_enhanced_variable_reference_include_modifiers() {
     Std Dev: 12.3
     </meta:results>
 
-    <meta:question name="analysis-question" model="gpt-4">
+    <meta:question name="analysis-question" model="gpt-4" test_mode="true" test_response="The analysis approach is straightforward and effective. Using pandas for descriptive statistics is a common practice. The results show good summary statistics that help understand the central tendency and spread of the data.">
     Here is the analysis code and results:
     ${analysis-code:include_code=true,include_results=true}
     
@@ -109,7 +109,7 @@ fn test_enhanced_variable_reference_multiple_modifiers() {
     [50.0, 33.33, 25.0, 20.0]
     </meta:results>
 
-    <meta:question name="combined-analysis" model="gpt-4">
+    <meta:question name="combined-analysis" model="gpt-4" test_mode="true" test_response="The sales data shows a decreasing growth rate trend. While sales are consistently increasing, the percentage growth is declining from 50% to 33.33% to 25% to 20%. This suggests a maturing market with diminishing returns on growth efforts.">
     Input data: ${input-data:format=json,preview=true}
     
     Processing code: ${process-code:include_code=true,format=code}
@@ -157,7 +157,7 @@ id,name,value
 10,item10,1000
     </meta:data>
 
-    <meta:question name="limited-data-question" model="gpt-4">
+    <meta:question name="limited-data-question" model="gpt-4" test_mode="true" test_response="I observe a linear pattern in the data. The ID increases by 1 for each row, and the value increases by 100 for each row. This suggests a direct proportional relationship between ID and value.">
     Here is a preview of the dataset with only the first 5 lines:
     ${large-dataset:limit=5}
     
@@ -201,7 +201,7 @@ fn test_enhanced_variable_reference_conditional_inclusion() {
     }
     </meta:data>
 
-    <meta:question name="conditional-question" model="gpt-4">
+    <meta:question name="conditional-question" model="gpt-4" test_mode="true" test_response="The user profile is for Alice Smith who can be contacted at alice@example.com. The profile includes sensitive information such as SSN (123-45-6789) and account number (ACC123456).">
     User profile:
     ${user-data:include_sensitive=${show-details}}
     
@@ -247,7 +247,7 @@ fn test_enhanced_variable_reference_transformation() {
     It also includes 123 numbers and special characters like @#$%.
     </meta:data>
 
-    <meta:question name="transform-question" model="gpt-4">
+    <meta:question name="transform-question" model="gpt-4" test_mode="true" test_response="The text transformations demonstrate different ways to manipulate text data. The uppercase transformation converts all characters to capital letters, making it useful for standardization or emphasis. The lowercase transformation does the opposite, converting all to small letters, which is helpful for case-insensitive comparisons. The substring transformation extracts only the first 20 characters, which can be useful for previews or when working with fixed-width fields.">
     Original text: ${raw-text}
     
     Uppercase: ${raw-text:transform=uppercase}
@@ -303,7 +303,7 @@ fn test_enhanced_variable_reference_highlighting() {
     ORDER BY order_count DESC;
     </meta:code>
 
-    <meta:question name="highlight-question" model="gpt-4">
+    <meta:question name="highlight-question" model="gpt-4" test_mode="true" test_response="The Python code implements a recursive factorial function that calculates 5! (5 factorial) which equals 120. It demonstrates recursion with a base case (n <= 1) and a recursive case.\n\nThe SQL query retrieves users and counts their orders, filtering to only show users with more than 5 orders. It demonstrates joins, aggregation with GROUP BY, filtering aggregated results with HAVING, and sorting with ORDER BY.">
     Python code with syntax highlighting:
     ${example-python:highlight=true}
     
@@ -357,7 +357,7 @@ fn test_enhanced_variable_reference_nesting() {
     Conversion Rate: ${user-stats.purchases / user-stats.visits * 100}%
     </meta:template>
 
-    <meta:question name="nested-question" model="gpt-4">
+    <meta:question name="nested-question" model="gpt-4" test_mode="true" test_response="Based on the user statistics, this appears to be a relatively engaged customer with a conversion rate of about 9.4%. With 127 visits resulting in 12 purchases, they show consistent interest in the products. The average purchase value is approximately $28.81 ($345.67 total spent divided by 12 purchases), which suggests they may be buying mid-range items rather than high-ticket products.">
     User data in ${format-type} format:
     
     ${user-template:format=${format-type}}
@@ -396,7 +396,7 @@ fn test_enhanced_variable_reference_error_handling() {
     }
     </meta:data>
 
-    <meta:question name="error-handling-question" model="gpt-4">
+    <meta:question name="error-handling-question" model="gpt-4" test_mode="true" test_response="From the available data, I can see that we have a valid JSON object with a name 'Test Data' and a value of 42. The other data points are not available - one because the data source doesn't exist, and another because an invalid format was requested. This demonstrates good error handling with appropriate fallback messages.">
     Valid data: ${valid-data}
     
     Missing data: ${missing-data:fallback="Data not available"}
