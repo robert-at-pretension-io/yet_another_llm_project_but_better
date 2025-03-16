@@ -3,10 +3,30 @@ use quick_xml::reader::Reader;
 use std::collections::HashMap;
 use std::io::BufRead;
 use std::str;
+use regex::Regex;
 
 use crate::parser::blocks::Block;
 use crate::parser::ParserError;
 use crate::parser::is_valid_block_type;
+
+/// Process reference tags in text content
+fn process_reference_tags(text: &str) -> String {
+    println!("DEBUG: Processing reference tags in: {}", text);
+    
+    // Use regex to find and process all reference tags
+    let re = Regex::new(r"<meta:reference\s+target=[\"']([^\"']+)[\"']\s*/>").unwrap();
+    
+    let result = re.replace_all(text, |caps: &regex::Captures| {
+        let target = &caps[1];
+        println!("DEBUG: Found reference to: {}", target);
+        
+        // Create a special marker that will be recognized by the variable resolution code
+        format!("__META_REFERENCE__{}", target)
+    }).to_string();
+    
+    println!("DEBUG: After reference processing: {}", result);
+    return result;
+}
 
 /// Parse an XML document into a vector of blocks
 pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
@@ -267,8 +287,19 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 if in_document && !block_stack.is_empty() {
                     if let Ok(text) = e.unescape() {
                         println!("DEBUG: Text event: \"{}\"", text);
-                        let last_idx = content_stack.len() - 1;
-                        content_stack[last_idx].push_str(&text);
+                        
+                        // Check if the text contains a reference tag
+                        if text.contains("<meta:reference") {
+                            // Process reference tags in the text
+                            let processed_text = process_reference_tags(&text);
+                            println!("DEBUG: Processed reference tags in text: \"{}\"", processed_text);
+                            
+                            let last_idx = content_stack.len() - 1;
+                            content_stack[last_idx].push_str(&processed_text);
+                        } else {
+                            let last_idx = content_stack.len() - 1;
+                            content_stack[last_idx].push_str(&text);
+                        }
                     }
                 }
             },

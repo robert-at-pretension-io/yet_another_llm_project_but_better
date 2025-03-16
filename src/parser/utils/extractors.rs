@@ -139,17 +139,24 @@ fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
     }
 }
     
-// Extract variable references from content (variables in the format <meta:reference target="name" />)
+// Extract variable references from content (variables in the format <meta:reference target="name" /> or __META_REFERENCE__name)
 pub fn extract_variable_references(content: &str) -> Vec<String> {
     let mut references = Vec::new();
     
-    // We're looking for XML tags like <meta:reference target="name" />
-    // First check if there are any references to extract
-    if !content.contains("<meta:reference") {
+    // Look for both XML references and our special markers
+    if !content.contains("<meta:reference") && !content.contains("__META_REFERENCE__") {
         return references;
     }
     
-    // Use a simple string-based approach to extract references
+    // First check for our special markers from the XML parser
+    let re_marker = regex::Regex::new(r"__META_REFERENCE__([a-zA-Z0-9_-]+)").unwrap();
+    for cap in re_marker.captures_iter(content) {
+        let var_name = &cap[1];
+        references.push(var_name.to_string());
+        println!("DEBUG: Found reference marker for variable: {}", var_name);
+    }
+    
+    // Also handle any XML references that might still be present
     let mut start_pos = 0;
     while let Some(pos) = content[start_pos..].find("<meta:reference") {
         // Adjust position to be relative to the original string
