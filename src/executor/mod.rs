@@ -500,7 +500,7 @@ impl MetaLanguageExecutor {
         }
         let mut processed_content = content.to_string();
         if processed_content.contains("<meta:reference") {
-            let xml_ref_re = regex::Regex::new(r#"<meta:reference\s+[^>]*target\s*=\s*["']([^"']+)["'][^>]*/?>"#).unwrap();
+            let xml_ref_re = regex::Regex::new(r#"(?i)<meta:reference\s+[^>]*target\s*=\s*["']([^"']+)["'][^>]*/?>"#).unwrap();
             processed_content = xml_ref_re.replace_all(&processed_content, |caps: &regex::Captures| {
                 let var_name = caps.get(1).unwrap().as_str();
                 match self.lookup_variable(var_name) {
