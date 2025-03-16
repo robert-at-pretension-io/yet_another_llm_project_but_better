@@ -40,39 +40,6 @@ pub enum ParserError {
     InvalidBlockType(String),
 }
 
-// List of valid block types
-// Extract variable references from text
-pub fn extract_variable_references(text: &str) -> Vec<String> {
-    let mut result = Vec::new();
-    let mut i = 0;
-    
-    while i < text.len() {
-        // Look for the start of a variable reference
-        if let Some(start) = text[i..].find("${") {
-            let start_pos = i + start + 2; // Skip the ${ prefix
-            
-            // Look for the closing brace
-            if let Some(end) = text[start_pos..].find('}') {
-                let end_pos = start_pos + end;
-                let var_name = &text[start_pos..end_pos];
-                
-                // Add the variable name to the result
-                result.push(var_name.to_string());
-                
-                // Continue searching after this variable
-                i = end_pos + 1;
-            } else {
-                // No closing brace found, stop searching
-                break;
-            }
-        } else {
-            // No more variable references found
-            break;
-        }
-    }
-    
-    result
-}
 
 pub fn is_valid_block_type(block_type: &str) -> bool {
     // Check base types
