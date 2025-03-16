@@ -7,6 +7,7 @@ pub fn extract_name(pair: pest::iterators::Pair<Rule>) -> Option<String> {
         if inner_pair.as_rule() == Rule::block_name {
             return Some(inner_pair.as_str().to_string());
         }
+   }
     }
     None
 }
@@ -95,28 +96,28 @@ fn extract_modifier_value(pair: pest::iterators::Pair<Rule>) -> String {
                 let s = inner.as_str();
                 println!("DEBUG: Found quoted string: '{}'", s);
                 if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
-                    s[1..s.len()-1].to_string()
+                    return s[1..s.len()-1].to_string();
                 } else {
-                    s.to_string()
+                    return s.to_string();
                 }
             },
             Rule::boolean | Rule::number => {
                 // For booleans and numbers, just use the raw text
                 let val = inner.as_str().to_string();
                 println!("DEBUG: Found boolean/number: '{}'", val);
-                val
+                return val;
             },
             Rule::block_reference => {
                 // For block references, use the raw text
                 let val = inner.as_str().to_string();
                 println!("DEBUG: Found block reference: '{}'", val);
-                val
+                return val;
             },
             _ => {
                 // For any other rule type, extract as is
                 let val = inner.as_str().to_string();
                 println!("DEBUG: Found other type: '{:?}' with value '{}'", inner.as_rule(), val);
-                val
+                return val;
             }
         }
     } else {
