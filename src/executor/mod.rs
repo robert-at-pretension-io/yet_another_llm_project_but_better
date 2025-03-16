@@ -351,7 +351,13 @@ impl MetaLanguageExecutor {
             "shell" => self.execute_shell(&processed_content),
             "api" => self.execute_api(&processed_content),
             "question" => self.execute_question(&block, &processed_content),
-            _ => Ok(processed_content),
+            _ => {
+                if block.modifiers.iter().any(|(k, v)| k == "auto_execute" && (v == "true" || v == "yes" || v == "1" || v == "on")) {
+                    self.execute_python(&processed_content)
+                } else {
+                    Ok(processed_content)
+                }
+            },
         };
         
         // Remove block from processing list
