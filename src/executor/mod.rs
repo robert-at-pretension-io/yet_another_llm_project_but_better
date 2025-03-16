@@ -3441,6 +3441,39 @@ impl MetaLanguageExecutor {
                      if v.len() > 30 { &v[..30] } else { v }, v.len());
         }
         
+        // Process any reference blocks in the document
+        // First, let's check if there are any reference blocks in the document
+        let contains_references = updated_doc.contains("<meta:reference");
+        
+        if contains_references {
+            println!("DEBUG: Document contains reference elements, replacing them with content");
+            
+            // Get all blocks that are references
+            let reference_blocks: Vec<(String, &Block)> = self.blocks.iter()
+                .filter(|(_, b)| b.block_type == "reference")
+                .map(|(n, b)| (n.clone(), b))
+                .collect();
+            
+            // Process each reference block
+            for (name, block) in reference_blocks {
+                if let Some(target) = block.get_modifier("target") {
+                    // Look for a specific reference tag pattern
+                    let reference_pattern = format!("<meta:reference[^>]*target=\"{}\"[^>]*/>", regex::escape(target));
+                    
+                    // Create a regex to find this pattern
+                    if let Ok(re) = regex::Regex::new(&reference_pattern) {
+                        // Get the content to replace with
+                        if let Some(content) = self.outputs.get(&name) {
+                            println!("DEBUG: Replacing reference to '{}' with content (length: {})", target, content.len());
+                            
+                            // Replace the reference tag with the content
+                            updated_doc = re.replace_all(&updated_doc, content).to_string();
+                        }
+                    }
+                }
+            }
+        }
+        
         // Debug: Print the current state of outputs after processing
         self.debug_print_outputs("AFTER PROCESSING");
         if updated_doc.contains("<meta:") {
