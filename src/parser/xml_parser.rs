@@ -137,6 +137,30 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                         }
                     }
                     
+                    if final_block_type == "reference" {
+                        println!("DEBUG: Processing reference block");
+                        let target = modifiers.iter().find(|(k, _)| k == "target")
+                            .map(|(_, v)| v.to_string());
+                        if target.is_none() {
+                            println!("ERROR: Reference block is missing required 'target' attribute");
+                            return Err(ParserError::InvalidBlockStructure(
+                                "Reference block is missing required 'target' attribute".to_string()
+                            ));
+                        }
+                        let target_val = target.unwrap();
+                        let mut block = Block::new(&final_block_type, block_name.as_deref(), "");
+                        block.add_modifier("target", &target_val);
+                        for (k, v) in modifiers.iter() {
+                            if k != "name" && k != "target" {
+                                block.add_modifier(k, v);
+                            }
+                        }
+                        println!("DEBUG: Created reference block with target: {}", target_val);
+                        block_stack.push(block);
+                        content_stack.push(String::new());
+                        println!("DEBUG: Pushed reference block to stack, stack size: {}", block_stack.len());
+                        continue;
+                    }
                     // Validate that block has a name attribute (now required)
                     if block_name.is_none() {
                         println!("ERROR: Block of type '{}' is missing required name attribute", final_block_type);
