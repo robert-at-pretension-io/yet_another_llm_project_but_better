@@ -549,7 +549,8 @@ impl MetaLanguageExecutor {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(ref e)) => {
                     let name = e.name();
-                    let name_str = std::str::from_utf8(name.as_ref()).unwrap_or("");
+                    let name_bytes = name.as_ref();
+                    let name_str = std::str::from_utf8(name_bytes).unwrap_or("");
                     
                     if debug_enabled {
                         println!("DEBUG: Processing start tag: '{}'", name_str);
@@ -599,16 +600,19 @@ impl MetaLanguageExecutor {
                                 
                                 // Skip to the closing tag
                                 let mut depth = 1;
+                                let mut inner_buf = Vec::new();
                                 while depth > 0 {
-                                    match reader.read_event_into(&mut buf) {
+                                    match reader.read_event_into(&mut inner_buf) {
                                         Ok(Event::Start(ref e)) => {
-                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                            let inner_name_bytes = e.name().as_ref();
+                                            let inner_name = std::str::from_utf8(inner_name_bytes).unwrap_or("");
                                             if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
                                                 depth += 1;
                                             }
                                         }
                                         Ok(Event::End(ref e)) => {
-                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                            let inner_name_bytes = e.name().as_ref();
+                                            let inner_name = std::str::from_utf8(inner_name_bytes).unwrap_or("");
                                             if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
                                                 depth -= 1;
                                             }
@@ -622,7 +626,7 @@ impl MetaLanguageExecutor {
                                             return Err(ExecutorError::XmlParsingError(e));
                                         }
                                     }
-                                    buf.clear();
+                                    inner_buf.clear();
                                 }
                             } else {
                                 if debug_enabled {
@@ -645,8 +649,9 @@ impl MetaLanguageExecutor {
                                 
                                 // Skip to the closing tag
                                 let mut depth = 1;
+                                let mut inner_buf = Vec::new();
                                 while depth > 0 {
-                                    match reader.read_event_into(&mut buf) {
+                                    match reader.read_event_into(&mut inner_buf) {
                                         Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
                                             depth += 1;
                                         }
@@ -662,7 +667,7 @@ impl MetaLanguageExecutor {
                                             return Err(ExecutorError::XmlParsingError(e));
                                         }
                                     }
-                                    buf.clear();
+                                    inner_buf.clear();
                                 }
                             }
                         } else {
@@ -672,26 +677,30 @@ impl MetaLanguageExecutor {
                             // Process content between start and end tags
                             let mut inner_content = String::new();
                             let mut depth = 1;
+                            let mut inner_buf = Vec::new();
                             
                             while depth > 0 {
-                                match reader.read_event_into(&mut buf) {
+                                match reader.read_event_into(&mut inner_buf) {
                                     Ok(Event::Text(ref text)) => {
                                         inner_content.push_str(&text.unescape()?);
                                     }
                                     Ok(Event::Start(ref e)) => {
-                                        let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                        let inner_name_bytes = e.name().as_ref();
+                                        let inner_name = std::str::from_utf8(inner_name_bytes).unwrap_or("");
                                         if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
                                             depth += 1;
                                         }
                                     }
                                     Ok(Event::End(ref e)) => {
-                                        let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                        let inner_name_bytes = e.name().as_ref();
+                                        let inner_name = std::str::from_utf8(inner_name_bytes).unwrap_or("");
                                         if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
                                             depth -= 1;
                                             if depth == 0 {
                                                 // Write closing tag when we reach the matching end tag
                                                 // Use the original tag name to maintain namespace
-                                                let original_name = std::str::from_utf8(name.as_ref()).unwrap_or("meta:reference");
+                                                let name_bytes = name.as_ref();
+                                                let original_name = std::str::from_utf8(name_bytes).unwrap_or("meta:reference");
                                                 writer.write_event(Event::End(BytesEnd::new(original_name)))?;
                                             }
                                         }
@@ -702,7 +711,7 @@ impl MetaLanguageExecutor {
                                         return Err(ExecutorError::XmlParsingError(e));
                                     }
                                 }
-                                buf.clear();
+                                inner_buf.clear();
                             }
                         }
                     } else {
@@ -711,7 +720,8 @@ impl MetaLanguageExecutor {
                 }
                 Ok(Event::Empty(ref e)) => {
                     let name = e.name();
-                    let name_str = std::str::from_utf8(name.as_ref()).unwrap_or("");
+                    let name_bytes = name.as_ref();
+                    let name_str = std::str::from_utf8(name_bytes).unwrap_or("");
                     
                     if debug_enabled {
                         println!("DEBUG: Processing empty tag: '{}'", name_str);
@@ -787,7 +797,8 @@ impl MetaLanguageExecutor {
                 }
                 Ok(Event::End(ref e)) => {
                     let name = e.name();
-                    let name_str = std::str::from_utf8(name.as_ref()).unwrap_or("");
+                    let name_bytes = name.as_ref();
+                    let name_str = std::str::from_utf8(name_bytes).unwrap_or("");
                     
                     if debug_enabled {
                         println!("DEBUG: Processing end tag: '{}'", name_str);
