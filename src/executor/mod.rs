@@ -680,14 +680,22 @@ impl MetaLanguageExecutor {
                                     Ok(Event::Text(ref text)) => {
                                         inner_content.push_str(&text.unescape()?);
                                     }
-                                    Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                        depth += 1;
+                                    Ok(Event::Start(ref e)) => {
+                                        let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                        if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
+                                            depth += 1;
+                                        }
                                     }
-                                    Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                        depth -= 1;
-                                        if depth == 0 {
-                                            // Write closing tag when we reach the matching end tag
-                                            writer.write_event(Event::End(BytesEnd::new("meta:reference")))?;
+                                    Ok(Event::End(ref e)) => {
+                                        let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                        if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
+                                            depth -= 1;
+                                            if depth == 0 {
+                                                // Write closing tag when we reach the matching end tag
+                                                // Use the original tag name to maintain namespace
+                                                let original_name = std::str::from_utf8(name.as_ref()).unwrap_or("meta:reference");
+                                                writer.write_event(Event::End(BytesEnd::new(original_name)))?;
+                                            }
                                         }
                                     }
                                     Ok(Event::Eof) => break,
