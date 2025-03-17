@@ -201,260 +201,41 @@ impl MetaLanguageExecutor {
             }
         }
 
-        // PHASE 2: First process data blocks for references, since other blocks may depend on them
+        // Improved reference processing approach
         let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
         
-        if debug_enabled {
-            println!("DEBUG: Starting PHASE 2: Processing data blocks for variable references");
-            println!("DEBUG: Current state of outputs before processing data blocks:");
-            for (k, v) in &self.outputs {
-                println!("DEBUG:   '{}' => '{}'", k, 
-                    if v.len() > 30 { 
-                        format!("{}... (total length: {})", &v[..30], v.len()) 
-                    } else { 
-                        v.clone() 
-                    }
-                );
-            }
-        } else {
-            println!("DEBUG: Processing data blocks for variable references");
-        }
-        
+        // Collect all block names upfront
+        let all_block_names: Vec<String> = self.blocks.keys().cloned().collect();
         let data_block_names: Vec<String> = self.blocks.iter()
             .filter(|(_, block)| self.is_data_block(block))
             .map(|(name, _)| name.clone())
             .collect();
         
         if debug_enabled {
-            println!("DEBUG: Found {} data blocks to process: {:?}", data_block_names.len(), data_block_names);
-        }
-        
-        // Process data blocks in multiple passes to handle nested references
-        for pass in 0..3 {
-            if debug_enabled {
-                println!("DEBUG: Starting data block processing pass {}", pass + 1);
-            }
-            
-            let mut any_data_replaced = false;
-            
-            for name in &data_block_names {
-                let content = if let Some(block) = self.blocks.get(name) {
-                    // Check if this block contains any references
-                    let refs = extract_variable_references(&block.content);
-                    
-                    if debug_enabled {
-                        if refs.is_empty() {
-                            println!("DEBUG: Data block '{}' doesn't contain any references, might skip", name);
-                        } else {
-                            println!("DEBUG: Data block '{}' contains references: {:?}", name, refs);
-                        }
-                    }
-                    
-                    block.content.clone()
-                } else {
-                    if debug_enabled {
-                        println!("DEBUG: Data block '{}' not found in blocks map, skipping", name);
-                    }
-                    continue;
-                };
-                
-                // Process the content for variable references
-                if debug_enabled {
-                    println!("DEBUG: Processing data block '{}' references (pass {})", name, pass + 1);
-                    println!("DEBUG: Before processing:");
-                    println!("DEBUG: ===== CONTENT START =====");
-                    println!("{}", if content.len() > 300 { 
-                        format!("{}... (truncated, total length: {})", &content[..300], content.len()) 
-                    } else { 
-                        content.clone() 
-                    });
-                    println!("DEBUG: ===== CONTENT END =====");
-                } else {
-                    println!("DEBUG: Processing data block '{}' references (pass {})", name, pass + 1);
-                }
-                
-                let processed = self.process_variable_references(&content)?;
-                
-                // Update block and outputs with processed content if changed
-                if processed != content {
-                    if debug_enabled {
-                        println!("DEBUG: Content changed after processing references");
-                        println!("DEBUG: After processing:");
-                        println!("DEBUG: ===== PROCESSED CONTENT START =====");
-                        println!("{}", if processed.len() > 300 { 
-                            format!("{}... (truncated, total length: {})", &processed[..300], processed.len()) 
-                        } else { 
-                            processed.clone() 
-                        });
-                        println!("DEBUG: ===== PROCESSED CONTENT END =====");
-                    }
-                    
-                    if let Some(block) = self.blocks.get_mut(name) {
-                        if debug_enabled {
-                            println!("DEBUG: Updated data block '{}' content", name);
-                        } else {
-                            println!("DEBUG: Updated data block '{}' content", name);
-                        }
-                        block.content = processed.clone();
-                    }
-                    
-                    self.outputs.insert(name.clone(), processed.clone());
-                    any_data_replaced = true;
-                    
-                    if debug_enabled {
-                        println!("DEBUG: Resolved references in data block '{}' (pass {})", name, pass + 1);
-                    } else {
-                        println!("DEBUG: Resolved references in data block '{}' (pass {})", name, pass + 1);
-                    }
-                } else if debug_enabled {
-                    println!("DEBUG: No changes to data block '{}' content after processing (pass {})", name, pass + 1);
-                }
-            }
-            
-            // If no replacements in data blocks, move on to other blocks
-            if !any_data_replaced {
-                if debug_enabled {
-                    println!("DEBUG: No more data block references to resolve after pass {}", pass + 1);
-                } else {
-                    println!("DEBUG: No more data block references to resolve after pass {}", pass + 1);
-                }
-                break;
-            }
-        }
-        
-        if debug_enabled {
-            println!("DEBUG: Completed PHASE 2: Data block processing");
-            println!("DEBUG: Current state of outputs after processing data blocks:");
-            for (k, v) in &self.outputs {
-                println!("DEBUG:   '{}' => '{}'", k, 
-                    if v.len() > 30 { 
-                        format!("{}... (total length: {})", &v[..30], v.len()) 
-                    } else { 
-                        v.clone() 
-                    }
-                );
-            }
-        }
-
-        // PHASE 3: Process ALL blocks for variable references in multiple passes
-        // to handle nested references - first get all the block names to process
-        if debug_enabled {
-            println!("DEBUG: Starting PHASE 3: Processing all blocks for variable references");
+            println!("DEBUG: Enhanced variable reference processing");
+            println!("DEBUG: Found {} data blocks and {} total blocks", 
+                data_block_names.len(), all_block_names.len());
         } else {
-            println!("DEBUG: Processing all blocks for variable references");
+            println!("DEBUG: Processing blocks for variable references");
         }
         
-        let block_names: Vec<String> = self.blocks.keys().cloned().collect();
-
-        if debug_enabled {
-            println!("DEBUG: Found {} total blocks to process", block_names.len());
-        }
-
-        // Do multiple passes (up to 5) to handle nested references
-        for pass in 0..5 {
-            if debug_enabled {
-                println!("DEBUG: Starting all block processing pass {}", pass + 1);
-            }
+        // First processing phase: simplified direct reference resolution
+        self.process_references_in_blocks(&data_block_names, "data", debug_enabled)?;
+        
+        // Second processing phase: process all other blocks now that data is available
+        let non_data_blocks: Vec<String> = all_block_names.into_iter()
+            .filter(|name| !data_block_names.contains(name))
+            .collect();
             
-            let mut any_replaced = false;
-
-            // Process each block
-            for name in &block_names {
-                // Skip data blocks as they were already processed
-                if data_block_names.contains(name) {
-                    if debug_enabled {
-                        println!("DEBUG: Skipping data block '{}' as it was already processed", name);
-                    }
-                    continue;
-                }
-                
-                // Get the block content
-                let content = if let Some(block) = self.blocks.get(name) {
-                    // Check if this block contains any references
-                    let refs = extract_variable_references(&block.content);
-                    
-                    if debug_enabled {
-                        if refs.is_empty() {
-                            println!("DEBUG: Block '{}' doesn't contain any references, might skip", name);
-                        } else {
-                            println!("DEBUG: Block '{}' contains references: {:?}", name, refs);
-                        }
-                    }
-                    
-                    block.content.clone()
-                } else {
-                    if debug_enabled {
-                        println!("DEBUG: Block '{}' not found in blocks map, skipping", name);
-                    }
-                    continue;
-                };
-
-                // Process the content for variable references
-                if debug_enabled {
-                    println!("DEBUG: Processing block '{}' references (pass {})", name, pass + 1);
-                    println!("DEBUG: Before processing:");
-                    println!("DEBUG: ===== CONTENT START =====");
-                    println!("{}", if content.len() > 300 { 
-                        format!("{}... (truncated, total length: {})", &content[..300], content.len()) 
-                    } else { 
-                        content.clone() 
-                    });
-                    println!("DEBUG: ===== CONTENT END =====");
-                } else {
-                    println!("DEBUG: Processing block '{}' references (pass {})", name, pass + 1);
-                }
-                
-                let processed = self.process_variable_references(&content)?;
-
-                // Always update the block and outputs with processed content if changed
-                if processed != content {
-                    if debug_enabled {
-                        println!("DEBUG: Content changed after processing references");
-                        println!("DEBUG: After processing:");
-                        println!("DEBUG: ===== PROCESSED CONTENT START =====");
-                        println!("{}", if processed.len() > 300 { 
-                            format!("{}... (truncated, total length: {})", &processed[..300], processed.len()) 
-                        } else { 
-                            processed.clone() 
-                        });
-                        println!("DEBUG: ===== PROCESSED CONTENT END =====");
-                    }
-                    
-                    if let Some(block) = self.blocks.get_mut(name) {
-                        if debug_enabled {
-                            println!("DEBUG: Updated block '{}' content", name);
-                        } else {
-                            println!("DEBUG: Updated block '{}' content", name);
-                        }
-                        block.content = processed.clone();
-                    }
-                    
-                    self.outputs.insert(name.clone(), processed.clone());
-                    any_replaced = true;
-                    
-                    if debug_enabled {
-                        println!("DEBUG: Resolved references in block '{}' (pass {})", name, pass + 1);
-                    } else {
-                        println!("DEBUG: Resolved references in block '{}' (pass {})", name, pass + 1);
-                    }
-                } else if debug_enabled {
-                    println!("DEBUG: No changes to block '{}' content after processing (pass {})", name, pass + 1);
-                }
-            }
-
-            // If no replacements happened this pass, we're done
-            if !any_replaced {
-                if debug_enabled {
-                    println!("DEBUG: No more variable references to resolve after pass {}", pass + 1);
-                } else {
-                    println!("DEBUG: No more variable references to resolve after pass {}", pass + 1);
-                }
-                break;
-            }
-        }
+        self.process_references_in_blocks(&non_data_blocks, "non-data", debug_enabled)?;
+        
+        // Final resolution pass to catch any remaining references
+        // This ensures even complex nested references are resolved
+        let all_blocks: Vec<String> = self.blocks.keys().cloned().collect();
+        self.process_references_in_blocks(&all_blocks, "final", debug_enabled)?;
         
         if debug_enabled {
-            println!("DEBUG: Completed PHASE 3: All block processing");
+            println!("DEBUG: Completed reference processing");
             println!("DEBUG: Final state of outputs after processing all blocks:");
             for (k, v) in &self.outputs {
                 println!("DEBUG:   '{}' => '{}'", k, 
@@ -509,7 +290,7 @@ impl MetaLanguageExecutor {
         Ok(())
     }
 
-    /// Process variable references using quick_xml
+    /// Process variable references using quick_xml and also handle ${name} style references
     pub fn process_variable_references(&self, content: &str) -> Result<String, ExecutorError> {
         // Check if debugging is enabled
         let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
@@ -598,27 +379,53 @@ impl MetaLanguageExecutor {
                                 // Write the value instead of the reference tag
                                 writer.write_event(Event::Text(BytesText::from_escaped(&modified_value)))?;
                                 
-                                // Skip to the closing tag
+                                // Skip to the closing tag with more reliable detection of reference elements
                                 let mut depth = 1;
                                 let mut inner_buf = Vec::new();
                                 while depth > 0 {
                                     match reader.read_event_into(&mut inner_buf) {
                                         Ok(Event::Start(ref e)) => {
                                             let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
-                                            if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
+                                            // Better detection of reference tags
+                                            if inner_name == "meta:reference" || 
+                                               inner_name.ends_with(":reference") || 
+                                               inner_name.contains("reference") {
                                                 depth += 1;
+                                                if debug_enabled {
+                                                    println!("DEBUG: Found nested reference tag, depth now {}", depth);
+                                                }
                                             }
                                         }
                                         Ok(Event::End(ref e)) => {
                                             let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
-                                            if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
+                                            // Better detection of reference tags
+                                            if inner_name == "meta:reference" || 
+                                               inner_name.ends_with(":reference") || 
+                                               inner_name.contains("reference") {
                                                 depth -= 1;
+                                                if debug_enabled && depth == 0 {
+                                                    println!("DEBUG: Found matching end tag, reference replacement complete");
+                                                }
                                             }
                                         }
-                                        Ok(Event::Empty(ref _e)) => {
-                                            // Empty tag doesn't affect depth
+                                        Ok(Event::Empty(ref e)) => {
+                                            // Check if this is a self-closing reference tag
+                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
+                                            if inner_name == "meta:reference" || 
+                                               inner_name.ends_with(":reference") || 
+                                               inner_name.contains("reference") {
+                                                // Adjust depth for self-closing tag
+                                                if debug_enabled {
+                                                    println!("DEBUG: Found self-closing reference tag");
+                                                }
+                                            }
                                         }
-                                        Ok(Event::Eof) => break,
+                                        Ok(Event::Eof) => {
+                                            if debug_enabled {
+                                                println!("DEBUG: Reached EOF while skipping reference content");
+                                            }
+                                            break;
+                                        }
                                         Ok(_) => {}
                                         Err(e) => {
                                             return Err(ExecutorError::XmlParsingError(e));
@@ -828,7 +635,40 @@ impl MetaLanguageExecutor {
         
         // Get the result as a string
         let result = writer.into_inner().into_inner();
-        let result_str = String::from_utf8_lossy(&result).to_string();
+        let mut result_str = String::from_utf8_lossy(&result).to_string();
+        
+        // Also process ${name} style references which are common in many templates
+        // This is a simpler approach that complements the XML parsing
+        let re = regex::Regex::new(r"\$\{([^}]+)\}").unwrap_or_else(|_| {
+            // Fallback regex with basic pattern if the more complex one fails
+            regex::Regex::new(r"\$\{(\w+)\}").unwrap()
+        });
+        
+        // Process all ${name} references
+        while let Some(captures) = re.captures(&result_str) {
+            if let (Some(full_match), Some(var_name)) = (captures.get(0), captures.get(1)) {
+                let var_name_str = var_name.as_str().trim();
+                
+                if debug_enabled {
+                    println!("DEBUG: Found ${{{}}}-style reference", var_name_str);
+                }
+                
+                // Look up the variable
+                if let Some(value) = self.outputs.get(var_name_str) {
+                    if debug_enabled {
+                        println!("DEBUG: Replacing ${{{}}}-style reference with value", var_name_str);
+                    }
+                    
+                    // Apply any modifiers from the source block to the value
+                    let modified_value = self.apply_block_modifiers_to_variable(var_name_str, value);
+                    
+                    // Replace the reference
+                    result_str = result_str.replace(full_match.as_str(), &modified_value);
+                } else if debug_enabled {
+                    println!("DEBUG: No value found for ${{{}}}-style reference", var_name_str);
+                }
+            }
+        }
         
         if debug_enabled {
             println!("DEBUG: Finished processing variable references, result length: {}", result_str.len());
@@ -885,6 +725,73 @@ impl MetaLanguageExecutor {
     // Check if a block is a data block
     pub fn is_data_block(&self, block: &Block) -> bool {
         block.block_type == "data" || block.block_type.starts_with("data:")
+    }
+    
+    // Process references in a set of blocks with multiple passes
+    fn process_references_in_blocks(&mut self, block_names: &[String], phase_name: &str, debug_enabled: bool) -> Result<(), ExecutorError> {
+        if debug_enabled {
+            println!("DEBUG: Starting {} phase with {} blocks", phase_name, block_names.len());
+        }
+        
+        // Up to 5 passes to handle nested references
+        for pass in 0..5 {
+            let mut any_replaced = false;
+            
+            if debug_enabled {
+                println!("DEBUG: Starting {} phase pass {}", phase_name, pass + 1);
+            }
+            
+            for name in block_names {
+                // Skip if block doesn't exist
+                let content = match self.blocks.get(name) {
+                    Some(block) => {
+                        // Quick check if this block might contain references
+                        if !block.content.contains("<meta:reference") && 
+                           !block.content.contains("${") {
+                            if debug_enabled {
+                                println!("DEBUG: Block '{}' doesn't appear to contain references, skipping", name);
+                            }
+                            continue;
+                        }
+                        block.content.clone()
+                    },
+                    None => continue,
+                };
+                
+                if debug_enabled {
+                    println!("DEBUG: Processing '{}' references (pass {})", name, pass + 1);
+                }
+                
+                // Use our XML-based reference processor
+                let processed = self.process_variable_references(&content)?;
+                
+                // Only update if something changed
+                if processed != content {
+                    if debug_enabled {
+                        println!("DEBUG: References resolved in '{}', updating content", name);
+                    }
+                    
+                    // Update the block content
+                    if let Some(block) = self.blocks.get_mut(name) {
+                        block.content = processed.clone();
+                    }
+                    
+                    // Update outputs map
+                    self.outputs.insert(name.clone(), processed);
+                    any_replaced = true;
+                }
+            }
+            
+            // If nothing changed this pass, we're done with this phase
+            if !any_replaced {
+                if debug_enabled {
+                    println!("DEBUG: No more changes in {} phase after pass {}", phase_name, pass + 1);
+                }
+                break;
+            }
+        }
+        
+        Ok(())
     }
 
     // Check if a block has a fallback defined
