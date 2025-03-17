@@ -604,15 +604,13 @@ impl MetaLanguageExecutor {
                                 while depth > 0 {
                                     match reader.read_event_into(&mut inner_buf) {
                                         Ok(Event::Start(ref e)) => {
-                                            let inner_name_bytes = e.name().as_ref();
-                                            let inner_name = std::str::from_utf8(inner_name_bytes).unwrap_or("");
+                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
                                             if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
                                                 depth += 1;
                                             }
                                         }
                                         Ok(Event::End(ref e)) => {
-                                            let inner_name_bytes = e.name().as_ref();
-                                            let inner_name = std::str::from_utf8(inner_name_bytes).unwrap_or("");
+                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
                                             if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
                                                 depth -= 1;
                                             }
@@ -685,15 +683,13 @@ impl MetaLanguageExecutor {
                                         inner_content.push_str(&text.unescape()?);
                                     }
                                     Ok(Event::Start(ref e)) => {
-                                        let inner_name_bytes = e.name().as_ref();
-                                        let inner_name = std::str::from_utf8(inner_name_bytes).unwrap_or("");
+                                        let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
                                         if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
                                             depth += 1;
                                         }
                                     }
                                     Ok(Event::End(ref e)) => {
-                                        let inner_name_bytes = e.name().as_ref();
-                                        let inner_name = std::str::from_utf8(inner_name_bytes).unwrap_or("");
+                                        let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
                                         if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
                                             depth -= 1;
                                             if depth == 0 {
