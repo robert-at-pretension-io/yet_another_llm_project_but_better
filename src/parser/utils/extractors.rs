@@ -152,7 +152,7 @@ pub fn extract_variable_references(content: &str) -> Vec<String> {
         println!("{}", if content.len() > 500 { 
             format!("{}... (truncated, total length: {})", &content[..500], content.len()) 
         } else { 
-            content 
+            content.to_string()
         });
         println!("DEBUG: ===== CONTENT END =====");
     }
