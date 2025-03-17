@@ -6,16 +6,14 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
-use quick_xml::reader::Reader;
-use quick_xml::writer::Writer;
+use quick_xml::events::attributes::AttrError;
 use std::io::Cursor;
 use tempfile;
 use thiserror::Error;
+use xmltree::{Element, XMLNode};
 
 use crate::llm_client::{LlmClient, LlmProvider, LlmRequestConfig};
 use crate::parser::{parse_document, utils::extractors::extract_variable_references, Block};
-use quick_xml::events::attributes::AttrError;
 
 // Define error type
 #[derive(Error, Debug)]
@@ -48,7 +46,7 @@ pub enum ExecutorError {
     ReferenceResolutionFailed(String),
 
     #[error("XML parsing error: {0}")]
-    XmlParsingError(#[from] quick_xml::Error),
+    XmlParsingError(String),
 }
 
 // Executor for processing blocks
@@ -200,9 +198,23 @@ impl MetaLanguageExecutor {
                 println!("DEBUG: Stored data block '{}' in outputs (phase 1)", name);
             }
         }
-
+        
         // Improved reference processing approach
         let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        
+        // Debug: print blocks and outputs before processing
+        if debug_enabled {
+            println!("DEBUG: Blocks before processing references:");
+            for (name, block) in &self.blocks {
+                println!("DEBUG:   Block '{}' content: {}", name, 
+                    if block.content.len() > 50 {
+                        format!("{}... (length: {})", &block.content[..50], block.content.len())
+                    } else {
+                        block.content.clone()
+                    }
+                );
+            }
+        }
         
         // Collect all block names upfront
         let all_block_names: Vec<String> = self.blocks.keys().cloned().collect();
@@ -219,12 +231,15 @@ impl MetaLanguageExecutor {
             println!("DEBUG: Processing blocks for variable references");
         }
         
-        // First processing phase: simplified direct reference resolution
+        // Process each block type multiple times to ensure all references are resolved
+        
+        // First processing phase: process data blocks first (may contain references to other data)
         self.process_references_in_blocks(&data_block_names, "data", debug_enabled)?;
         
         // Second processing phase: process all other blocks now that data is available
-        let non_data_blocks: Vec<String> = all_block_names.into_iter()
+        let non_data_blocks: Vec<String> = all_block_names.iter()
             .filter(|name| !data_block_names.contains(name))
+            .cloned()
             .collect();
             
         self.process_references_in_blocks(&non_data_blocks, "non-data", debug_enabled)?;
@@ -233,6 +248,13 @@ impl MetaLanguageExecutor {
         // This ensures even complex nested references are resolved
         let all_blocks: Vec<String> = self.blocks.keys().cloned().collect();
         self.process_references_in_blocks(&all_blocks, "final", debug_enabled)?;
+        
+        // Process all output blocks to ensure they have the resolved references
+        for (name, block) in self.blocks.iter() {
+            // Make sure all output blocks have their latest content
+            let content = block.content.clone();
+            self.outputs.insert(name.clone(), content);
+        }
         
         if debug_enabled {
             println!("DEBUG: Completed reference processing");
@@ -290,13 +312,13 @@ impl MetaLanguageExecutor {
         Ok(())
     }
 
-    /// Process variable references using quick_xml and also handle ${name} style references
+    /// Process variable references using xmltree for DOM-based processing
     pub fn process_variable_references(&self, content: &str) -> Result<String, ExecutorError> {
         // Check if debugging is enabled
         let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
         
-        // Check if the content might contain XML
-        if !content.contains("<meta:reference") && !content.contains("${") {
+        // Check if the content might contain XML references
+        if !content.contains("<meta:reference") && !content.contains(":reference") {
             if debug_enabled {
                 println!("DEBUG: Content doesn't contain any references, skipping processing");
             }
@@ -304,7 +326,7 @@ impl MetaLanguageExecutor {
         }
 
         if debug_enabled {
-            println!("DEBUG: Processing variable references with quick_xml for content length: {}", content.len());
+            println!("DEBUG: Processing variable references with xmltree for content length: {}", content.len());
             println!("DEBUG: ===== CONTENT START =====");
             println!("{}", if content.len() > 500 { 
                 format!("{}... (truncated, total length: {})", &content[..500], content.len()) 
@@ -312,406 +334,182 @@ impl MetaLanguageExecutor {
                 content.to_string()
             });
             println!("DEBUG: ===== CONTENT END =====");
-            println!("DEBUG: Starting XML parsing for references");
         }
 
-        // Create a reader that doesn't trim whitespace
-        let mut reader = Reader::from_str(content);
-        reader.trim_text(false);
-        reader.check_end_names(false); // Don't validate end tag names
-        reader.expand_empty_elements(true); // Convert empty elements to start-end pairs
+        // Wrap content in a root element with namespace to make it valid XML for parsing
         
-        // Reader configuration is done during initialization
-
-        let mut writer = Writer::new(Cursor::new(Vec::new()));
-        let mut buf = Vec::new();
-
-        loop {
-            match reader.read_event_into(&mut buf) {
-                Ok(Event::Start(ref e)) => {
-                    let name = e.name();
-                    let name_bytes = name.as_ref();
-                    let name_str = std::str::from_utf8(name_bytes).unwrap_or("");
+        // Wrap the content with all needed XML namespaces
+        let xml_content = format!(
+            r#"<root xmlns:meta="https://example.com/meta-language">{}</root>"#, 
+            content
+        );
+        
+        // Parse the XML content
+        let mut root = match Element::parse(xml_content.as_bytes()) {
+            Ok(root) => root,
+            Err(e) => {
+                if debug_enabled {
+                    println!("DEBUG: XML parsing error: {}", e);
                     
-                    if debug_enabled {
-                        println!("DEBUG: Processing start tag: '{}'", name_str);
-                    }
-                    
-                    // Check for meta:reference tag with proper namespace handling
-                    if name_str == "meta:reference" || name_str.ends_with(":reference") || name_str.contains("reference") {
-                        if debug_enabled {
-                            println!("DEBUG: Found meta:reference start tag");
-                        }
-                        
-                        // Process meta:reference tag
-                        let mut target = None;
-
-                        // Extract the target attribute
-                        for attr_result in e.attributes() {
-                            let attr = attr_result?;
-                            let attr_key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
-                            
-                            if attr_key == "target" {
-                                target = Some(String::from_utf8_lossy(&attr.value).to_string());
-                                if debug_enabled {
-                                    println!("DEBUG: Found reference with target: {}", target.as_ref().unwrap());
-                                }
-                            }
-                        }
-
-                        if let Some(target_str) = target {
-                            // Look up the target in outputs
-                            if let Some(value) = self.outputs.get(&target_str) {
-                                if debug_enabled {
-                                    println!("DEBUG: Found target '{}' in outputs with value: {}", 
-                                        target_str, 
-                                        if value.len() > 100 { 
-                                            format!("{}... (truncated, total length: {})", &value[..100], value.len()) 
-                                        } else { 
-                                            value.clone() 
-                                        }
-                                    );
-                                }
-                            
-                                // Apply any modifiers from the source block to the value
-                                let modified_value = self.apply_block_modifiers_to_variable(&target_str, value);
-                            
-                                // Write the value instead of the reference tag
-                                writer.write_event(Event::Text(BytesText::from_escaped(&modified_value)))?;
-                                
-                                // Skip to the closing tag with more reliable detection of reference elements
-                                let mut depth = 1;
-                                let mut inner_buf = Vec::new();
-                                while depth > 0 {
-                                    match reader.read_event_into(&mut inner_buf) {
-                                        Ok(Event::Start(ref e)) => {
-                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
-                                            // Better detection of reference tags
-                                            if inner_name == "meta:reference" || 
-                                               inner_name.ends_with(":reference") || 
-                                               inner_name.contains("reference") {
-                                                depth += 1;
-                                                if debug_enabled {
-                                                    println!("DEBUG: Found nested reference tag, depth now {}", depth);
-                                                }
-                                            }
-                                        }
-                                        Ok(Event::End(ref e)) => {
-                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
-                                            // Better detection of reference tags
-                                            if inner_name == "meta:reference" || 
-                                               inner_name.ends_with(":reference") || 
-                                               inner_name.contains("reference") {
-                                                depth -= 1;
-                                                if debug_enabled && depth == 0 {
-                                                    println!("DEBUG: Found matching end tag, reference replacement complete");
-                                                }
-                                            }
-                                        }
-                                        Ok(Event::Empty(ref e)) => {
-                                            // Check if this is a self-closing reference tag
-                                            let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
-                                            if inner_name == "meta:reference" || 
-                                               inner_name.ends_with(":reference") || 
-                                               inner_name.contains("reference") {
-                                                // Adjust depth for self-closing tag
-                                                if debug_enabled {
-                                                    println!("DEBUG: Found self-closing reference tag");
-                                                }
-                                            }
-                                        }
-                                        Ok(Event::Eof) => {
-                                            if debug_enabled {
-                                                println!("DEBUG: Reached EOF while skipping reference content");
-                                            }
-                                            break;
-                                        }
-                                        Ok(_) => {}
-                                        Err(e) => {
-                                            return Err(ExecutorError::XmlParsingError(e));
-                                        }
-                                    }
-                                    inner_buf.clear();
-                                }
-                            } else {
-                                if debug_enabled {
-                                    println!("DEBUG: Target '{}' not found in outputs, using placeholder", target_str);
-                                    println!("DEBUG: Current outputs available:");
-                                    for (k, v) in &self.outputs {
-                                        println!("DEBUG:   '{}' => '{}'", k, 
-                                            if v.len() > 30 { 
-                                                format!("{}... (total length: {})", &v[..30], v.len()) 
-                                            } else { 
-                                                v.clone() 
-                                            }
-                                        );
-                                    }
-                                }
-                                
-                                // Target not found, insert a placeholder
-                                let placeholder = format!("${{{}}}", target_str);
-                                writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
-                                
-                                // Skip to the closing tag
-                                let mut depth = 1;
-                                let mut inner_buf = Vec::new();
-                                while depth > 0 {
-                                    match reader.read_event_into(&mut inner_buf) {
-                                        Ok(Event::Start(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                            depth += 1;
-                                        }
-                                        Ok(Event::End(ref e)) if e.name().as_ref() == b"meta:reference" => {
-                                            depth -= 1;
-                                        }
-                                        Ok(Event::Empty(ref _e)) => {
-                                            // Empty tag doesn't affect depth
-                                        }
-                                        Ok(Event::Eof) => break,
-                                        Ok(_) => {}
-                                        Err(e) => {
-                                            return Err(ExecutorError::XmlParsingError(e));
-                                        }
-                                    }
-                                    inner_buf.clear();
-                                }
-                            }
-                        } else {
-                            // No target attribute, preserve the original tag
-                            writer.write_event(Event::Start(e.to_owned()))?;
-                            
-                            // Process content between start and end tags
-                            let mut inner_content = String::new();
-                            let mut depth = 1;
-                            let mut inner_buf = Vec::new();
-                            
-                            while depth > 0 {
-                                match reader.read_event_into(&mut inner_buf) {
-                                    Ok(Event::Text(ref text)) => {
-                                        inner_content.push_str(&text.unescape()?);
-                                    }
-                                    Ok(Event::Start(ref e)) => {
-                                        let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
-                                        if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
-                                            depth += 1;
-                                        }
-                                    }
-                                    Ok(Event::End(ref e)) => {
-                                        let inner_name = std::str::from_utf8(e.name().as_ref()).unwrap_or("");
-                                        if inner_name == "meta:reference" || inner_name.ends_with(":reference") || inner_name.contains("reference") {
-                                            depth -= 1;
-                                            if depth == 0 {
-                                                // Write closing tag when we reach the matching end tag
-                                                // Use the original tag name to maintain namespace
-                                                let name_bytes = name.as_ref();
-                                                let original_name = std::str::from_utf8(name_bytes).unwrap_or("meta:reference");
-                                                writer.write_event(Event::End(BytesEnd::new(original_name)))?;
-                                            }
-                                        }
-                                    }
-                                    Ok(Event::Eof) => break,
-                                    Ok(event) => writer.write_event(event.clone())?,
-                                    Err(e) => {
-                                        return Err(ExecutorError::XmlParsingError(e));
-                                    }
-                                }
-                                inner_buf.clear();
+                    // Try to recover by escaping quotes in shell commands
+                    if content.contains("echo \"") || content.contains("echo '") {
+                        println!("DEBUG: Attempting to recover from shell command quotes");
+                        let fixed_content = content.replace("echo \"", "echo &quot;")
+                                                  .replace("echo '", "echo &apos;");
+                        let fixed_xml = format!(
+                            r#"<root xmlns:meta="https://example.com/meta-language">{}</root>"#, 
+                            fixed_content
+                        );
+                        match Element::parse(fixed_xml.as_bytes()) {
+                            Ok(root) => {
+                                println!("DEBUG: Recovery successful with quote escaping");
+                                root
+                            },
+                            Err(e2) => {
+                                println!("DEBUG: Recovery failed: {}", e2);
+                                return Err(ExecutorError::XmlParsingError(format!("XML parse error: {}", e)));
                             }
                         }
                     } else {
-                        writer.write_event(Event::Start(e.to_owned()))?;
+                        return Err(ExecutorError::XmlParsingError(format!("XML parse error: {}", e)));
                     }
-                }
-                Ok(Event::Empty(ref e)) => {
-                    let name = e.name();
-                    let name_bytes = name.as_ref();
-                    let name_str = std::str::from_utf8(name_bytes).unwrap_or("");
-                    
-                    if debug_enabled {
-                        println!("DEBUG: Processing empty tag: '{}'", name_str);
-                    }
-                    
-                    // Check for meta:reference tag with proper namespace handling
-                    if name_str == "meta:reference" || name_str.ends_with(":reference") || name_str.contains("reference") {
-                        if debug_enabled {
-                            println!("DEBUG: Found meta:reference empty tag");
-                        }
-                        
-                        // Process self-closing meta:reference tag
-                        let mut target = None;
-                        
-                        // Extract the target attribute
-                        for attr_result in e.attributes() {
-                            let attr = attr_result?;
-                            let attr_key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
-                            
-                            if attr_key == "target" {
-                                target = Some(String::from_utf8_lossy(&attr.value).to_string());
-                                if debug_enabled {
-                                    println!("DEBUG: Found self-closing reference with target: {}", target.as_ref().unwrap());
-                                }
-                            }
-                        }
-                        
-                        if let Some(target_str) = target {
-                            // Look up the target in outputs
-                            if let Some(value) = self.outputs.get(&target_str) {
-                                if debug_enabled {
-                                    println!("DEBUG: Found target '{}' in outputs with value: {}", 
-                                        target_str, 
-                                        if value.len() > 100 { 
-                                            format!("{}... (truncated, total length: {})", &value[..100], value.len()) 
-                                        } else { 
-                                            value.clone() 
-                                        }
-                                    );
-                                }
-                            
-                                // Apply any modifiers from the source block to the value
-                                let modified_value = self.apply_block_modifiers_to_variable(&target_str, value);
-                            
-                                // Write the value instead of the reference tag
-                                writer.write_event(Event::Text(BytesText::from_escaped(&modified_value)))?;
-                            } else {
-                                if debug_enabled {
-                                    println!("DEBUG: Target '{}' not found in outputs, using placeholder", target_str);
-                                    println!("DEBUG: Current outputs available:");
-                                    for (k, v) in &self.outputs {
-                                        println!("DEBUG:   '{}' => '{}'", k, 
-                                            if v.len() > 30 { 
-                                                format!("{}... (total length: {})", &v[..30], v.len()) 
-                                            } else { 
-                                                v.clone() 
-                                            }
-                                        );
-                                    }
-                                }
-                                
-                                // Target not found, insert a placeholder
-                                let placeholder = format!("${{{}}}", target_str);
-                                writer.write_event(Event::Text(BytesText::from_escaped(&placeholder)))?;
-                            }
-                        } else {
-                            // No target attribute, preserve the original tag
-                            writer.write_event(Event::Empty(e.to_owned()))?;
-                        }
-                    } else {
-                        writer.write_event(Event::Empty(e.to_owned()))?;
-                    }
-                }
-                Ok(Event::End(ref e)) => {
-                    let name = e.name();
-                    let name_bytes = name.as_ref();
-                    let name_str = std::str::from_utf8(name_bytes).unwrap_or("");
-                    
-                    if debug_enabled {
-                        println!("DEBUG: Processing end tag: '{}'", name_str);
-                    }
-                    
-                    // Check for meta:reference tag with proper namespace handling
-                    if name_str == "meta:reference" || name_str.ends_with(":reference") || name_str.contains("reference") {
-                        if debug_enabled {
-                            println!("DEBUG: Found meta:reference end tag");
-                        }
-                        
-                        // This should only happen for badly formed XML where an end tag appears
-                        // without a matching start tag. We'll handle it by writing it out.
-                        writer.write_event(Event::End(e.to_owned()))?;
-                    } else {
-                        writer.write_event(Event::End(e.to_owned()))?;
-                    }
-                }
-                Ok(Event::Eof) => break,
-                Ok(event) => writer.write_event(event)?,
-                Err(e) => {
-                    if debug_enabled {
-                        println!("DEBUG: XML parsing error: {}", e);
-                    }
-                    return Err(ExecutorError::XmlParsingError(e));
+                } else {
+                    return Err(ExecutorError::XmlParsingError(format!("XML parse error: {}", e)));
                 }
             }
-            
-            buf.clear();
-        }
+        };
         
-        // Get the result as a string
-        let result = writer.into_inner().into_inner();
-        let mut result_str = String::from_utf8_lossy(&result).to_string();
+        // Process the XML tree recursively
+        self.process_element_references(&mut root, debug_enabled)?;
         
-        // Also process ${name} style references which are common in many templates
-        // This is a simpler approach that complements the XML parsing
-        let re = regex::Regex::new(r"\$\{([^}]+)\}").unwrap_or_else(|_| {
-            // Fallback regex with basic pattern if the more complex one fails
-            regex::Regex::new(r"\$\{(\w+)\}").unwrap()
-        });
-        
-        // Process all ${name} references
-        while let Some(captures) = re.captures(&result_str) {
-            if let (Some(full_match), Some(var_name)) = (captures.get(0), captures.get(1)) {
-                let var_name_str = var_name.as_str().trim();
-                
-                if debug_enabled {
-                    println!("DEBUG: Found ${{{}}}-style reference", var_name_str);
-                }
-                
-                // Look up the variable
-                if let Some(value) = self.outputs.get(var_name_str) {
-                    if debug_enabled {
-                        println!("DEBUG: Replacing ${{{}}}-style reference with value", var_name_str);
-                    }
-                    
-                    // Apply any modifiers from the source block to the value
-                    let modified_value = self.apply_block_modifiers_to_variable(var_name_str, value);
-                    
-                    // Replace the reference
-                    result_str = result_str.replace(full_match.as_str(), &modified_value);
-                } else if debug_enabled {
-                    println!("DEBUG: No value found for ${{{}}}-style reference", var_name_str);
-                }
+        // Extract the processed content (without the root wrapper)
+        let mut result = String::new();
+        for child in root.children {
+            match child {
+                XMLNode::Element(e) => {
+                    // Convert element back to string
+                    let mut buffer = Vec::new();
+                    e.write(&mut buffer).map_err(|e| {
+                        ExecutorError::XmlParsingError(format!("Failed to write element: {}", e))
+                    })?;
+                    result.push_str(&String::from_utf8_lossy(&buffer));
+                },
+                XMLNode::Text(text) => {
+                    result.push_str(&text);
+                },
+                // Other node types are not expected here
+                _ => {}
             }
         }
         
         if debug_enabled {
-            println!("DEBUG: Finished processing variable references, result length: {}", result_str.len());
+            println!("DEBUG: Finished processing variable references, result length: {}", result.len());
             println!("DEBUG: ===== RESULT START =====");
-            println!("{}", if result_str.len() > 500 { 
-                format!("{}... (truncated, total length: {})", &result_str[..500], result_str.len()) 
+            println!("{}", if result.len() > 500 { 
+                format!("{}... (truncated, total length: {})", &result[..500], result.len()) 
             } else { 
-                result_str.clone() 
+                result.clone() 
             });
             println!("DEBUG: ===== RESULT END =====");
-            
-            // Detailed checks for unresolved references
-            if result_str.contains("<meta:reference") {
-                println!("DEBUG: WARNING: Result still contains meta:reference tags!");
-                
-                // Find and print all remaining references
-                let re = regex::Regex::new(r"<meta:reference[^>]*>").unwrap();
-                for cap in re.captures_iter(&result_str) {
-                    println!("DEBUG: Unresolved reference: {}", &cap[0]);
-                }
-            }
         }
-    
-        // If there are still nested references, process them recursively
-        // Check for any form of reference tag that might still exist
-        if result_str.contains("<meta:reference") || result_str.contains(":reference") || result_str.contains("${") {
+
+        // Check if there are still unresolved references that need another pass
+        if result.contains("<meta:reference") || result.contains(":reference") {
             if debug_enabled {
                 println!("DEBUG: Detected nested references, processing recursively");
-                // Log what kind of references we found
-                if result_str.contains("<meta:reference") {
-                    println!("DEBUG: Found standard <meta:reference> tags");
-                }
-                if result_str.contains(":reference") && !result_str.contains("<meta:reference") {
-                    println!("DEBUG: Found namespaced reference tags");
-                }
-                if result_str.contains("${") {
-                    println!("DEBUG: Found template-style references: ${{}}");
-                }
             }
-            return self.process_variable_references(&result_str);
+            return self.process_variable_references(&result);
         }
         
-        Ok(result_str)
+        Ok(result)
+    }
+    
+    /// Process references in an XML element tree (recursive)
+    pub fn process_element_references(&self, element: &mut Element, debug_enabled: bool) -> Result<(), ExecutorError> {
+        // First process this element if it's a reference
+        if element.name == "meta:reference" || element.name.ends_with(":reference") {
+            if debug_enabled {
+                println!("DEBUG: Found reference element: {}", element.name);
+            }
+            
+            // Get the target attribute
+            if let Some(target) = element.attributes.get("target") {
+                if debug_enabled {
+                    println!("DEBUG: Reference targets variable: {}", target);
+                }
+                
+                // Look up the target in outputs
+                if let Some(value) = self.outputs.get(target) {
+                    if debug_enabled {
+                        println!("DEBUG: Found target '{}' in outputs with value: {}", 
+                            target, 
+                            if value.len() > 100 { 
+                                format!("{}... (truncated, total length: {})", &value[..100], value.len()) 
+                            } else { 
+                                value.clone() 
+                            }
+                        );
+                    }
+                    
+                    // Apply any modifiers from the source block to the value
+                    let modified_value = self.apply_block_modifiers_to_variable(target, value);
+                    
+                    // Replace the element's children with the text value
+                    element.children.clear();
+                    element.children.push(XMLNode::Text(modified_value));
+                } else {
+                    if debug_enabled {
+                        println!("DEBUG: Target '{}' not found in outputs, using placeholder", target);
+                    }
+                    
+                    // Target not found, insert a descriptive error placeholder
+                    let placeholder = format!("UNRESOLVED_REFERENCE:{}", target);
+                    element.children.clear();
+                    element.children.push(XMLNode::Text(placeholder));
+                }
+            } else if debug_enabled {
+                println!("DEBUG: Reference element missing target attribute");
+            }
+            
+            // We've handled this reference - no need to process children separately
+            return Ok(());
+        }
+        
+        // Process each child element recursively
+        // We need to clone children first to avoid borrow checker issues
+        let mut new_children = Vec::new();
+        let children = element.children.clone();
+        
+        for child in children {
+            match child {
+                XMLNode::Element(mut child_elem) => {
+                    self.process_element_references(&mut child_elem, debug_enabled)?;
+                    
+                    // If this was a reference element, extract its text content directly
+                    if child_elem.name == "meta:reference" || child_elem.name.ends_with(":reference") {
+                        if child_elem.children.len() == 1 {
+                            if let Some(XMLNode::Text(text)) = child_elem.children.first() {
+                                new_children.push(XMLNode::Text(text.clone()));
+                                continue;
+                            }
+                        }
+                    }
+                    
+                    new_children.push(XMLNode::Element(child_elem));
+                },
+                XMLNode::Text(text) => {
+                    new_children.push(XMLNode::Text(text));
+                },
+                other => {
+                    new_children.push(other);
+                }
+            }
+        }
+        
+        // Replace the element's children with the processed ones
+        element.children = new_children;
+        
+        Ok(())
     }
 
     // Check if a block is executable
@@ -746,8 +544,7 @@ impl MetaLanguageExecutor {
                 let content = match self.blocks.get(name) {
                     Some(block) => {
                         // Quick check if this block might contain references
-                        if !block.content.contains("<meta:reference") && 
-                           !block.content.contains("${") {
+                        if !block.content.contains("<meta:reference") {
                             if debug_enabled {
                                 println!("DEBUG: Block '{}' doesn't appear to contain references, skipping", name);
                             }
@@ -760,6 +557,7 @@ impl MetaLanguageExecutor {
                 
                 if debug_enabled {
                     println!("DEBUG: Processing '{}' references (pass {})", name, pass + 1);
+                    println!("DEBUG: Original content: {}", content);
                 }
                 
                 // Use our XML-based reference processor
@@ -769,6 +567,11 @@ impl MetaLanguageExecutor {
                 if processed != content {
                     if debug_enabled {
                         println!("DEBUG: References resolved in '{}', updating content", name);
+                        if processed.len() > 100 {
+                            println!("DEBUG: Resolved content (truncated): {}", &processed[..100]);
+                        } else {
+                            println!("DEBUG: Resolved content: {}", processed);
+                        }
                     }
                     
                     // Update the block content
@@ -779,6 +582,22 @@ impl MetaLanguageExecutor {
                     // Update outputs map
                     self.outputs.insert(name.clone(), processed);
                     any_replaced = true;
+                } else if debug_enabled {
+                    println!("DEBUG: No changes made to '{}' content", name);
+                }
+            }
+            
+            // Debug: Show outputs after each pass
+            if debug_enabled {
+                println!("DEBUG: Outputs after {} phase pass {}:", phase_name, pass + 1);
+                for (name, value) in &self.outputs {
+                    println!("DEBUG:   '{}' = '{}'", name, 
+                        if value.len() > 50 {
+                            format!("{}... (length: {})", &value[..50], value.len())
+                        } else {
+                            value.clone()
+                        }
+                    );
                 }
             }
             
@@ -788,6 +607,13 @@ impl MetaLanguageExecutor {
                     println!("DEBUG: No more changes in {} phase after pass {}", phase_name, pass + 1);
                 }
                 break;
+            }
+        }
+        
+        // Ensure all blocks have their updated content in the outputs map
+        for name in block_names {
+            if let Some(block) = self.blocks.get(name) {
+                self.outputs.insert(name.clone(), block.content.clone());
             }
         }
         
@@ -887,38 +713,56 @@ impl MetaLanguageExecutor {
             }
         }
 
-        // Process variable references in content
-        let mut block_content = if let Some(updated_block) = self.blocks.get(name) {
+        // Get the most up-to-date block content
+        let block_content = if let Some(updated_block) = self.blocks.get(name) {
             updated_block.content.clone()
         } else {
             block.content.clone()
         };
 
         // Process variable references with XML parser
+        let debug_enabled = std::env::var("LLM_DEBUG").is_ok();
+        if debug_enabled {
+            println!("DEBUG: Processing variable references in block '{}' for execution", name);
+            if block_content.len() > 100 {
+                println!("DEBUG: Block content preview: {}", &block_content[..100]);
+            } else {
+                println!("DEBUG: Block content: {}", block_content);
+            }
+        }
+        
         let processed_content = self.process_variable_references(&block_content)?;
-        block_content = processed_content;
+        
+        if debug_enabled && processed_content != block_content {
+            println!("DEBUG: References were resolved during execution");
+            if processed_content.len() > 100 {
+                println!("DEBUG: Processed content preview: {}", &processed_content[..100]);
+            } else {
+                println!("DEBUG: Processed content: {}", processed_content);
+            }
+        }
 
         // Always update the block with the processed content
         if let Some(updated_block) = self.blocks.get_mut(name) {
-            updated_block.content = block_content.clone();
+            updated_block.content = processed_content.clone();
         }
 
         // Execute based on block type
         let result = match block.block_type.as_str() {
-            "shell" => self.execute_shell(&block_content),
-            "api" => self.execute_api(&block_content),
-            "question" => self.execute_question(&block, &block_content),
-            "code:python" => self.execute_python(&block, &block_content),
+            "shell" => self.execute_shell(&processed_content),
+            "api" => self.execute_api(&processed_content),
+            "question" => self.execute_question(&block, &processed_content),
+            "code:python" => self.execute_python(&block, &processed_content),
             code if code.starts_with("code:") => {
                 println!(
                     "DEBUG: Unsupported code block type '{}'. Returning processed content.",
                     code
                 );
-                Ok(block_content)
+                Ok(processed_content)
             }
             _ => {
                 // Default to returning the processed content
-                Ok(block_content)
+                Ok(processed_content)
             }
         };
 
@@ -1086,7 +930,7 @@ impl MetaLanguageExecutor {
     }
 
     // Execute Python code
-    pub fn execute_python(&self, block: &Block, code: &str) -> Result<String, ExecutorError> {
+    pub fn execute_python(&self, _block: &Block, code: &str) -> Result<String, ExecutorError> {
         // Process variable references in the Python code using XML parsing
         let processed_code = self.process_variable_references(code)?;
         println!("DEBUG: Processed Python code:\n{}", processed_code);

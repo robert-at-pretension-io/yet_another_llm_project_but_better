@@ -20,6 +20,7 @@ indexmap = "=1.9.3"
 lazy_static = "=1.4.0"
 chrono = "=0.4.31"  # Added for timestamp formatting
 quick-xml = "=0.28.2"  # Added for XML parsing
+xmltree = "=0.10.3"  # Added for simpler XML DOM manipulation
 ctrlc = "=3.2.5"
 
 [features]
