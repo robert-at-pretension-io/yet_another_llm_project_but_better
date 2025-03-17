@@ -58,7 +58,8 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
                 // Convert tag name to string - compatible with quick-xml 0.28
-                let name = str::from_utf8(e.name().as_ref())
+                let name_bytes = e.name().to_owned(); // Create owned copy
+                let name = str::from_utf8(name_bytes.as_ref())
                     .unwrap_or_default()
                     .to_string();
                 
@@ -97,7 +98,8 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     
                     println!("DEBUG: Extracting attributes for block type: {}", block_type);
                     // First check for special attribute formats in the raw tag
-                    let raw_tag = str::from_utf8(e.name().as_ref())
+                    let name_bytes_raw = e.name().to_owned(); // Create owned copy
+                    let raw_tag = str::from_utf8(name_bytes_raw.as_ref())
                         .unwrap_or_default()
                         .to_string();
                     
@@ -242,7 +244,8 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                 }
             },
             Ok(Event::End(ref e)) => {
-                let name = str::from_utf8(e.name().as_ref())
+                let name_bytes = e.name().to_owned(); // Create owned copy
+                let name = str::from_utf8(name_bytes.as_ref())
                     .unwrap_or_default()
                     .to_string();
                 
