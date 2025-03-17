@@ -540,9 +540,7 @@ impl MetaLanguageExecutor {
         reader.check_end_names(false); // Don't validate end tag names
         reader.expand_empty_elements(true); // Convert empty elements to start-end pairs
         
-        // Configure namespace handling for better reference detection
-        reader.config_mut().ignore_comments = true;
-        reader.config_mut().normalize_tag_names = false; // Keep original tag names with namespaces
+        // Reader configuration is done during initialization
 
         let mut writer = Writer::new(Cursor::new(Vec::new()));
         let mut buf = Vec::new();
@@ -860,7 +858,7 @@ impl MetaLanguageExecutor {
                     println!("DEBUG: Found namespaced reference tags");
                 }
                 if result_str.contains("${") {
-                    println!("DEBUG: Found template-style references: ${}");
+                    println!("DEBUG: Found template-style references: ${{}}");
                 }
             }
             return self.process_variable_references(&result_str);
