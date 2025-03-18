@@ -411,10 +411,89 @@ Validate your XML documents against the Meta schema:
 xmllint --schema meta-language.xsd document.xml --noout
 ```
 
+## Advanced Topics
+
+### Modular Executor Architecture
+
+The Meta Processing Environment uses a modular executor architecture that makes it easy to extend and customize:
+
+1. **BlockRunner Trait**: All execution is handled by implementations of the BlockRunner trait
+   ```rust
+   pub trait BlockRunner: Send + Sync {
+       fn can_execute(&self, block: &Block) -> bool;
+       fn execute(&self, block_name: &str, block: &Block, state: &mut ExecutorState) -> Result<String, ExecutorError>;
+   }
+   ```
+
+2. **Runner Registry**: A central registry manages all available runners
+   ```rust
+   // Automatically registers standard runners
+   let mut executor = MetaLanguageExecutor::new();
+   
+   // Register a custom runner
+   executor.register_runner(Box::new(MyCustomRunner));
+   ```
+
+3. **Customizing Behavior**: Create custom runners to handle specialized block types
+   ```rust
+   pub struct CustomDataRunner;
+   
+   impl BlockRunner for CustomDataRunner {
+       fn can_execute(&self, block: &Block) -> bool {
+           block.block_type == "data:special"
+       }
+       
+       fn execute(&self, name: &str, block: &Block, state: &mut ExecutorState) -> Result<String, ExecutorError> {
+           // Custom implementation here
+       }
+   }
+   ```
+
+4. **State Management**: All runners share access to the central ExecutorState
+   ```rust
+   // Access shared state in a runner
+   fn execute(&self, name: &str, block: &Block, state: &mut ExecutorState) -> Result<String, ExecutorError> {
+       // Access blocks
+       let blocks = &state.blocks;
+       
+       // Access outputs
+       let outputs = &state.outputs;
+       
+       // Store results
+       state.store_block_output(name, result.clone());
+   }
+   ```
+
+### Caching System
+
+The Meta Processing Environment includes a configurable caching system:
+
+1. **Cache Control**: Set caching behavior with the `cache_result` attribute
+   ```xml
+   <meta:code language="python" name="expensive-calculation" cache_result="true">
+   <!-- Code that takes a long time to run -->
+   </meta:code>
+   ```
+
+2. **Cache Timeout**: Control how long results are cached with the `timeout` attribute
+   ```xml
+   <meta:api name="weather-data" method="GET" cache_result="true" timeout="3600">
+   https://api.weather.com/forecast
+   </meta:api>
+   ```
+
+3. **Cache Policies**: Different block types have different default caching policies:
+   - Data blocks: Always cached
+   - API blocks: Cached with explicit `cache_result="true"`
+   - Python code blocks: Cached only with explicit `cache_result="true"`
+   - Shell blocks: Not cached by default
+
 ## Conclusion
 
 The XML format provides all the features of the original Meta format with the added benefits of standardization, validation, and industry-standard tooling. Both formats are fully compatible and can be used interchangeably in the Meta Processing Environment.
 
-As you develop with the XML format, remember that the concepts and functionality remain the same—only the syntax has changed to leverage the advantages of XML.
+The new modular executor architecture allows for greater flexibility, extensibility, and maintainability, making it easy to add new block types and customize behavior.
+
+As you develop with the XML format and modular architecture, remember that the concepts and functionality remain the same—only the implementation has been enhanced to provide better organization and extensibility.
 
 Start creating your XML Meta documents today, and enjoy the enhanced capabilities they provide!

@@ -14,12 +14,14 @@ This project implements a robust parser and executor for the Meta Programming La
 
 ### 2. Executor (`src/executor/`)
 
-- **Block Execution**: Executes code blocks in various languages, shell commands, and API calls
-- **Dependency Resolution**: Resolves dependencies between blocks to ensure correct execution order
-- **Variable Substitution**: Processes references to other blocks by inserting their content or results
-- **Results Handling**: Generates results blocks with output from executed blocks
-- **Error Management**: Creates error results blocks when execution fails, with fallback mechanisms
-- **Caching**: Supports result caching based on block modifiers
+- **Modular Architecture**: Uses the Strategy pattern with specialized runners for different block types
+- **Block Execution**: Dedicated runners for Python, JavaScript, Shell, conditional, and question blocks
+- **State Management**: Centralized state handling via ExecutorState
+- **Reference Resolution**: Multi-pass reference processing with XML namespace support
+- **Dependency Resolution**: Resolves and executes block dependencies in correct order
+- **Caching**: Configurable caching policies via CacheManager
+- **Error Handling**: Robust error recovery with fallback mechanisms
+- **Backward Compatibility**: Support for existing tests and workflows
 
 ### 3. File Watcher (`src/file_watcher/`)
 
@@ -195,11 +197,11 @@ The XML parser offers several advantages:
 ## Usage Example
 
 ```rust
-use yet_another_llm_project_but_better::parser::parse_document;
 use yet_another_llm_project_but_better::executor::MetaLanguageExecutor;
+use yet_another_llm_project_but_better::executor::runners::{PythonRunner, ShellRunner, QuestionRunner};
 
 fn main() {
-    // Parse a document with embedded blocks in XML format
+    // Create a document with embedded blocks in XML format
     let content = r#"
     <meta:document xmlns:meta="https://example.com/meta-language">
       <meta:data name="user-info" format="json">
@@ -218,24 +220,24 @@ fn main() {
     </meta:document>
     "#;
     
-    let blocks = parse_document(content).expect("Failed to parse document");
-    println!("Found {} blocks", blocks.len());
-    
-    // Execute the blocks with dependency resolution
+    // Initialize executor with modular architecture
     let mut executor = MetaLanguageExecutor::new();
     
-    // Register blocks
-    for block in &blocks {
-        if let Some(name) = &block.name {
-            executor.blocks.insert(name.clone(), block.clone());
-        }
-    }
+    // Register any custom block runners if needed
+    // executor.register_runner(Box::new(CustomRunner));
     
-    // Execute a block (dependencies automatically resolved)
+    // Process the entire document (parsing + registering blocks)
+    executor.process_document(content).expect("Failed to process document");
+    
+    // Execute a specific block (dependencies automatically resolved)
     match executor.execute_block("greet-user") {
         Ok(result) => println!("Result: {}", result),
         Err(e) => eprintln!("Execution error: {}", e),
     }
+    
+    // Generate updated document with results
+    let updated_doc = executor.update_document().expect("Failed to update document");
+    println!("Updated document: {}", updated_doc);
 }
 ```
 

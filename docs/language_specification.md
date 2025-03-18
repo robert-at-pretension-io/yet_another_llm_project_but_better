@@ -365,6 +365,33 @@ The complete schema is available in the `meta-language.xsd` file.
 
 ## Implementation Notes
 
+### Executor Architecture
+
+The Meta Processing Environment uses a modular executor architecture:
+- **Strategy Pattern**: Uses the BlockRunner trait for different execution strategies
+- **Runner Registry**: Central registry of runners for each block type
+- **State Management**: Centralized ExecutorState for sharing execution context
+- **Reference Resolution**: Multi-pass resolution system with XML namespace support
+- **Caching System**: Configurable caching through the CacheManager
+- **Document Processing**: Automatic handling of dependencies and references
+
+Key executor components:
+- **MetaLanguageExecutor**: Main entry point for document processing
+- **RunnerRegistry**: Collection of specialized block runners
+- **ExecutorState**: Centralized state management
+- **ReferenceResolver**: Handles variable reference substitution
+- **CacheManager**: Manages result caching with configurable policies
+- **DocumentUpdater**: Generates results and updates documents
+
+### Block Runners
+
+Specialized runners handle different block types:
+- **PythonRunner**: Executes Python code blocks
+- **JavaScriptRunner**: Executes JavaScript code blocks
+- **ShellRunner**: Executes shell command blocks
+- **ConditionalRunner**: Processes conditional logic blocks
+- **QuestionRunner**: Handles LLM question/response blocks
+
 ### Parsing and Validation
 
 The Meta Processing Environment supports both formats transparently:

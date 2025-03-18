@@ -1,6 +1,6 @@
 # XML Format Examples
 
-This document provides examples of Meta Programming Language documents in XML format.
+This document provides examples of Meta Programming Language documents in XML format. The examples demonstrate the features of the language and how they interact with the modular executor architecture.
 
 ## Basic Example
 
@@ -136,9 +136,99 @@ This document provides examples of Meta Programming Language documents in XML fo
 </meta:document>
 ```
 
-## Complex Example: Cybersecurity Analysis
+## Modular Executor Example
 
+The following example demonstrates how the modular executor architecture handles different block types using specialized runners:
+
+### XML Format
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Data block - Processed by basic interpreter -->
+  <meta:data name="config" format="json">
+  <![CDATA[
+  {
+    "cache_enabled": true,
+    "verbosity": "high",
+    "threshold": 75
+  }
+  ]]>
+  </meta:data>
+  
+  <!-- Python code block - Processed by PythonRunner -->
+  <meta:code language="python" name="data-processor" cache_result="true">
+  <![CDATA[
+  import json
+  import numpy as np
+  
+  # Load configuration
+  config = json.loads('''<meta:reference target="config" />''')
+  
+  # Generate sample data
+  data = np.random.normal(50, 15, 100).tolist()
+  
+  # Apply threshold from config
+  threshold = config["threshold"]
+  filtered = [x for x in data if x > threshold]
+  
+  # Return statistics
+  stats = {
+    "original_count": len(data),
+    "filtered_count": len(filtered),
+    "filtered_percentage": (len(filtered) / len(data)) * 100
+  }
+  
+  print(json.dumps(stats, indent=2))
+  ]]>
+  </meta:code>
+  
+  <!-- Shell block - Processed by ShellRunner -->
+  <meta:shell name="system-info">
+  <![CDATA[
+  echo "System Information:"
+  uname -a
+  echo "Memory Usage:"
+  free -h
+  ]]>
+  </meta:shell>
+  
+  <!-- Conditional block - Processed by ConditionalRunner -->
+  <meta:code language="python" name="check-threshold">
+  <![CDATA[
+  import json
+  stats = json.loads('''<meta:reference target="data-processor" />''')
+  print("true" if stats["filtered_percentage"] > 20 else "false")
+  ]]>
+  </meta:code>
+  
+  <meta:conditional if="check-threshold">
+    <meta:code language="python" name="alert-processor">
+    <![CDATA[
+    import json
+    stats = json.loads('''<meta:reference target="data-processor" />''')
+    print(f"ALERT: High threshold rate detected: {stats['filtered_percentage']:.2f}%")
+    ]]>
+    </meta:code>
+  </meta:conditional>
+  
+  <!-- Question block - Processed by QuestionRunner -->
+  <meta:question name="data-insights" model="gpt-4" test_mode="true">
+  Analyze this statistical data and provide key insights:
+  <meta:reference target="data-processor" />
+  </meta:question>
+</meta:document>
 ```
+
+When processed by the modular executor:
+1. The `PythonRunner` executes the Python code blocks
+2. The `ShellRunner` executes the shell commands
+3. The `ConditionalRunner` checks if the condition is true and executes conditional content
+4. The `QuestionRunner` processes the LLM prompt (or returns test mode response)
+
+Each runner has specialized logic for its block type while sharing the common `ExecutorState`.
+
+## Complex Example: Cybersecurity Analysis
 
 ### XML Format
 
