@@ -346,6 +346,45 @@ XML references support attributes for additional functionality:
 | `fallback` | Default value if reference fails | `fallback="No data"` |
 | `preview` | Show a preview of the reference | `preview="true"` |
 
+#### Deep Nested References
+
+The Meta Environment supports deep nested references, which allows for powerful data transformation and composition:
+
+```xml
+<!-- Basic example of nested references -->
+<meta:variable name="name">Alice</meta:variable>
+<meta:variable name="greeting">Hello, <meta:reference target="name" />!</meta:variable>
+<meta:code language="python" name="print-message">
+<![CDATA[
+print('''<meta:reference target="greeting" />''')
+]]>
+</meta:code>
+```
+
+The reference resolution system processes references in multiple passes to ensure that even deeply nested references are fully resolved:
+
+1. **Direct References**: First-level references to data blocks and variables
+2. **Nested References**: References to content that itself contains references
+3. **Recursive Resolution**: Handling of references that appear after previous resolution steps
+
+JSON property access is supported in references:
+
+```xml
+<meta:reference target="user-data.profile.name" />
+<meta:reference target="config.database.connection.host" />
+```
+
+The reference resolution system includes full circular dependency detection to prevent infinite loops.
+
+#### Testing Deep Nested References
+
+When testing complex reference patterns, the Meta Environment provides:
+
+1. **Detailed Logging**: Tracing of each reference resolution step when debug mode is enabled
+2. **Circular Detection**: Clear error reporting for circular reference chains
+3. **Resolution Diagnostic**: Tools to visualize the resolution process
+4. **Multiple Pass Processing**: Handling of references of arbitrary depth
+
 
 ## XML Schema
 

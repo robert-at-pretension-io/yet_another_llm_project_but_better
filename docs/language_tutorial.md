@@ -287,6 +287,185 @@ Create complex workflows with nested blocks:
 </meta:section>
 ```
 
+### Deep Nested Reference Resolution
+
+The Meta Programming Environment includes robust support for deeply nested references, which allows for complex data transformations and workflows.
+
+#### Multi-Level References
+
+References can be nested within other blocks' content and are resolved recursively:
+
+```xml
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Level 1: Basic data -->
+  <meta:data name="user" format="json">
+  <![CDATA[
+  {"name": "Alice", "role": "Admin"}
+  ]]>
+  </meta:data>
+  
+  <!-- Level 2: Reference to user data -->
+  <meta:variable name="greeting">
+  Hello, <meta:reference target="user.name" />, you are a <meta:reference target="user.role" />!
+  </meta:variable>
+  
+  <!-- Level 3: Reference to greeting that contains references -->
+  <meta:code language="python" name="welcome-message">
+  <![CDATA[
+  message = """<meta:reference target="greeting" />"""
+  print(f"Welcome message: {message}")
+  ]]>
+  </meta:code>
+</meta:document>
+```
+
+In this example:
+1. The `greeting` variable references fields from the `user` data block
+2. The `welcome-message` code block references the `greeting` variable
+3. The reference resolution happens inside-out, so all nested references are resolved
+
+#### Testing Deep Nested References
+
+To create robust tests for deep nested references:
+
+```xml
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Base data -->
+  <meta:data name="config" format="json">
+  <![CDATA[
+  {
+    "database": {
+      "host": "db.example.com",
+      "port": 5432,
+      "credentials": "CONFIG_DB_CREDS"
+    }
+  }
+  ]]>
+  </meta:data>
+  
+  <!-- Secret substitution -->
+  <meta:secret name="database-credentials">
+  DATABASE_CREDENTIALS_ENV
+  </meta:secret>
+  
+  <!-- Level 1: Template with reference -->
+  <meta:template name="connection-string">
+  postgresql://<meta:reference target="database-credentials" />@<meta:reference target="config.database.host" />:<meta:reference target="config.database.port" />
+  </meta:template>
+  
+  <!-- Level 2: Code with template reference -->
+  <meta:code language="python" name="db-connect">
+  <![CDATA[
+  connection_string = '''<meta:reference target="connection-string" />'''
+  print(f"Connecting to: {connection_string}")
+  ]]>
+  </meta:code>
+  
+  <!-- Level 3: Shell with nested code reference -->
+  <meta:shell name="log-connection">
+  <![CDATA[
+  echo "About to connect with: <meta:reference target="db-connect" />"
+  ]]>
+  </meta:shell>
+  
+  <!-- Test assertions -->
+  <meta:code language="python" name="verify-resolution" test="true">
+  <![CDATA[
+  output = '''<meta:reference target="log-connection" />'''
+  # The output should have fully resolved all nested references
+  assert "Connecting to: postgresql://" in output
+  assert "db.example.com:5432" in output
+  print("All nested references correctly resolved.")
+  ]]>
+  </meta:code>
+</meta:document>
+```
+
+#### Multi-Pass Resolution Algorithm
+
+The Meta Environment uses a sophisticated multi-pass resolution algorithm to handle deeply nested references:
+
+1. **First Pass**: Resolves direct references to data blocks and variables
+2. **Second Pass**: Resolves references to blocks that contain references to other blocks
+3. **Final Pass**: Performs a final resolution to catch any remaining references
+
+This approach ensures that even deeply nested references are correctly resolved before execution.
+
+#### Testing Circular References
+
+The system also includes detection for circular references:
+
+```xml
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Circular reference test -->
+  <meta:variable name="var-a">
+  Value A with reference to B: <meta:reference target="var-b" />
+  </meta:variable>
+  
+  <meta:variable name="var-b">
+  Value B with reference to C: <meta:reference target="var-c" />
+  </meta:variable>
+  
+  <meta:variable name="var-c">
+  Value C with reference back to A: <meta:reference target="var-a" />
+  </meta:variable>
+  
+  <!-- Test execution will detect circular reference -->
+  <meta:code language="python" name="test-circular">
+  <![CDATA[
+  try:
+      # This should throw a CircularDependency error
+      value = '''<meta:reference target="var-a" />'''
+      print("ERROR: Failed to detect circular reference")
+  except Exception as e:
+      print(f"Correctly detected circular reference: {e}")
+  ]]>
+  </meta:code>
+</meta:document>
+```
+
+#### XML Namespace Resolution
+
+The system supports XML namespaces in reference resolution, allowing for more complex document structures:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language" 
+               xmlns:data="https://example.com/data"
+               xmlns:app="https://example.com/app">
+  <!-- Data in different namespace -->
+  <meta:data name="settings" format="xml">
+  <![CDATA[
+  <data:settings>
+    <data:theme>dark</data:theme>
+    <data:language>en-US</data:language>
+  </data:settings>
+  ]]>
+  </meta:data>
+  
+  <!-- Reference resolving across namespaces -->
+  <meta:code language="python" name="xml-processor">
+  <![CDATA[
+  import xml.etree.ElementTree as ET
+  from io import StringIO
+  
+  # Parse settings XML
+  settings_xml = '''<meta:reference target="settings" />'''
+  root = ET.parse(StringIO(settings_xml)).getroot()
+  
+  # Extract values with namespace awareness
+  ns = {'data': 'https://example.com/data'}
+  theme = root.find('.//data:theme', ns).text
+  language = root.find('.//data:language', ns).text
+  
+  print(f"Theme: {theme}, Language: {language}")
+  ]]>
+  </meta:code>
+</meta:document>
+```
+
+When running extensive tests of deep nested reference resolution, the Meta Environment provides detailed logs (when debug mode is enabled) showing the resolution process and any issues detected.
+
 ### Error Handling
 Specify fallback blocks for error recovery:
 

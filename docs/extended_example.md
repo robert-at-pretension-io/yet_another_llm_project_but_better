@@ -228,6 +228,135 @@ When processed by the modular executor:
 
 Each runner has specialized logic for its block type while sharing the common `ExecutorState`.
 
+## Testing Deep Nested References
+
+This example demonstrates comprehensive testing of deeply nested reference resolution:
+
+### XML Format
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Base data structures -->
+  <meta:data name="system-info" format="json">
+  <![CDATA[
+  {
+    "name": "Production Server",
+    "environment": "production",
+    "version": "2.1.3",
+    "resources": {
+      "memory": "16GB",
+      "cpu": "8 cores",
+      "storage": "500GB"
+    }
+  }
+  ]]>
+  </meta:data>
+  
+  <meta:data name="database-config" format="json">
+  <![CDATA[
+  {
+    "host": "db.example.com",
+    "port": 5432,
+    "database": "analytics",
+    "connection_pool": 20,
+    "timeout": 30
+  }
+  ]]>
+  </meta:data>
+  
+  <meta:secret name="db-password">
+  DB_PASSWORD_ENV
+  </meta:secret>
+  
+  <!-- Level 1: Simple template references -->
+  <meta:template name="system-banner">
+  =============================================
+  System: <meta:reference target="system-info.name" />
+  Environment: <meta:reference target="system-info.environment" />
+  Version: <meta:reference target="system-info.version" />
+  =============================================
+  </meta:template>
+  
+  <meta:template name="db-connection-string">
+  postgresql://admin:<meta:reference target="db-password" />@<meta:reference target="database-config.host" />:<meta:reference target="database-config.port" />/<meta:reference target="database-config.database" />?timeout=<meta:reference target="database-config.timeout" />
+  </meta:template>
+  
+  <!-- Level 2: References that reference templates -->
+  <meta:variable name="diagnostics-header">
+  <meta:reference target="system-banner" />
+  
+  DIAGNOSTICS REPORT
+  Generated: ${new Date().toISOString()}
+  </meta:variable>
+  
+  <meta:code language="python" name="connection-test">
+  <![CDATA[
+  import psycopg2
+  
+  # Connection string from template with nested refs
+  connection_string = '''<meta:reference target="db-connection-string" />'''
+  
+  print(f"Testing connection to: {connection_string.split('@')[1].split('?')[0]}")
+  # Actual connection code would go here in production
+  print("Connection successful")
+  ]]>
+  </meta:code>
+  
+  <!-- Level 3: Deep references -->
+  <meta:shell name="generate-report">
+  <![CDATA[
+  echo '<meta:reference target="diagnostics-header" />'
+  echo ""
+  echo "DATABASE CONNECTION STATUS:"
+  echo '<meta:reference target="connection-test" />'
+  echo ""
+  echo "SYSTEM RESOURCES:"
+  echo "Memory: <meta:reference target="system-info.resources.memory" />"
+  echo "CPU: <meta:reference target="system-info.resources.cpu" />"
+  echo "Storage: <meta:reference target="system-info.resources.storage" />"
+  ]]>
+  </meta:shell>
+  
+  <!-- Level 4: Ultra-deep reference -->
+  <meta:code language="python" name="reference-resolution-test">
+  <![CDATA[
+  # This references a shell block that references:
+  # 1. A variable containing a template with references
+  # 2. A code block with template references
+  # 3. Direct data references
+  
+  report = '''<meta:reference target="generate-report" />'''
+  
+  # Tests that all references were resolved correctly
+  assert "System: Production Server" in report
+  assert "Environment: production" in report
+  assert "Version: 2.1.3" in report
+  assert "Testing connection to: db.example.com:5432/analytics" in report
+  assert "Connection successful" in report
+  assert "Memory: 16GB" in report
+  assert "CPU: 8 cores" in report
+  assert "Storage: 500GB" in report
+  
+  print("✅ All nested references successfully resolved!")
+  print("\nFinal combined output:\n")
+  print(report)
+  ]]>
+  </meta:code>
+</meta:document>
+```
+
+This example tests the following aspects of the reference resolution system:
+
+1. **Multi-Level Resolution**: References within references, up to 4 levels deep
+2. **Mixed Block Types**: References across different block types (data, variable, template, code, shell)
+3. **JSON Path Access**: Dotted path navigation into JSON objects
+4. **Secret Substitution**: Environment variable reference resolution
+5. **Template Composition**: Building complex templates from nested references
+6. **Self-Verification**: Code that validates its own reference resolution
+
+The multi-pass resolution algorithm ensures that even the deepest references are fully resolved before the final execution.
+
 ## Complex Example: Cybersecurity Analysis
 
 ### XML Format

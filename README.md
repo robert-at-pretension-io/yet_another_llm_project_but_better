@@ -251,5 +251,17 @@ The implementation prioritizes:
 4. **Error Recovery**: Intelligent fallback mechanisms when parsing fails
 5. **Dependency Management**: Careful resolution of block dependencies
 6. **Extensibility**: Modular design for adding new block types and features
+7. **Deep Reference Resolution**: Multi-pass algorithm for processing nested references
+
+### Reference Resolution
+
+The system implements a sophisticated reference resolution system:
+
+- **Multi-Pass Algorithm**: Resolves references in multiple passes to handle nested references
+- **Circular Detection**: Built-in detection and prevention of circular references
+- **XML Namespace Support**: Properly handles namespaced elements and references
+- **JSON Property Access**: Supports dot-notation for accessing JSON properties
+- **Fallback Handling**: Configurable fallback content when references cannot be resolved
+- **Deep Nesting**: Supports references of arbitrary depth through iterative resolution
 
 This implementation provides a complete system for parsing and executing embedded code within Meta Language documents using XML format, enabling powerful document-based programming and AI-augmented workflows while maintaining compatibility with standard XML tooling.
