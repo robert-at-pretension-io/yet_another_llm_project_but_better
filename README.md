@@ -9,7 +9,7 @@ This project implements a robust parser and executor for the Meta Programming La
 - **XML Parsing**: Parses structured elements with different types and attributes using XML format
 - **Block Types**: Handles various block types including code, shell, API, data, template, and control blocks
 - **Modifiers**: Processes block attributes that control execution and behavior
-- **Variable References**: Extracts references to other blocks using `<meta:reference target="variable-name"/>` XML tags or `${variable-name}` legacy syntax
+- **Variable References**: Extracts references to other blocks using `<meta:reference target="variable-name"/>` XML tags
 - **Robust Handling**: Provides graceful parsing for varied syntax patterns, whitespace, indentation, and edge cases
 
 ### 2. Executor (`src/executor/`)

@@ -90,7 +90,7 @@ Executes code in various languages:
 <meta:code language="python" name="data-analysis" cache_result="true">
 <![CDATA[
 import pandas as pd
-data = pd.read_csv('${data-file}')
+data = pd.read_csv('''<meta:reference target="data-file" />''')
 print(data.describe())
 ]]>
 </meta:code>
@@ -103,7 +103,7 @@ Executes system commands:
 ```xml
 <meta:shell name="list-files" timeout="5">
 <![CDATA[
-ls -la ${directory}
+ls -la <meta:reference target="directory" />
 ]]>
 </meta:shell>
 ```
@@ -112,7 +112,7 @@ ls -la ${directory}
 Makes HTTP requests:
 ```xml
 <meta:api name="get-weather" method="GET" headers="Content-Type: application/json">
-https://api.weather.com/forecast?location=${location}
+https://api.weather.com/forecast?location=<meta:reference target="location" />
 </meta:api>
 ```
 
@@ -199,10 +199,10 @@ Conditionally includes content:
 Defines reusable patterns:
 ```xml
 <meta:template name="data-processor">
-  <meta:code language="python" name="process-${dataset-name}">
+  <meta:code language="python" name="process-<meta:reference target="dataset-name" />">
   <![CDATA[
   import pandas as pd
-  data = pd.read_csv('${dataset-path}')
+  data = pd.read_csv('''<meta:reference target="dataset-path" />''')
   ]]>
   </meta:code>
 </meta:template>
@@ -297,9 +297,7 @@ All blocks can have these attributes:
 
 ## Variable References
 
-### XML Reference Format (Recommended)
-
-The recommended way to reference variables is with XML tag references:
+Reference blocks and their outputs using XML tag references:
 
 ```xml
 <meta:code language="python" name="process-data">
@@ -329,24 +327,6 @@ XML references support attributes for additional functionality:
 | `fallback` | Default value if reference fails | `fallback="No data"` |
 | `preview` | Show a preview of the reference | `preview="true"` |
 
-### Legacy Bracket Format
-
-For backward compatibility, the bracket-based syntax is still supported:
-
-```xml
-<meta:code language="python" name="process-data">
-<![CDATA[
-import json
-user_data = json.loads('${user-info}')
-print(f"Hello, {user_data['name']}!")
-]]>
-</meta:code>
-```
-
-References can point to:
-- Block content: `${block-name}`
-- Results: `${block-name.results}`
-- Environment variables: `${ENV_VAR}`
 
 ## XML Schema
 

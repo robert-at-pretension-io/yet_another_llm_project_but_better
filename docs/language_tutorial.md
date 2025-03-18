@@ -33,7 +33,7 @@ Let's create a simple document that stores and processes data:
   <meta:code language="python" name="sum-numbers">
   <![CDATA[
   import json
-  numbers = json.loads('${numbers}')
+  numbers = json.loads('''<meta:reference target="numbers" />''')
   total = sum(numbers)
   print(f"The sum is {total}")
   ]]>
@@ -56,7 +56,7 @@ Ask AI systems for help:
 ```xml
 <meta:question model="gpt-4" temperature="0.7" name="data-query">
 Given the following sales data, what are the key trends to note?
-${sales-data}
+<meta:reference target="sales-data" />
 </meta:question>
 ```
 
@@ -83,7 +83,7 @@ Execute code in various languages:
 import matplotlib.pyplot as plt
 import pandas as pd
 
-data = pd.read_csv('${data-file}')
+data = pd.read_csv('''<meta:reference target="data-file" />''')
 plt.figure(figsize=(10, 6))
 plt.plot(data['date'], data['value'])
 plt.title('Data Visualization')
@@ -192,10 +192,10 @@ Create reusable patterns:
 
 ```xml
 <meta:template name="data-processor">
-  <meta:code language="python" name="process-${dataset-name}">
+  <meta:code language="python" name="process-<meta:reference target="dataset-name" />">
   <![CDATA[
   import pandas as pd
-  data = pd.read_csv('${dataset-path}')
+  data = pd.read_csv('''<meta:reference target="dataset-path" />''')
   processed = data.describe()
   print(processed)
   ]]>
@@ -216,10 +216,7 @@ Use templates with custom parameters:
 ## Advanced Features
 
 ### Variable References
-There are two ways to reference other blocks:
-
-#### XML Tag Format (Recommended)
-Using XML tags for variable references:
+Reference other blocks using XML tags:
 
 ```xml
 <meta:code language="python" name="process-user">
@@ -231,24 +228,11 @@ print(f"Using {prefs['theme']} theme with {prefs['fontSize']}px font")
 </meta:code>
 ```
 
-You can also add modifiers to the reference tag:
+You can add modifiers to the reference tag:
 ```xml
 <meta:reference target="data-block" format="json" />
 <meta:reference target="code-block" include_code="true" include_results="true" />
 <meta:reference target="missing-data" fallback="Data not available" />
-```
-
-#### Legacy Format
-For backward compatibility, you can also use the bracket syntax:
-
-```xml
-<meta:code language="python" name="process-user">
-<![CDATA[
-import json
-prefs = json.loads('${user-preferences}')
-print(f"Using {prefs['theme']} theme with {prefs['fontSize']}px font")
-]]>
-</meta:code>
 ```
 
 ### Nested Blocks
