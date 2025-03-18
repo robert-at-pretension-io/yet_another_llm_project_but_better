@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Configuration data -->
+  <meta:data name="config" format="json">
+  <![CDATA[
+  {
+    "app_name": "Meta Programming Demo",
+    "version": "1.0.0",
+    "environment": "development",
+    "debug": true,
+    "settings": {
+      "max_items": 100,
+      "cache_ttl": 3600,
+      "log_level": "info"
+    }
+  }
+  ]]>
+  </meta:data>
+
+  <!-- User data with nested structure -->
+  <meta:data name="user-profile" format="json">
+  <![CDATA[
+  {
+    "id": 12345,
+    "name": "Alice Johnson",
+    "email": "alice@example.com",
+    "roles": ["admin", "editor"],
+    "preferences": {
+      "theme": "dark",
+      "notifications": true,
+      "language": "en-US"
+    },
+    "usage_stats": {
+      "login_count": 27,
+      "last_login": "2025-03-15T14:30:00Z"
+    }
+  }
+  ]]>
+  </meta:data>
+
+  <!-- Project data referencing user and con fig -->
+  <meta:data name="project-data" format="json">
+  <![CDATA[
+  {
+    "project_id": "proj-2023-05",
+    "name": "Data Analysis Project",
+    "owner": <meta:reference target="user-profile" />,
+    "settings": <meta:reference target="config" />,
+    "created_at": "2025-02-10T09:00:00Z",
+    "status": "active"
+  }
+  ]]>
+  </meta:data>
+
+  <!-- Check if user is an admin -->
+  <meta:code language="python" name="is-admin">
+  <![CDATA[
+  import json
+  
+  # Get user data from reference
+  user_data_json = ]]><meta:reference target="user-profile" /><![CDATA[
+  user_data = json.loads(user_data_json)
+  is_admin = "admin" in user_data.get("roles", [])
+  
+  print("true" if is_admin else "false")
+  ]]>
+  </meta:code>
+
+  <!-- Check if we're in development environment -->
+  <meta:code language="python" name="is-development">
+  <![CDATA[
+  import json
+  
+  # Get config from reference
+  config_json = ]]><meta:reference target="config" /><![CDATA[
+  config = json.loads(config_json)
+  is_dev = config.get("environment") == "development"
+  
+  print("true" if is_dev else "false")
+  ]]>
+  </meta:code>
+
+  <!-- Admin-only block that executes only if is-admin returns true -->
+  <meta:conditional name="admin-condition" if="is-admin">
+    <meta:shell name="admin-tools">
+    <![CDATA[
+    echo "===== ADMIN TOOLS ====="
+    echo "Welcome, <meta:reference target="user-profile.name" />!"
+    echo "You have administrative privileges."
+    echo "Project: <meta:reference target="project-data.name" />"
+    echo "Environment: <meta:reference target="config.environment" />"
+    ]]>
+    </meta:shell>
+  </meta:conditional>
+
+  <!-- Development-only block that executes only if is-development returns true -->
+  <meta:conditional name="dev-condition" if="is-development">
+    <meta:shell name="dev-tools">
+    <![CDATA[
+    echo "===== DEVELOPMENT TOOLS ====="
+    echo "Debug mode: <meta:reference target="config.debug" />"
+    echo "Log level: <meta:reference target="config.settings.log_level" />"
+    echo "Cache TTL: <meta:reference target="config.settings.cache_ttl" /> seconds"
+    ]]>
+    </meta:shell>
+  </meta:conditional>
+
+  <!-- Nested conditional - only executes if BOTH conditions are true -->
+  <meta:conditional name="admin-condition-outer" if="is-admin">
+    <meta:conditional name="dev-condition-inner" if="is-development">
+      <meta:shell name="admin-dev-tools">
+      <![CDATA[
+      echo "===== ADMIN DEVELOPMENT TOOLS ====="
+      echo "These tools are only available to admins in development environment"
+      echo "User: <meta:reference target="user-profile.name" />"
+      echo "Debug: <meta:reference target="config.debug" />"
+      ]]>
+      </meta:shell>
+    </meta:conditional>
+  </meta:conditional>
+
+  <!-- Simple template with variable reference -->
+  <meta:variable name="user-info">
+    User <meta:reference target="user-profile.name" /> is working on <meta:reference target="project-data.name" />
+  </meta:variable>
+
+  <!-- Generate a user report -->
+  <meta:code language="python" name="generate-report">
+  <![CDATA[
+  import json
+  
+  # Get data from references
+  user_json = ]]><meta:reference target="user-profile" /><![CDATA[
+  project_json = ]]><meta:reference target="project-data" /><![CDATA[
+  
+  user = json.loads(user_json)
+  project = json.loads(project_json)
+  
+  print(f"""# User Report
+  
+  ## User Information
+  - Name: {user['name']}
+  - Email: {user['email']}
+  - Roles: {', '.join(user['roles'])}
+  
+  ## Project Details
+  - Project: {project['name']}
+  - Status: {project['status']}
+  - Created: {project['created_at']}
+  
+  ## System
+  - Environment: {project['settings']['environment']}
+  - Version: {project['settings']['version']}
+  """)
+  ]]>
+  </meta:code>
+
+  <!-- Summary of conditional results -->
+  <meta:shell name="conditional-summary">
+  <![CDATA[
+  echo "===== CONDITIONAL EXECUTION SUMMARY ====="
+  echo
+  echo "Condition Results:"
+  echo "- is-admin: <meta:reference target="is-admin" />"
+  echo "- is-development: <meta:reference target="is-development" />"
+  echo
+  
+  echo "Conditional Blocks:"
+  echo "1. Admin Tools: $(if [ "<meta:reference target="is-admin" />" = "true" ]; then echo "EXECUTED"; else echo "SKIPPED"; fi)"
+  echo "2. Dev Tools: $(if [ "<meta:reference target="is-development" />" = "true" ]; then echo "EXECUTED"; else echo "SKIPPED"; fi)"
+  echo "3. Admin+Dev Tools: $(if [ "<meta:reference target="is-admin" />" = "true" ] && [ "<meta:reference target="is-development" />" = "true" ]; then echo "EXECUTED"; else echo "SKIPPED"; fi)"
+  echo
+  
+  echo "User Report:"
+  echo "<meta:reference target="generate-report" />"
+  ]]>
+  </meta:shell>
+</meta:document>

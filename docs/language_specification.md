@@ -184,15 +184,34 @@ Groups related blocks:
 ```
 
 #### Conditional Block
-Conditionally includes content:
+Conditionally executes content based on the result of another block:
 ```xml
-<meta:conditional if="data.rows > 100">
+<meta:conditional if="condition-block-name">
+  <!-- Content here is only processed if the referenced block returns "true" -->
   <meta:code language="python" name="large-data-processing">
   <![CDATA[
   process_large_dataset(data)
   ]]>
   </meta:code>
 </meta:conditional>
+```
+
+The conditional block takes an `if` attribute that references another block. The condition is considered met when the referenced block's output is one of the following (case-insensitive):
+- "true"
+- "1"
+- "yes"
+
+Any other output (including empty output) is considered false. Any block type can be used as a condition.
+
+Example of defining a condition:
+```xml
+<meta:code language="python" name="check-user-role">
+<![CDATA[
+import json
+user = json.loads('''<meta:reference target="user-profile" />''')
+print("true" if "admin" in user.get("roles", []) else "false")
+]]>
+</meta:code>
 ```
 
 #### Template Block

@@ -58,12 +58,10 @@ mod tests {
     fn test_named_question_response_pairing() {
         let mut blocks = vec![
             {
-                let mut block = Block::new("question", Some("q1"), "What is the meaning of life?");
-                block
+                Block::new("question", Some("q1"), "What is the meaning of life?")
             },
             {
-                let mut block = Block::new("response", Some("q1"), "42");
-                block
+                Block::new("response", Some("q1"), "42")
             }
         ];
         

@@ -66,6 +66,10 @@ print("Second block with duplicate name")
     fn test_executor_circular_dependency() {
         let mut executor = MetaLanguageExecutor::new();
         
+        // Register Python runner first
+        use yet_another_llm_project_but_better::executor::runners::code::PythonRunner;
+        executor.register_runner(Box::new(PythonRunner));
+        
         // Create blocks with circular dependencies
         let mut block_a = Block::new("code:python", Some("block-a"), "print('${block-b}')");
         block_a.add_modifier("depends", "block-b");
@@ -73,9 +77,11 @@ print("Second block with duplicate name")
         let mut block_b = Block::new("code:python", Some("block-b"), "print('${block-a}')");
         block_b.add_modifier("depends", "block-a");
         
-        // Add blocks to executor
-        executor.blocks.insert("block-a".to_string(), block_a);
-        executor.blocks.insert("block-b".to_string(), block_b);
+        // Add blocks to executor's state and backward compat fields
+        executor.blocks.insert("block-a".to_string(), block_a.clone());
+        executor.blocks.insert("block-b".to_string(), block_b.clone());
+        executor.state.blocks.insert("block-a".to_string(), block_a);
+        executor.state.blocks.insert("block-b".to_string(), block_b);
         
         // Try to execute block with circular dependency
         let result = executor.execute_block("block-a");

@@ -2,12 +2,11 @@ mod types;
 
 use std::collections::HashMap;
 use std::process::Command;
-use std::io::Write;
 use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
-use serde_json::{json, Value};
+use serde_json::Value;
 use rand::random;
 
 pub use types::*;

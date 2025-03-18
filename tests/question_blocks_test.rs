@@ -7,6 +7,7 @@ use tempfile::TempDir;
 
 use yet_another_llm_project_but_better::{
     executor::MetaLanguageExecutor,
+    executor::runners::question::QuestionRunner,
     file_watcher::{FileWatcher, FileEvent, FileEventType},
     parser::parse_document,
 };
@@ -34,13 +35,19 @@ fn test_question_block_with_test_mode() {
     // Create executor
     let mut executor = MetaLanguageExecutor::new();
     
+    // Register the question runner
+    executor.register_runner(Box::new(QuestionRunner));
+    
     // Parse the document and register blocks with the executor
     let content = fs::read_to_string(&file_path).expect("Failed to read file");
     let blocks = parse_document(&content).expect("Failed to parse document");
     
     // Register all blocks with the executor
-    for block in blocks {
-        executor.blocks.insert(block.name.clone().unwrap_or_default(), block);
+    for block in blocks.clone() {
+        if let Some(name) = &block.name {
+            executor.blocks.insert(name.clone(), block.clone());
+            executor.state.blocks.insert(name.clone(), block);
+        }
     }
     
     // Execute the question block
@@ -56,7 +63,7 @@ fn test_question_block_with_test_mode() {
     
     // Test file watcher integration
     let (sender, receiver) = mpsc::channel();
-    let mut watcher = FileWatcher::new(sender);
+    let mut watcher = FileWatcher::new_with_sender(sender);
     
     // Start watching the file
     watcher.watch(file_path.to_string_lossy().to_string()).expect("Failed to watch file");
@@ -92,8 +99,12 @@ fn test_question_block_with_test_mode() {
     
     // Clear existing blocks and register the updated ones
     executor.blocks.clear();
-    for block in blocks {
-        executor.blocks.insert(block.name.clone().unwrap_or_default(), block);
+    executor.state.blocks.clear();
+    for block in blocks.clone() {
+        if let Some(name) = &block.name {
+            executor.blocks.insert(name.clone(), block.clone());
+            executor.state.blocks.insert(name.clone(), block);
+        }
     }
     
     // Execute the question block again
@@ -131,13 +142,19 @@ fn test_question_block_fallback() {
     // Create executor
     let mut executor = MetaLanguageExecutor::new();
     
+    // Register the question runner
+    executor.register_runner(Box::new(QuestionRunner));
+    
     // Parse the document and register blocks with the executor
     let content = fs::read_to_string(&file_path).expect("Failed to read file");
     let blocks = parse_document(&content).expect("Failed to parse document");
     
     // Register all blocks with the executor
-    for block in blocks {
-        executor.blocks.insert(block.name.clone().unwrap_or_default(), block);
+    for block in blocks.clone() {
+        if let Some(name) = &block.name {
+            executor.blocks.insert(name.clone(), block.clone());
+            executor.state.blocks.insert(name.clone(), block);
+        }
     }
     
     // Execute the question block
@@ -179,13 +196,19 @@ fn test_question_block_with_model_parameter() {
     // Create executor
     let mut executor = MetaLanguageExecutor::new();
     
+    // Register the question runner
+    executor.register_runner(Box::new(QuestionRunner));
+    
     // Parse the document and register blocks with the executor
     let content = fs::read_to_string(&file_path).expect("Failed to read file");
     let blocks = parse_document(&content).expect("Failed to parse document");
     
     // Register all blocks with the executor
-    for block in blocks {
-        executor.blocks.insert(block.name.clone().unwrap_or_default(), block);
+    for block in blocks.clone() {
+        if let Some(name) = &block.name {
+            executor.blocks.insert(name.clone(), block.clone());
+            executor.state.blocks.insert(name.clone(), block);
+        }
     }
     
     // Execute the question block

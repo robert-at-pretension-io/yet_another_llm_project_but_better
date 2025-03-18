@@ -1,7 +1,5 @@
-use quick_xml::events::{BytesStart, Event};
+use quick_xml::events::Event;
 use quick_xml::reader::Reader;
-use std::collections::HashMap;
-use std::io::BufRead;
 use std::str;
 use regex::Regex;
 
@@ -94,7 +92,7 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                     // Extract attributes
                     let mut block_name = None;
                     let mut modifiers = Vec::new();
-                    let mut final_block_type = block_type.clone();
+                    let final_block_type = block_type.clone();
                     
                     println!("DEBUG: Extracting attributes for block type: {}", block_type);
                     // First check for special attribute formats in the raw tag
@@ -282,6 +280,16 @@ pub fn parse_xml_document(input: &str) -> Result<Vec<Block>, ParserError> {
                         if !block_stack.is_empty() {
                             let parent_index = block_stack.len() - 1;
                             println!("DEBUG: Adding block as child to parent at index {}", parent_index);
+                            
+                            // Set the parent reference in the child block
+                            if let Some(parent_name) = &block_stack[parent_index].name {
+                                // Set parent reference in the child block
+                                if let Some(child_name) = &block.name {
+                                    println!("DEBUG: Setting parent of '{}' to '{}'", child_name, parent_name);
+                                    block.parent = Some(parent_name.clone());
+                                }
+                            }
+                            
                             block_stack[parent_index].children.push(block);
                         } else {
                             // This is a top-level block

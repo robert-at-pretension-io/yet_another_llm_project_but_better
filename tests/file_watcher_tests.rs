@@ -98,7 +98,7 @@ fn collect_events(rx: &Receiver<FileEvent>, wait_time: Duration) -> Vec<FileEven
 #[test]
 fn test_file_watcher_creation() {
     let (tx, _rx) = channel();
-    let _watcher = FileWatcher::new(tx);
+    let _watcher = FileWatcher::new_with_sender(tx);
     // The watcher will be dropped at the end of this scope
     // We're testing that no panics occur during creation and destruction
 }
@@ -109,7 +109,7 @@ fn test_watch_single_file() -> Result<()> {
     let (temp_dir, meta_file, _) = setup_test_directory()?;
     
     let (tx, rx) = channel();
-    let mut watcher = FileWatcher::new(tx);
+    let mut watcher = FileWatcher::new_with_sender(tx);
     
     // Start watching the meta file
     watch(&mut watcher, meta_file.to_string_lossy().to_string())?;
@@ -151,7 +151,7 @@ fn test_watch_directory() -> Result<()> {
     let test_dir = temp_dir.path().to_path_buf();
     
     let (tx, rx) = channel();
-    let mut watcher = FileWatcher::new(tx);
+    let mut watcher = FileWatcher::new_with_sender(tx);
     
     // Start watching the directory
     watch(&mut watcher, test_dir.to_string_lossy().to_string())?;
@@ -217,7 +217,7 @@ fn test_recursive_directory_watching() -> Result<()> {
     let sub_file = add_test_subdirectory(&test_dir)?;
     
     let (tx, rx) = channel();
-    let mut watcher = FileWatcher::new(tx);
+    let mut watcher = FileWatcher::new_with_sender(tx);
     
     // Start watching the main directory (should watch subdirectories recursively)
     watch(&mut watcher, test_dir.to_string_lossy().to_string())?;
@@ -259,7 +259,7 @@ fn test_file_creation() -> Result<()> {
     let test_dir = temp_dir.path().to_path_buf();
     
     let (tx, rx) = channel();
-    let mut watcher = FileWatcher::new(tx);
+    let mut watcher = FileWatcher::new_with_sender(tx);
     
     // Start watching the directory
     watch(&mut watcher, test_dir.to_string_lossy().to_string())?;
@@ -301,7 +301,7 @@ fn test_file_deletion() -> Result<()> {
     let test_dir = temp_dir.path().to_path_buf();
     
     let (tx, rx) = channel();
-    let mut watcher = FileWatcher::new(tx);
+    let mut watcher = FileWatcher::new_with_sender(tx);
     
     // Start watching the directory
     watch(&mut watcher, test_dir.to_string_lossy().to_string())?;
@@ -336,10 +336,10 @@ fn test_multiple_watchers() -> Result<()> {
     
     // Create two separate watchers
     let (tx1, rx1) = channel();
-    let mut watcher1 = FileWatcher::new(tx1);
+    let mut watcher1 = FileWatcher::new_with_sender(tx1);
     
     let (tx2, rx2) = channel();
-    let mut watcher2 = FileWatcher::new(tx2);
+    let mut watcher2 = FileWatcher::new_with_sender(tx2);
     
     // Start watching the directory with both watchers
     watch(&mut watcher1, test_dir.to_string_lossy().to_string())?;
@@ -389,7 +389,7 @@ fn test_unwatch() -> Result<()> {
     let (temp_dir, meta_file, xml_file) = setup_test_directory()?;
     
     let (tx, rx) = channel();
-    let mut watcher = FileWatcher::new(tx);
+    let mut watcher = FileWatcher::new_with_sender(tx);
     
     // Start watching both files
     watch(&mut watcher, meta_file.to_string_lossy().to_string())?;

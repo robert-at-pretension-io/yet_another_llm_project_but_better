@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Simple data block -->
+  <meta:data name="test-config">
+  {
+    "environment": "development",
+    "debug": true
+  }
+  </meta:data>
+
+  <!-- Simple condition block that returns true -->
+  <meta:shell name="test-condition" cache_result="true" auto_execute="true">
+  <![CDATA[
+  # Return a simple "true" value for condition evaluation
+  echo "true"
+  ]]>
+  </meta:shell>
+
+  <!-- Direct shell block to execute -->
+  <meta:shell name="test-shell">
+  <![CDATA[
+  echo "Executing test-condition code block:"
+  python3 -c "print('true')"
+  echo ""
+  echo "Testing conditional execution:"
+  echo "If this is true, this should appear: true"
+  ]]>
+  </meta:shell>
+
+  <!-- Conditional block that  should execute -->
+  <meta:conditional name="simple-condition" if="test-condition">
+    <meta:shell name="conditional-shell" auto_execute="true">
+    <![CDATA[
+    echo "===== CONDITIONAL EXECUTION WORKING! ====="
+    echo "This is a test of conditional execution"
+    echo "If you see this, conditionals are working!"
+    ]]>
+    </meta:shell>
+  </meta:conditional>
+</meta:document>

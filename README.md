@@ -110,8 +110,20 @@ The Meta Programming Language now supports an XML-based format for all block typ
     Section content and nested blocks
   </meta:section>
 
-  <meta:conditional if="data.rows > 100">
-    Conditional content that only appears when the condition is true
+  <meta:code language="python" name="is-large-dataset">
+  <![CDATA[
+  import json
+  data = json.loads('''<meta:reference target="dataset" />''')
+  print("true" if len(data.get("rows", [])) > 100 else "false")
+  ]]>
+  </meta:code>
+  
+  <meta:conditional if="is-large-dataset">
+    <meta:shell name="large-data-processing">
+    <![CDATA[
+    echo "Processing large dataset with specialized tools..."
+    ]]>
+    </meta:shell>
   </meta:conditional>
 
   <meta:template name="data-processor">

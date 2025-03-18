@@ -8,6 +8,7 @@ pub struct Block {
     pub modifiers: Vec<(String, String)>,
     pub content: String,
     pub children: Vec<Block>,
+    pub parent: Option<String>,   // Name of the parent block (if it's a child of another block)
 }
 
 impl Block {
@@ -19,6 +20,7 @@ impl Block {
             modifiers: Vec::new(),
             content: content.to_string(),
             children: Vec::new(),
+            parent: None,
         }
     }
     
@@ -64,8 +66,17 @@ impl Block {
     }
     
     // Add a child block
-    pub fn add_child(&mut self, child: Block) {
+    pub fn add_child(&mut self, mut child: Block) {
+        // Set parent reference if this block has a name
+        if let Some(name) = &self.name {
+            child.parent = Some(name.clone());
+        }
         self.children.push(child);
+    }
+    
+    // Set the parent of this block
+    pub fn set_parent(&mut self, parent_name: &str) {
+        self.parent = Some(parent_name.to_string());
     }
     
     // Get the XML namespace from a block type (if any)

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<meta:document xmlns:meta="https://example.com/meta-language">
+  <!-- Basic conditional example -->
+  <meta:code language="python" name="is-admin">
+  <![CDATA[
+  # Check if user has admin role
+  user_data = {
+    "name": "Alice",
+    "roles": ["admin", "developer"]
+  }
+  
+  is_admin = "admin" in user_data["roles"]
+  print("true" if is_admin else "false")
+  ]]>
+  </meta:code>
+  
+  <!-- This conditional block depends on is-admin and will only execute if it returns "true" -->
+  <meta:conditional if="is-admin">
+    <meta:shell name="admin-tools">
+    <![CDATA[
+    echo "Admin tools available"
+    echo "User has admin privileges"
+    ]]>
+    </meta:shell>
+  </meta:conditional>
+  
+  <!-- Example with nested conditional blocks -->
+  <meta:code language="python" name="check-environment">
+  <![CDATA[
+  import os
+  
+  # Simulate environment check
+  environment = "development"  # Could get from os.environ
+  
+  print("true" if environment == "development" else "false")
+  ]]>
+  </meta:code>
+  
+  <meta:conditional if="check-environment">
+    <meta:code language="python" name="check-debug-mode">
+    <![CDATA[
+    # Only run this if we're in development
+    debug_enabled = True  # Could check config
+    
+    print("true" if debug_enabled else "false")
+    ]]>
+    </meta:code>
+    
+    <!-- Nested conditional: only runs if both check-environment and check-debug-mode are true -->
+    <meta:conditional if="check-debug-mode">
+      <meta:shell name="debug-tools">
+      <![CDATA[
+      echo "Debug tools enabled"
+      echo "Environment: Development"
+      echo "Debug Mode: Active"
+      ]]>
+      </meta:shell>
+    </meta:conditional>
+  </meta:conditional>
+  
+  <!-- Example with a false condition -->
+  <meta:code language="python" name="is-production">
+  <![CDATA[
+  environment = "development"
+  print("true" if environment == "production" else "false")
+  ]]>
+  </meta:code>
+  
+  <meta:conditional if="is-production">
+    <meta:shell name="production-only">
+    <![CDATA[
+    echo "This block should NOT be executed"
+    echo "Production-only features active"
+    ]]>
+    </meta:shell>
+  </meta:conditional>
+  
+  <!-- Example with an LLM response as a condition -->
+  <meta:question name="should-compress-data" model="test_model" test_mode="true" test_response="true">
+  Given the following information, should I compress the data before sending?
+  - File size: 15MB
+  - Network: Mobile connection
+  - Data plan: Limited
+  
+  Answer only with "true" or "false".
+  </meta:question>
+  
+  <meta:conditional if="should-compress-data">
+    <meta:code language="python" name="compress-data">
+    <![CDATA[
+    print("Compressing data...")
+    print("Data compressed successfully")
+    ]]>
+    </meta:code>
+  </meta:conditional>
+  
+  <!-- Summary block that shows the state of all conditions -->
+  <meta:shell name="condition-summary">
+  <![CDATA[
+  echo "===== Condition Summary ====="
+  echo "is-admin: <meta:reference target="is-admin" />"
+  echo "check-environment: <meta:reference target="check-environment" />"
+  echo "check-debug-mode: <meta:reference target="check-debug-mode" />"
+  echo "is-production: <meta:reference target="is-production" />"
+  echo "should-compress-data: <meta:reference target="should-compress-data" />"
+  
+  echo ""
+  echo "===== Results of Conditional Blocks ====="
+  echo "- Admin Tools:"
+  if [ "<meta:reference target="is-admin" />" = "true" ]; then
+    echo "  <meta:reference target="admin-tools" />"
+  else
+    echo "  (not executed - condition not met)"
+  fi
+  
+  echo ""
+  echo "- Debug Tools:"
+  if [ "<meta:reference target="check-environment" />" = "true" ] && [ "<meta:reference target="check-debug-mode" />" = "true" ]; then
+    echo "  <meta:reference target="debug-tools" />"
+  else
+    echo "  (not executed - condition not met)"
+  fi
+  
+  echo ""
+  echo "- Production Tools:"
+  if [ "<meta:reference target="is-production" />" = "true" ]; then
+    echo "  <meta:reference target="production-only" />"
+  else
+    echo "  (not executed - condition not met)"
+  fi
+  
+  echo ""
+  echo "- Data Compression:"
+  if [ "<meta:reference target="should-compress-data" />" = "true" ]; then
+    echo "  <meta:reference target="compress-data" />"
+  else
+    echo "  (not executed - condition not met)"
+  fi
+  ]]>
+  </meta:shell>
+</meta:document>

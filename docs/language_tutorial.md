@@ -174,10 +174,20 @@ Group related blocks:
 ```
 
 ### Conditional Block
-Execute blocks conditionally:
+Execute content only if a condition block returns "true":
 
 ```xml
-<meta:conditional if="data.rows > 1000">
+<!-- Define a condition -->
+<meta:code language="python" name="is-large-dataset">
+<![CDATA[
+import json
+data = json.loads('''<meta:reference target="dataset" />''')
+print("true" if len(data["rows"]) > 1000 else "false")
+]]>
+</meta:code>
+
+<!-- Use the condition -->
+<meta:conditional if="is-large-dataset">
   <meta:code language="python" name="big-data-process">
   <![CDATA[
   # Code for large datasets
@@ -186,6 +196,18 @@ Execute blocks conditionally:
   </meta:code>
 </meta:conditional>
 ```
+
+Conditional blocks execute their content only when the referenced block returns "true", "1", or "yes" (case insensitive). You can use any block that produces output as a condition, including:
+
+- Python code blocks that print "true" or "false"
+- Shell commands that echo "true" or "false"  
+- LLM question blocks that return "true" or "false"
+
+This allows for powerful decision-making capabilities, including:
+- Data-driven conditions based on analysis results
+- Environment-based conditions (development vs. production)
+- User-role-based conditions (admin vs. regular user)
+- "Smart" conditions based on LLM reasoning
 
 ### Template Block
 Create reusable patterns:

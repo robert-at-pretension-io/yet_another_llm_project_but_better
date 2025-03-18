@@ -5,7 +5,6 @@ use crate::parser::blocks::Block;
 pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("template", None, "");
     let mut has_requires_modifier = false;
-    let mut template_type = String::from("template");
     
     println!("DEBUG: Processing template block: '{}'", pair.as_str());
     
@@ -40,7 +39,7 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
                         },
                         "_type" => {
                             // Type modifier changes the block type
-                            template_type = format!("template:{}", value);
+                            let template_type = format!("template:{}", value);
                             block.block_type = template_type.clone();
                             println!("DEBUG: Updated template type to: {}", template_type);
                             block.add_modifier(&key, &value);
@@ -84,7 +83,6 @@ pub fn process_template_block(pair: pest::iterators::Pair<Rule>) -> Block {
 // Process template invocation blocks
 pub fn process_template_invocation(pair: pest::iterators::Pair<Rule>) -> Block {
     let mut block = Block::new("template_invocation", None, "");
-    let mut invocation_type = String::from("template_invocation");
     let mut template_name = String::new();
     
     println!("DEBUG: Processing template invocation: '{}'", pair.as_str());
@@ -127,7 +125,7 @@ pub fn process_template_invocation(pair: pest::iterators::Pair<Rule>) -> Block {
                         // Process remaining modifiers
                         for modifier in modifiers {
                             if modifier.0 == "_type" {
-                                invocation_type = format!("template_invocation:{}", modifier.1);
+                                let invocation_type = format!("template_invocation:{}", modifier.1);
                                 block.block_type = invocation_type.clone();
                             }
                             
