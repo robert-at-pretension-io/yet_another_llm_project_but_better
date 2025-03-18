@@ -9,7 +9,7 @@ This project implements a robust parser and executor for the Meta Programming La
 - **XML Parsing**: Parses structured elements with different types and attributes using XML format
 - **Block Types**: Handles various block types including code, shell, API, data, template, and control blocks
 - **Modifiers**: Processes block attributes that control execution and behavior
-- **Variable References**: Extracts references to other blocks using `${variable-name}` syntax
+- **Variable References**: Extracts references to other blocks using `<meta:reference target="variable-name"/>` XML tags or `${variable-name}` legacy syntax
 - **Robust Handling**: Provides graceful parsing for varied syntax patterns, whitespace, indentation, and edge cases
 
 ### 2. Executor (`src/executor/`)
@@ -115,7 +115,7 @@ The Meta Programming Language now supports an XML-based format for all block typ
   </meta:conditional>
 
   <meta:template name="data-processor">
-    Template with ${placeholder} substitution
+    Template with <meta:reference target="placeholder"/> substitution
   </meta:template>
 
   <meta:template-invocation name="process-dataset" template="data-processor">
@@ -199,7 +199,7 @@ fn main() {
       <meta:code language="python" name="greet-user" depends="user-info">
       <![CDATA[
       import json
-      user = json.loads('${user-info}')
+      user = json.loads('''<meta:reference target="user-info" />''')
       print(f"Hello, {user['name']}! You are a {user['role']}.")
       ]]>
       </meta:code>

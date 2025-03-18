@@ -297,7 +297,41 @@ All blocks can have these attributes:
 
 ## Variable References
 
-Variable references follow the same syntax as in the bracket-based format:
+### XML Reference Format (Recommended)
+
+The recommended way to reference variables is with XML tag references:
+
+```xml
+<meta:code language="python" name="process-data">
+<![CDATA[
+import json
+user_data = json.loads('''<meta:reference target="user-info" />''')
+print(f"Hello, {user_data['name']}!")
+]]>
+</meta:code>
+```
+
+XML references support attributes for additional functionality:
+```xml
+<meta:reference target="data-block" format="json" />
+<meta:reference target="code-block" include_code="true" include_results="true" />
+<meta:reference target="missing-data" fallback="Default data" />
+```
+
+#### Reference Attributes
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `target` | Required. The block name to reference | `target="user-data"` |
+| `format` | Output format conversion | `format="json"` |
+| `include_code` | Include original code | `include_code="true"` |
+| `include_results` | Include execution results | `include_results="true"` |
+| `fallback` | Default value if reference fails | `fallback="No data"` |
+| `preview` | Show a preview of the reference | `preview="true"` |
+
+### Legacy Bracket Format
+
+For backward compatibility, the bracket-based syntax is still supported:
 
 ```xml
 <meta:code language="python" name="process-data">

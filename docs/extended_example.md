@@ -52,7 +52,7 @@ This document provides examples of Meta Programming Language documents in XML fo
   <meta:code language="python" name="sum-numbers">
   <![CDATA[
   import json
-  numbers = json.loads('''${numbers}''')
+  numbers = json.loads('''<meta:reference target="numbers" />''')
   total = sum(numbers)
   print(f"The sum is {total}")
   ]]>
@@ -79,7 +79,7 @@ This document provides examples of Meta Programming Language documents in XML fo
     <meta:code language="python" name="analyze-sales">
     <![CDATA[
     import json
-    data = json.loads('''${sales-data}''')
+    data = json.loads('''<meta:reference target="sales-data" />''')
     print(f"Sales: {data['sales']}")
     ]]>
     </meta:code>
@@ -125,13 +125,13 @@ This document provides examples of Meta Programming Language documents in XML fo
 <?xml version="1.0" encoding="UTF-8"?>
 <meta:document xmlns:meta="https://example.com/meta-language">
   <meta:template name="data-insights" model="gpt-4" temperature="0.3">
-    <meta:question model="${model}" temperature="${temperature}">
-    Analyze this dataset: ${dataset}
+    <meta:question model="<meta:reference target="model" />" temperature="<meta:reference target="temperature" />">
+    Analyze this dataset: <meta:reference target="dataset" />
     </meta:question>
   </meta:template>
   
   <meta:template-invocation name="insights-invocation" template="data-insights">
-    <meta:param name="dataset">${sales-data}</meta:param>
+    <meta:param name="dataset"><meta:reference target="sales-data" /></meta:param>
   </meta:template-invocation>
 </meta:document>
 ```

@@ -111,7 +111,7 @@ Make API requests:
 
 ```xml
 <meta:api name="fetch-weather" method="GET" cache_result="true">
-https://api.weather.com/forecast?location=${location}&units=metric
+https://api.weather.com/forecast?location=<meta:reference target="location" />&units=metric
 </meta:api>
 ```
 
@@ -216,7 +216,30 @@ Use templates with custom parameters:
 ## Advanced Features
 
 ### Variable References
-Reference other blocks using the same syntax as the bracket format:
+There are two ways to reference other blocks:
+
+#### XML Tag Format (Recommended)
+Using XML tags for variable references:
+
+```xml
+<meta:code language="python" name="process-user">
+<![CDATA[
+import json
+prefs = json.loads('''<meta:reference target="user-preferences" />''')
+print(f"Using {prefs['theme']} theme with {prefs['fontSize']}px font")
+]]>
+</meta:code>
+```
+
+You can also add modifiers to the reference tag:
+```xml
+<meta:reference target="data-block" format="json" />
+<meta:reference target="code-block" include_code="true" include_results="true" />
+<meta:reference target="missing-data" fallback="Data not available" />
+```
+
+#### Legacy Format
+For backward compatibility, you can also use the bracket syntax:
 
 ```xml
 <meta:code language="python" name="process-user">
@@ -242,7 +265,7 @@ Create complex workflows with nested blocks:
   <meta:code language="python" name="analyze">
   <![CDATA[
   import json
-  data = json.loads('${input-data}')
+  data = json.loads('''<meta:reference target="input-data" />''')
   result = sum(data['values'])
   print(f"Sum: {result}")
   ]]>
@@ -251,7 +274,7 @@ Create complex workflows with nested blocks:
   <meta:conditional if="result > 10">
     <meta:shell name="notify">
     <![CDATA[
-    echo "Result exceeds threshold: ${analyze.results}"
+    echo "Result exceeds threshold: <meta:reference target="analyze.results" />"
     ]]>
     </meta:shell>
   </meta:conditional>
